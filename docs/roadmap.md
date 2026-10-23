@@ -1,12 +1,22 @@
 # Roadmap detail
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-11 · **Change:** minor (PivotTable calculated fields) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (full VBA compatibility track and local foundation) · **Target:** Microsoft Excel (Microsoft 365)
 
 Forward-looking plan. The one-page summary is [`ROADMAP.md`](../ROADMAP.md); the ranked work
 list is [`gaps.md`](gaps.md); numbers and method are in
 [`target-app-parity.md`](target-app-parity.md). Estimates are Opus 5.5 agent-hours.
+The historical estimates below exclude the newly required full Excel VBA compatibility;
+that scope is not yet estimated. Existing readiness percentages are unchanged.
 
 ## Current focus
+
+The current local development track is **full compatibility with Excel-authored VBA**.
+Source import, a partial interpreter/object adapter and an editor are present in the working
+tree; the requirement is still unmet. Next: verify the existing foundation, expand against
+Excel-observed cases, implement executable VBA-project writing, and resolve the runtime for
+forms/events and Windows dependencies. Saved source currently lives in GridCraft metadata,
+not a rewritten `vbaProject.bin`. See [vba-compatibility.md](vba-compatibility.md).
+The inherited general product queue below remains separate from this local track.
 
 1. **Review and land the open PR queue** (50 PRs on 2026-10-10): recalc and spill fixes (#148,
    #155, #156, #157), whole-sheet and large-range fixes (#151, #152, #153, #154), chart kinds
@@ -73,7 +83,7 @@ to check our files, and Windows machines with the reported GPU drivers.
 | M8 | Insert & Review | partial; ink, icons, comments pane in |
 | M9 | Page layout & print | most; Page Layout view remains |
 | M10 | PivotTables, Solver, Analysis ToolPak | PivotTables in; slicers, Solver, ToolPak remain |
-| M11 | Automation (record actions, scripts) | done |
+| M11 | Automation (record actions, scripts, Excel VBA compatibility) | recorded scripts implemented; local VBA source import, partial VM and editor present; full VBA compatibility unmet and not yet estimated |
 | M12 | Performance, accessibility, i18n | partial; i18n not started |
 | M13 | Release & polish | releases shipping (v0.2.0–v0.4.0, signed) |
 | M14 | **Beta gates** (table above) | not started as a milestone; parts in open PRs |
@@ -94,7 +104,11 @@ to check our files, and Windows machines with the reported GPU drivers.
 | Page Layout view, print polish | #14 | 12–20 |
 | Mobile layout | #23 | 30–60 |
 | AI features with local models | #22 | 30–50 |
-| Plugin / custom-function API | #21 | 25–40 |
+| Plugin / custom-function API (separate from full VBA) | #21 | 25–40 |
+
+Full VBA compatibility is an active requirement rather than an optional post-beta exclusion.
+Its remaining implementation and verification work is not included in the table totals above
+and must be estimated separately before those totals describe the complete target.
 
 ## Measuring
 
@@ -112,6 +126,7 @@ to check our files, and Windows machines with the reported GPU drivers.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | Add the active full VBA compatibility track, partial local foundation and metadata-save gap; historical hours exclude the unestimated VBA requirement |
 | 2026-10-11 | minor | PivotTable calculated fields landed |
 | 2026-10-10 | minor | Current focus and M15 updated for the 10-10 merges |
 | 2026-10-10 | minor | Added the alpha gate table (six core workflows; passes, stays alpha) |

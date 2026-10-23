@@ -33,6 +33,7 @@ pub mod selection_glide;
 pub mod tabs;
 pub mod text_box;
 pub mod theme;
+mod vba_editor;
 pub mod web_fonts;
 pub mod widgets;
 
@@ -529,6 +530,9 @@ impl SheetApp {
     }
 
     pub fn run_or_alert(&mut self, id: &str, params: Json) {
+        if id == "automate.newScript" && params.as_object().is_none_or(serde_json::Map::is_empty) {
+            return self.open_dialog("vbaEditor", json!({}));
+        }
         // A menu/shortcut opens the settings first; the Print page's button submits explicitly.
         if id == "file.print" {
             if self.services.print_native.is_some() {
@@ -757,6 +761,9 @@ impl SheetApp {
     }
 
     pub fn open_dialog(&mut self, name: &str, params: Json) {
+        if self.dialog.as_ref().is_some_and(dialogs::Dialog::has_vba_editor) && !self.close_dialog(false) {
+            return;
+        }
         if let Err(e) = self.commit_text_box_edit() {
             self.message = Some(("Text Box".into(), clean_error(&e)));
             return;
@@ -808,6 +815,18 @@ impl SheetApp {
                 self.open_backstage(page);
             }
             other => self.dialog = dialogs::Dialog::open(self, other, params),
+        }
+    }
+
+    /// A VBA editor owns a draft and cooperative execution. Replacing or cancelling it
+    /// must stop execution and explicitly resolve unsaved source first.
+    pub(crate) fn close_dialog(&mut self, discard_edits: bool) -> bool {
+        let Some(mut dialog) = self.dialog.take() else { return true };
+        if dialog.request_close(self, discard_edits) {
+            true
+        } else {
+            self.dialog = Some(dialog);
+            false
         }
     }
 
@@ -870,7 +889,7 @@ impl SheetApp {
             let text = if dropped {
                 "This workbook's VBA macros could not be loaded and were dropped, so they will not be in the saved file. Keep the original file."
             } else {
-                "This workbook contains VBA macros. GridCraft keeps them when you save as .xlsm, but does not run them."
+                "This workbook contains VBA macros. The original project is preserved when saved as .xlsm. Inspect source in Macros; Excel VBA compatibility is still incomplete."
             };
             self.notice = Some(Notice { text: text.into(), kind: NoticeKind::Warning, action: Some(("What this means".into(), "macros".into())) });
         } else {

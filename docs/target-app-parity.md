@@ -1,12 +1,17 @@
 # Target-app parity: GridCraft vs Microsoft Excel
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-21 · **Change:** minor (Page Setup paper sizes match Japanese Excel: B4/B5/B6 are the JIS sizes, with ISO B4/B5/B6 by name and the Japanese postcards, envelopes and A6 added; no score change) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (full VBA requirement and partial local foundation; readiness scores unchanged) · **Target:** Microsoft Excel (Microsoft 365)
 
 This is the authoritative parity assessment. [`ROADMAP.md`](../ROADMAP.md) summarizes it,
 [`gaps.md`](gaps.md) lists every shortfall, and the area checklists hold the detail:
 [functions](function-parity.md), [charts](chart-parity.md), [file formats](file-format-parity.md),
 [UI](ui-parity.md), [hardware](hardware-parity.md), [localization](localization-parity.md). The
 generated ribbon checklist is [`parity-checklist.md`](parity-checklist.md).
+
+The 2026-10-23 update inventories the local VBA foundation from source. Full Excel VBA
+compatibility is now required and remains unmet; the inherited readiness percentages below
+have not been re-scored. Historical full-parity hours exclude that requirement and are not a
+complete estimate of the current target. See [vba-compatibility.md](vba-compatibility.md).
 
 ## Summary
 
@@ -63,7 +68,8 @@ long `.xls` track, so about half parallelizes (≈30–50 wall-clock hours with 
 - **Depth and readiness:** source reading (the model types in `crates/model/src/features.rs`,
   readers and writers in `crates/xlsx/src`, the evaluator), 478 `#[test]` functions, and the
   issue tracker: 60 open issues and 50 open PRs on 2026-10-10, 82 issues filed in total.
-- No cargo build or test ran for this pass (disk constraints); numbers come from source.
+- No cargo build or test ran for the original assessment (disk constraints); numbers came from
+  source. The 2026-10-23 VBA document update also makes no claim of current build/test success.
 
 ## Weights
 
@@ -93,7 +99,7 @@ performance 8, stability 8, localization 4, hardware 2, platforms 2, ecosystem 2
 | Get & Transform, external data, data model | 5 | ~15% | ~10% | 60–100 | Import of CSV/TSV, JSON, HTML. No Power Query editor, no From Web, database or folder sources, no connections or refresh, no relationships or data model, no external workbook links (dropped with a warning) |
 | Insert objects | 3 | ~55% | ~45% | 25–40 | Pictures, 8 shape kinds (Excel has ~170), text boxes, own icon set, ink with Ink to Shape, hyperlinks, checkboxes. Missing: SmartArt, WordArt, equations, signature line, objects, 3-D models, screenshot, pictures in cells (PR #105) |
 | Review, comments, protection, collaboration | 4 | ~55% | ~40% | 35–55 | Threaded comments, notes, spelling (system dictionary), thesaurus, sheet and workbook protection, Allow Edit Ranges with Excel-compatible password hashes (#307). Missing: comment navigation, Show Changes, notes-to-comments conversion, accessibility checker, co-authoring, opening password-encrypted files (refused with a message since #17) |
-| Automation | 4 | ~30% | ~20% | 12–20 | Recorded, editable GridCraft scripts (Automate tab). VBA is out of scope by owner decision and is **dropped** when an `.xlsm` is opened (warning shown). No Office Scripts compatibility |
+| Automation | 4 | ~30% | ~20% | 12–20 historical; full VBA not yet estimated | Recorded, editable GridCraft scripts plus local VBA source import, partial VM/object adapter and editor. Original VBA project bytes are preserved; source edits save in GridCraft metadata, not in `vbaProject.bin`. Full Excel VBA compatibility is required and unmet. No Office Scripts compatibility. [vba-compatibility.md](vba-compatibility.md) |
 | **Weighted** | 100 | **~75%** | **~59%** | **300–485** | |
 
 ## Dimensions
@@ -101,7 +107,7 @@ performance 8, stability 8, localization 4, hardware 2, platforms 2, ecosystem 2
 | Dimension | Weight | Ready | Hours | Evidence |
 |---|---|---|---|---|
 | Features | 45 | ~59% | 300–485 | Table above |
-| File formats | 15 | ~50% | 80–120 | XLSX read/write is broad but unproven on a real corpus and in Excel; XLSB and ODS are values-only import; no XLS, XML Spreadsheet 2003, SYLK, DIF, PRN; VBA dropped; 100 MB XLSX fails (#175). [file-format-parity.md](file-format-parity.md) |
+| File formats | 15 | ~50% | 80–120 historical; full VBA not yet estimated | XLSX read/write is broad but unproven on a real corpus and in Excel; XLSB and ODS are values-only import; `.xls` is partial import; no XML Spreadsheet 2003, SYLK, DIF, PRN. VBA project bytes retained for `.xlsm`/`.xltm`; partial source import/editor/runtime, but source edits do not rewrite Excel's VBA project. 100 MB XLSX fails (#175). [file-format-parity.md](file-format-parity.md) |
 | UI/UX fidelity | 12 | ~55% | 50–80 | Excel-style ribbon, galleries, dialogs, formula bar, status bar; 59 commands with shortcuts vs Excel's 200+; key tips on part of the Home tab only; short context menu; single window. [ui-parity.md](ui-parity.md) |
 | Performance | 8 | ~35% | 35–55 | [Performance](#performance) |
 | Stability | 8 | ~60% | 15–25 | Never-crash rules enforced by lint, every command fuzzed with hostile params, random command sequences fuzzed against undo/redo, XLSX round-trip and full-recalc invariants, last-resort guard in `Session::execute`. Field reports: Windows Intel GPU crash (#120), error on close (#117), freeze opening from Finder (#166), screen flashing (#76) |
@@ -231,8 +237,13 @@ Linux, BSD and RISC-V, where Excel doesn't run.
 
 - **Add-ins:** Excel has Office JavaScript add-ins, COM/XLL add-ins, VBA, Office Scripts and
   Power Automate. GridCraft has its own recorded scripts, plus a control channel, MCP server and
-  CLI that reach every command. VBA is out of scope (owner decision). A plugin or custom-function
-  API (for example LAMBDA libraries and WASM custom functions) is the open-equivalent path: 25–40 h.
+  CLI that reach every command. Full compatibility with Excel-authored VBA is now an explicit
+  requirement and remains unmet. The local source-import/partial interpreter/editor foundation
+  preserves original project bytes and stores source edits separately in GridCraft metadata;
+  it has no full VBE, form/event, executable project-writing or native Windows dependency support.
+  See [vba-compatibility.md](vba-compatibility.md). A plugin/custom-function API remains separate
+  work (historical estimate: 25–40 h); it is not a replacement for VBA compatibility. Full VBA
+  effort has not been estimated.
 - **AI:** Excel has Copilot, the COPILOT() function, Analyze Data, Python in Excel and Flash
   Fill. GridCraft has Flash Fill and best-in-class agent control (any MCP client can drive every
   command headless or live), but no in-app assistant, no natural-language formulas and no
@@ -250,6 +261,12 @@ missing and text in several scripts doesn't render. Distance to beta: ~25 points
 
 Hours are **Opus 5.5 agent wall-clock hours**, one agent working sequentially, including tests
 and verification.
+
+The tables retain their historical readiness percentages and hour totals; no score increase is
+claimed for the local VBA foundation. **Full Excel VBA compatibility is now required but was
+excluded from those totals and is not yet estimated.** The historic “full parity” totals therefore
+do not estimate the complete current target. The audience scores that explicitly exclude VBA
+also do not measure readiness for a macro-dependent user.
 
 Calibrated against this repo's history:
 
@@ -334,6 +351,7 @@ The inventory carried over from the 2026-10-07 ROADMAP.md, updated for what land
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | Replace obsolete VBA exclusion/drop claims with the full requirement and partial local import/runtime/editor; explain metadata-only save and historical score/effort limits |
 | 2026-10-21 | minor | Page Setup paper sizes: `B4`/`B5`/`B6` are the JIS sizes Japanese Excel uses (ISO B4/B5/B6 by name), and Japanese Postcard, Japanese Double Postcard, the chou/kaku envelopes and A6 are added; PDF MediaBox and `file.print` follow, and the Size menu lists them |
 | 2026-10-18 | trivial | Stale chart notes: all chart kinds survive XLSX round-trip (PRs #158, #161) and trendlines landed |
 | 2026-10-16 | minor | Advanced Filter copy-to clears only its actual output and rejects overflow without changing cells (#1031) |

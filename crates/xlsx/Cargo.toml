@@ -23,3 +23,4 @@ zip = { workspace = true }
 aes = { workspace = true }
 sha1 = { workspace = true }
 sha2 = { workspace = true }
+encoding_rs = "0.8"

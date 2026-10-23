@@ -887,7 +887,7 @@ fn dropped_macro_warning_never_promises_to_keep_macros() {
         assert!(n.text.contains("dropped") && !n.text.contains("keeps them"), "{}", n.text);
     }
     h.state_mut().show_open_warnings(&json!({"warnings": ["macros (VBA project) were kept but not executed"]}));
-    assert!(h.state().notice.clone().unwrap().text.contains("keeps them when you save as .xlsm"));
+    assert!(h.state().notice.clone().unwrap().text.contains("original project is preserved when saved as .xlsm"));
 }
 
 #[test]

@@ -22,6 +22,7 @@ pub mod pivot_calc;
 pub mod sample;
 pub mod selection;
 pub mod tables;
+pub mod vba;
 
 use std::sync::Arc;
 
@@ -173,7 +174,7 @@ impl DocState {
     pub fn new(mut wb: Workbook, path: Option<String>, title: String) -> DocState {
         let mut calc = Calc::new();
         calc.recalc_all(&mut wb);
-        let scripts_trusted = !cmd::extra::has_scripts(&wb);
+        let scripts_trusted = !cmd::extra::has_scripts(&wb) && !vba::has_modules(&wb) && wb.vba_project.is_none();
         let wb = Arc::new(wb);
         let sel = Selection::at(wb.active().map(|s| s.view_active).unwrap_or_default());
         DocState {
@@ -290,6 +291,7 @@ pub type TextWidth = Arc<dyn Fn(&str, &model::Font, bool) -> f32 + Send + Sync>;
 
 #[derive(Default)]
 pub struct Session {
+    pub(crate) vba: vba::State,
     docs: Vec<DocState>,
     active: usize,
     pub clipboard: Option<Clipboard>,

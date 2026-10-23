@@ -44,6 +44,7 @@ pub struct Dialog {
     /// The dialog this one was opened from (Name Manager › New…): it comes back when this closes.
     back: Option<Box<Dialog>>,
     focus_initialized: bool,
+    vba_editor: Option<crate::vba_editor::VbaEditor>,
 }
 
 impl Dialog {
@@ -51,10 +52,31 @@ impl Dialog {
         &self.name
     }
 
+    pub(crate) fn has_vba_editor(&self) -> bool {
+        self.vba_editor.is_some()
+    }
+
+    pub(crate) fn request_close(&mut self, app: &mut SheetApp, discard_edits: bool) -> bool {
+        let Some(editor) = &mut self.vba_editor else { return true };
+        if discard_edits {
+            editor.discard_edits();
+        }
+        if editor.request_close(app) {
+            true
+        } else {
+            // A close request from Recorded Scripts must reveal the draft confirmation.
+            self.tab = "VBA".into();
+            false
+        }
+    }
+
     /// Sets a form value. In Zoom, a Magnification choice is also the percentage `view.zoom`
     /// stores, a typed percentage selects Custom, and Fit selection makes OK run
     /// `view.zoomToSelection` (its view size was captured when the dialog opened).
     pub(crate) fn set_value(&mut self, key: &str, value: Json) {
+        if let Some(editor) = &mut self.vba_editor {
+            editor.set_value(key, &value);
+        }
         if self.name == "zoom" {
             match key {
                 "preset" => match value.as_str() {
@@ -94,6 +116,7 @@ impl Dialog {
             picture_target: None,
             back: None,
             focus_initialized: false,
+            vba_editor: None,
         }
     }
 
@@ -114,6 +137,7 @@ impl Dialog {
             picture_target: None,
             back: None,
             focus_initialized: false,
+            vba_editor: None,
         }
     }
 
@@ -799,6 +823,13 @@ impl Dialog {
             "macros" => {
                 let mut d = Dialog::custom("macros", "Macros", json!({}));
                 d.result = app.session.run("view.macros", json!({})).ok();
+                d.vba_editor = Some(crate::vba_editor::VbaEditor::new(app, &params));
+                d.tab = "VBA".into();
+                d
+            }
+            "vbaEditor" => {
+                let mut d = Dialog::custom("vbaEditor", "VBA Editor", json!({}));
+                d.vba_editor = Some(crate::vba_editor::VbaEditor::new(app, &params));
                 d
             }
             "statistics" => {
@@ -1148,7 +1179,8 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
     let width = match d.name.as_str() {
         "formatCells" => 560.0,
         "about" => 660.0,
-        "insertFunction" | "commandSearch" | "nameManager" | "manageRules" | "journal" | "agents" | "macros" => 520.0,
+        "insertFunction" | "commandSearch" | "nameManager" | "manageRules" | "journal" | "agents" => 520.0,
+        "macros" | "vbaEditor" => (ctx.content_rect().width() - 36.0).clamp(380.0, 780.0),
         "recommendedCharts" => 600.0,
         "analysisToolPak" => 420.0,
         "solver" => 460.0,
@@ -1207,7 +1239,12 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
                         }
                     });
                 }
-                "macros" => macros(app, ui, &mut d),
+                "macros" => macros(app, ui, &mut d, &mut open),
+                "vbaEditor" => {
+                    if let Some(editor) = &mut d.vba_editor {
+                        editor.show(app, ui, &mut open);
+                    }
+                }
                 "statistics" | "accessibility" | "errorChecking" | "evaluateFormula" | "comments" => {
                     let r = if d.name == "comments" {
                         app.session.active().and_then(|doc| doc.wb.active().map(|s| json!(s.comments.iter().map(|(c, m)| json!({"cell": c.a1(), "author": m.author, "text": m.text})).collect::<Vec<_>>())))
@@ -1429,6 +1466,9 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
         }
     } else if confirm {
         open = false;
+    }
+    if !open {
+        open = !d.request_close(app, false);
     }
     if let Some(child) = app.dialog.as_mut() {
         // The body opened another dialog (Name Manager › New…). It takes over; this one waits
@@ -1750,11 +1790,24 @@ fn about(ui: &mut egui::Ui, d: &mut Dialog) {
     }
 }
 
-/// The Macros dialog: lists GridCraft's own recorded scripts and (if the file carries one) the
-/// preserved VBA project. Mirrors Excel's Developer ▸ Macros list, but is honest that VBA is
-/// preserved and not executed.
-fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog) {
-    ui.label("Automation in this workbook. GridCraft runs its own scripts; a file's VBA project is preserved but not executed.");
+/// Workbook VBA editing and recorded command scripts share the familiar Macros entry point.
+fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, open: &mut bool) {
+    ui.horizontal(|ui| {
+        ui.selectable_value(&mut d.tab, "VBA".into(), "VBA Editor");
+        ui.selectable_value(&mut d.tab, "Recorded Scripts".into(), "Recorded Scripts");
+    });
+    ui.separator();
+    if d.tab == "VBA" {
+        if let Some(editor) = &mut d.vba_editor {
+            editor.show(app, ui, open);
+        }
+        return;
+    }
+    // Keep a running VBA procedure visible and stoppable instead of hiding it behind a tab.
+    if let Some(editor) = &mut d.vba_editor {
+        editor.pause_for_tab(app);
+    }
+    ui.label("Recorded scripts run workbook commands. VBA source is available in the VBA Editor tab.");
     ui.add_space(6.0);
     let items: Vec<Json> = d.result.as_ref().and_then(Json::as_array).cloned().unwrap_or_default();
     if items.is_empty() {
@@ -1768,6 +1821,9 @@ fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog) {
             if ui.button("Trust Scripts").on_hover_text("Let this workbook's scripts run for the rest of this session").clicked() {
                 let _ = app.run("automate.trustScripts", json!({"trusted": true}));
                 d.result = app.session.run("view.macros", json!({})).ok();
+                if let Some(editor) = &mut d.vba_editor {
+                    editor.refresh(app);
+                }
             }
         });
         ui.add_space(6.0);
@@ -1779,10 +1835,17 @@ fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog) {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(name).strong());
                 if is_vba {
-                    ui.weak("— VBA project (preserved, not run)");
+                    ui.weak("— original VBA project preserved; inspect source in VBA Editor");
                 } else {
                     let steps = it.get("steps").and_then(Json::as_u64).unwrap_or(0);
                     ui.weak(format!("— {steps} step{}", if steps == 1 { "" } else { "s" }));
+                    let trusted = it.get("trusted").and_then(Json::as_bool).unwrap_or(false);
+                    if ui.add_enabled(trusted, egui::Button::new("Run script")).clicked() {
+                        match app.run("automate.runScript", json!({"name": name})) {
+                            Ok(_) => app.message = Some(("Recorded script".into(), format!("{name} completed."))),
+                            Err(error) => app.message = Some(("Recorded script".into(), crate::clean_error(&error))),
+                        }
+                    }
                 }
             });
         }

@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~25 points of "ready for real work" and ~160–240 h away
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-21 · **Change:** minor (Page Setup paper sizes: JIS B4/B5/B6, the Japanese postcards and envelopes, and A6; long flat operator chains up to Excel's formula limit) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (full VBA compatibility required; local source import, partial VM and editor) · **Target:** Microsoft Excel (Microsoft 365)
 
 GridCraft aims at full Microsoft Excel parity, and at being better in places: faster, open (XLSX
 is the native format), fully scriptable by agents (MCP, control channel, CLI), and on the web.
@@ -16,6 +16,14 @@ This page is the summary. The detail is in:
   [file formats](docs/file-format-parity.md) · [UI](docs/ui-parity.md) ·
   [hardware](docs/hardware-parity.md) · [localization](docs/localization-parity.md)
 - [`docs/architecture.md`](docs/architecture.md): how it is built
+- [`docs/vba-compatibility.md`](docs/vba-compatibility.md): full Excel VBA requirement, current subset and remaining gaps
+
+**Full compatibility with Excel-authored VBA is required and not yet achieved.** The local working
+tree has original-project preservation, bounded source import, a partial VM/object adapter and
+an editor. Source edits save in GridCraft metadata; writing them back into an executable Excel
+`vbaProject.bin` is not implemented. Existing readiness percentages below are unchanged.
+Their historical “full parity” hour totals excluded VBA; the full VBA requirement is **not yet
+estimated**, so those totals do not describe the complete current target.
 
 ## Headline numbers
 
@@ -66,7 +74,7 @@ collaboration, mobile, AI).
 | Localization | ~10% (ribbon in 6 languages) | 100–165 | [localization-parity.md](docs/localization-parity.md) |
 | Hardware (multi-core calc, GPU, pen, multi-window) | ~40% | 25–40 | [hardware-parity.md](docs/hardware-parity.md) |
 | Platforms | ~80% (no iOS/Android; ahead on Linux, BSD, RISC-V) | 30–60 | [target-app-parity.md](docs/target-app-parity.md#platforms) |
-| Ecosystem / add-ins | ~10% (VBA out of scope; own scripts, MCP, CLI) | 25–40 | [target-app-parity.md](docs/target-app-parity.md#ecosystem-and-ai) |
+| Ecosystem / add-ins | ~10% (own scripts, MCP, CLI; local partial VBA foundation) | 25–40 for API; full VBA not yet estimated | [target-app-parity.md](docs/target-app-parity.md#ecosystem-and-ai) |
 | AI features | ~15% (agent control strong; no in-app assistant) | 30–50 | [target-app-parity.md](docs/target-app-parity.md#ecosystem-and-ai) |
 | **Total** | **~50%** | **~700–1,100** | |
 
@@ -86,7 +94,7 @@ collaboration, mobile, AI).
 | Get & Transform, external data, data model | ~15% | ~10% | 60–100 | [target-app-parity.md](docs/target-app-parity.md#feature-areas) |
 | Insert objects (pictures, shapes, ink, SmartArt, equations) | ~55% | ~45% | 25–40 | [target-app-parity.md](docs/target-app-parity.md#feature-areas) |
 | Review, comments, protection, collaboration | ~55% | ~40% | 35–55 | [target-app-parity.md](docs/target-app-parity.md#feature-areas) |
-| Automation (recorded scripts; no VBA) | ~30% | ~20% | 12–20 | [target-app-parity.md](docs/target-app-parity.md#feature-areas) |
+| Automation (recorded scripts; local partial VBA VM/editor) | ~30% | ~20% | 12–20 historical; full VBA not yet estimated | [vba-compatibility.md](docs/vba-compatibility.md) |
 
 ## Languages
 
@@ -121,6 +129,12 @@ Other shipped languages: 3 (Russian and German, menus only, ~12%; Dutch, menus, 
 Ranked; estimates in Opus 5.5 agent-hours. Detail and the full beta-gate list in
 [docs/roadmap.md](docs/roadmap.md).
 
+The active local VBA track first verifies source import, the editor, staged execution and saving;
+then expands language/object-model behaviour, project writing, forms/events and the architecture
+for native Windows dependencies. This is staged implementation of the full compatibility
+requirement. Present test source is not a claim of passing current checks or arbitrary Excel
+macro support. See [docs/vba-compatibility.md](docs/vba-compatibility.md).
+
 1. **Land the open PR queue** (50 open PRs on 2026-10-10, many fixing listed gaps: recalc and spill
    correctness, chart kind round-trip, CJK font fallback, macOS Finder open, German and Chinese
    UI). Review and merge: 8–15 h.
@@ -135,6 +149,7 @@ Ranked; estimates in Opus 5.5 agent-hours. Detail and the full beta-gate list in
 
 | Date | What landed |
 |---|---|
+| 2026-10-23 | Local working tree: bounded VBA source extraction, partial cooperative interpreter/Excel object adapter and editor with run/stop/errors/output. Original project bytes remain preserved; source edits save only in GridCraft metadata. Full Excel VBA compatibility is required and unmet; build/test and external Excel validation must be reported separately. No readiness score change |
 | 2026-10-21 | Page Setup paper sizes match Japanese Excel: `B4`/`B5`/`B6` are the JIS sizes (ISO B4/B5/B6 stay reachable by name), so a Japanese B5 worksheet prints at 182×257 mm; Japanese Postcard (100×148 mm), Double Postcard (148×200 mm), Envelope #3/#4 (120×235/90×205 mm), Kaku #2/#3 (240×332/216×277 mm) and A6 are added, both sizes reach the PDF page (`file.exportPdf`/`file.print` MediaBox) and the size survives an XLSX round-trip; the Page Layout Size menu lists them. `B4`/`B5` used to be the ISO sizes, which is changed here |
 | 2026-10-20 | Japanese interface catalog covers every key the Brazilian Portuguese catalog translates: the 398-label shared core plus 545 dialog, message, Backstage and menu strings (943 total, ~43% of ~2,200). A test parses `pt.rs`'s source, so the two catalogs stay in step |
 | 2026-10-20 | Interface translated into Dutch (518 labels: ribbon, context menus, File view, dialog titles, Options); `nl`, `nl-NL`, `nl-BE` locale tags resolve to Dutch |
@@ -220,6 +235,7 @@ Ranked; estimates in Opus 5.5 agent-hours. Detail and the full beta-gate list in
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | VBA requirement and local foundation documented; remove obsolete exclusion claims, retain scores and mark full VBA effort unestimated |
 | 2026-10-21 | minor | Page Setup paper sizes: JIS B4/B5/B6 (ISO by name), Japanese postcards and envelopes, A6; PDF page size follows, XLSX round-trips |
 | 2026-10-20 | minor | Dutch (nl) listed under other shipped languages; progress log row |
 | 2026-10-19 | minor | Progress log: long flat operator chains (#916) |

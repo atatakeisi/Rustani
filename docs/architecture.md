@@ -1,6 +1,6 @@
 # Architecture
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (bound Undo's retained cell storage) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (VBA source import, partial VM/editor and metadata save boundaries) · **Target:** Microsoft Excel (Microsoft 365)
 
 How GridCraft is built today. Rules for contributors are in [`AGENTS.md`](../AGENTS.md).
 
@@ -46,6 +46,28 @@ including tests, 2026-10-10.
 5. **Files**: `engine/io.rs` sniffs content (XLSX, XLSB, ODS) before trusting the extension and
    dispatches to `crates/xlsx`; imports that lose data return warnings shown to the user.
 
+## VBA execution and source storage
+
+Full Excel VBA compatibility is required but not yet implemented. The local foundation has
+three layers: `xlsx/src/vba.rs` extracts bounded source from a preserved `vbaProject.bin`;
+`engine/src/vba` compiles a subset of VBA and adapts selected Excel objects to existing commands;
+`ui-egui/src/vba_editor.rs` presents module editing, procedure selection, run/stop and diagnostics.
+The same `automate.*Vba*` engine commands are available to the UI, CLI and MCP.
+
+The cooperative VM runs in a private workbook snapshot and publishes changes only on success,
+as one Undo step. Stop, errors, limits, workbook changes or trust revocation discard pending
+changes. Execution checks session trust; workbooks loaded with VBA or GridCraft scripts/source
+require explicit Trust Scripts, while new blank workbooks start trusted. The host exposes no
+file, process, network or COM API.
+These semantics and limits are current compatibility gaps, not complete Excel behaviour.
+
+Saved editor source is JSON in the hidden defined name `_gc_vba_sources_v1`. It overrides
+same-named imported source inside GridCraft, but **does not rewrite or generate `vbaProject.bin`**.
+The original binary project is preserved separately and saved only into macro-enabled packages.
+Full language/object-model coverage, events, UserForms, native dependencies and Excel project
+writing remain. See [vba-compatibility.md](vba-compatibility.md) for the current boundary and
+verification work; source inspection alone does not establish test success or Excel parity.
+
 ## Agent control
 
 - Desktop control channel: `gridcraft --control 7979`, JSON lines on localhost
@@ -66,10 +88,13 @@ rpm, tarball), FreeBSD, and web (WASM; WebGPU or WebGL2). Release workflows in
 - No string catalog or text shaping (see [localization-parity.md](localization-parity.md)).
 - XLSX reader builds the whole workbook in memory; no streaming (#175).
 - Unmodelled XLSX parts are not carried through a save.
+- VBA is a partial source interpreter; editing source cannot yet update an executable Excel
+  VBA project, and Windows-dependent macros have no execution backend.
 
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | Document the local VBA import/VM/editor layers, staged execution, trust and metadata-only source save; full compatibility remains unmet |
 | 2026-10-14 | minor | Document Undo's retained-cell-storage budget and latest-step guarantee |
 | 2026-10-10 | major | Created from the code on main: crates, layers, data flow, agent control, known gaps |

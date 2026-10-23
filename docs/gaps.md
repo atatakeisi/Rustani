@@ -1,6 +1,6 @@
 # Gaps
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-20 · **Change:** minor (the Japanese catalog covers the dialogs, messages and menus) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (full VBA compatibility required; document the partial local implementation) · **Target:** Microsoft Excel (Microsoft 365)
 
 Every known shortfall against Excel, one entry each, ranked by user impact (what blocks someone
 using GridCraft for real work first). This is the work list: pick from the top, check the open
@@ -160,8 +160,19 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
   [hardware-parity.md](hardware-parity.md)
 
 ### 21. Automation and add-ins (F)
-- VBA out of scope (dropped on open, #6); no Office Scripts compatibility; no plugin or custom
-  function API. **Estimate:** 25–40 h plus an owner decision.
+- **Required:** full compatibility with Excel-authored VBA, including the language, object
+  model, events, UserForms and native Windows dependencies. This requirement is not met.
+- **Present locally:** original VBA project bytes retained for `.xlsm`/`.xltm`; bounded source
+  extraction; partial cooperative VM and Excel object adapter; source editor, run/stop, output
+  and line diagnostics. Loaded VBA/script content needs explicit trust; edits are staged and commit
+  only after success. Source edits save in GridCraft metadata and do not update or create the
+  original Excel `vbaProject.bin`.
+- **Missing:** broad language/library/object-model coverage, project writing, events/forms,
+  native execution architecture, macro UDFs, add-in lifecycle and Excel corpus verification.
+  Office Scripts compatibility and a plugin/custom-function API also remain absent.
+- **Estimate:** full VBA compatibility **not yet estimated**. The historical 25–40 h covers
+  the plugin/custom-function API only and must not be read as an estimate for complete VBA.
+  Existing readiness scores are unchanged. [vba-compatibility.md](vba-compatibility.md)
 
 ### 22. AI features (F)
 - No in-app assistant, natural-language formulas or Analyze Data; agent control via MCP is
@@ -178,6 +189,7 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | §21: replace obsolete VBA exclusion/drop claim with the full requirement, local partial implementation and unestimated remaining scope; readiness unchanged |
 | 2026-10-20 | minor | §11: the Japanese catalog covers the dialogs, messages and menus — 943 keys (~43%), matching the pt-BR coverage; a test keeps the two catalogs in step |
 | 2026-10-17 | minor | §6: the five reports it tracked are closed and their PRs merged (#57, #133, #139, #140, #134; PRs #148, #155, #156, #157); the entry stays open for §15's oracle suite |
 | 2026-10-15 | minor | §13: Solver prepares reports before committing the solution, model and report sheets together; report refusal preserves the workbook and Undo/Redo (#1050) |

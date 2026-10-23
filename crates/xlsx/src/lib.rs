@@ -33,6 +33,7 @@ mod tables;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 mod theme;
+pub mod vba;
 mod write;
 mod xls;
 mod xlsb;

@@ -325,6 +325,65 @@ impl<'a> Compound<'a> {
         data.truncate(size);
         Ok(Some(data))
     }
+
+    /// Reads a stream at a storage path, enforcing a caller-specific allocation limit.
+    /// Each storage's sibling tree is traversed with a visited set; storage and stream
+    /// entries are never confused. Used for VBA's `VBA/dir` and module streams.
+    pub(crate) fn stream_path(&self, path: &[&str], limit: usize) -> Result<Option<Vec<u8>>, String> {
+        if path.is_empty() || path.len() > 16 {
+            return Err("damaged compound file: invalid storage path depth".into());
+        }
+        let mut parent = 0usize;
+        for (depth, name) in path.iter().enumerate() {
+            let last = depth + 1 == path.len();
+            let wanted_kind = if last { STREAM_OBJECT } else { 1 };
+            let entry = self.entries.get(parent).ok_or("damaged compound file: missing storage")?;
+            let mut stack = vec![entry.child];
+            let mut visited = vec![false; self.entries.len()];
+            let mut found = None;
+            while let Some(id) = stack.pop() {
+                if id == NO_STREAM {
+                    continue;
+                }
+                let mark = visited.get_mut(id as usize).ok_or("damaged compound file: directory entry out of range")?;
+                if *mark {
+                    return Err("damaged compound file: directory tree loops".into());
+                }
+                *mark = true;
+                let e = self.entries.get(id as usize).ok_or("damaged compound file: directory entry out of range")?;
+                if e.kind == wanted_kind && e.name.eq_ignore_ascii_case(name) {
+                    if found.is_some() {
+                        return Err("damaged compound file: duplicate stream or storage name".into());
+                    }
+                    found = Some(id as usize);
+                }
+                stack.push(e.left);
+                stack.push(e.right);
+            }
+            let Some(id) = found else { return Ok(None) };
+            parent = id;
+        }
+        let e = self.entries.get(parent).ok_or("damaged compound file: missing stream")?;
+        if e.size > limit as u64 || e.size > MAX_STREAM {
+            return Err(format!("compound stream exceeds the {limit}-byte reading limit"));
+        }
+        let size = usize::try_from(e.size).map_err(|_| "compound stream too large".to_string())?;
+        let mut data = if e.size < self.mini_cutoff {
+            let root = self.entries.first().ok_or("damaged compound file: missing root entry")?;
+            if root.size > self.bytes.len() as u64 {
+                return Err("damaged compound file: mini stream exceeds the file size".into());
+            }
+            let container = self.read_chain(root.start, root.size)?;
+            self.read_mini_chain(&container, e.start, size)?
+        } else {
+            self.read_chain(e.start, e.size)?
+        };
+        if data.len() < size {
+            return Err("damaged compound file: stream is shorter than its declared size".into());
+        }
+        data.truncate(size);
+        Ok(Some(data))
+    }
 }
 
 #[cfg(test)]
