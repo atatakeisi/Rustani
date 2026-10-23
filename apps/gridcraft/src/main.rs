@@ -101,8 +101,8 @@ fn load_prefs(app: &mut SheetApp) {
     if !prefs_enabled() {
         return;
     }
-    // First run (or a ui.json without a usable language): follow the desktop's language.
-    app.ui.language = gridcraft_ui_egui::i18n::Language::system();
+    // This edition starts in Japanese; an explicit saved language still takes priority.
+    app.ui.language = gridcraft_ui_egui::i18n::Language::Ja;
     // ...and its light or dark appearance (#239), until a theme is chosen and saved in ui.json.
     app.ui.system_theme = true;
     let Some(dir) = config_dir() else { return };

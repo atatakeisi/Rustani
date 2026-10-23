@@ -1,11 +1,12 @@
 //! Interface translations. Command ids and document text stay stable; only interface chrome is
 //! translated. Untranslated labels fall back to English, so coverage can grow incrementally.
 //!
-//! The interface language is a preference ([`crate::UiState::language`]): on first run it defaults
-//! to the system's language ([`Language::system`]), and the View tab switches it by hand.
+//! The interface language is a preference ([`crate::UiState::language`]): this edition's app
+//! entry points prefer Japanese, and the View tab switches it by hand. Headless/test defaults
+//! remain English. Web builds require the optional Japanese font before selecting Japanese.
 //!
-//! CJK fonts stay system-provided: [`crate::theme`] appends available CJK faces to every family so
-//! Japanese, Chinese and Korean labels and workbook text can render without bundling font files.
+//! [`crate::theme`] appends system CJK faces on native platforms and the optional external
+//! craft-fonts Japanese fallback in Web builds; font source files are not stored in this repo.
 
 use serde::{Deserialize, Serialize};
 
@@ -275,7 +276,7 @@ pub fn lenient<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Language, D::Er
 
 /// The language a saved `ui.json` asks for, if it names a supported one. The desktop app uses it
 /// to tell "saved English" from "nothing usable saved" (first run, an older file, an unknown
-/// value), which starts from [`Language::system`] instead.
+/// value), which keeps the app's initial language instead.
 pub fn saved_language(ui_json: &serde_json::Value) -> Option<Language> {
     ui_json.get("language").and_then(serde_json::Value::as_str).and_then(Language::parse)
 }

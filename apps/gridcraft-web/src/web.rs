@@ -23,8 +23,9 @@ pub fn start() {
                     "style",
                     "display:block;overflow:auto;padding:24px;white-space:pre-wrap;pointer-events:auto;box-sizing:border-box",
                 );
-                loading
-                    .set_text_content(Some(gridcraft_ui_egui::web_fonts::japanese_licence().unwrap_or("This build has no embedded Japanese font.")));
+                loading.set_text_content(Some(
+                    gridcraft_ui_egui::web_fonts::japanese_licence().unwrap_or("このビルドには日本語フォントが埋め込まれていません。"),
+                ));
             }
             return;
         }
@@ -73,18 +74,14 @@ pub fn start() {
                     }
                     let mut app = SheetApp::new(session, services);
                     app.ui.system_theme = true;
-                    // Follow Japanese only when the optional font was embedded and validated.
-                    // Its Japanese coverage does not imply full Chinese or Korean coverage.
-                    let browser = gridcraft_ui_egui::i18n::Language::system();
-                    if !matches!(browser, gridcraft_ui_egui::i18n::Language::Zh | gridcraft_ui_egui::i18n::Language::Ko)
-                        && (browser != gridcraft_ui_egui::i18n::Language::Ja || gridcraft_ui_egui::web_fonts::japanese_available())
-                    {
-                        app.ui.language = browser;
-                    }
+                    let japanese_font = gridcraft_ui_egui::web_fonts::japanese_available();
+                    app.ui.language = crate::prefs::default_language(japanese_font);
                     // Preferences from an earlier visit (#1562), as the desktop app reads `ui.json`
-                    // and `prefs.json`; a saved language replaces the browser's.
+                    // and `prefs.json`; a saved language replaces the initial default.
                     let (stored_ui, stored_prefs) = (stored(crate::prefs::UI_KEY), stored(crate::prefs::PREFS_KEY));
                     crate::prefs::restore(&mut app, stored_ui.as_deref(), stored_prefs.as_deref());
+                    app.ui.language = crate::prefs::requested_language(app.ui.language, query_param("lang").as_deref(), japanese_font);
+                    set_document_language(app.ui.language);
                     let mut prefs = crate::prefs::PrefsSync::new(stored_ui, stored_prefs);
                     SheetApp::setup_context_for_language(&cc.egui_ctx, false, app.ui.language);
                     if let Some(bridge) = &app_bridge {
@@ -104,7 +101,9 @@ pub fn start() {
         if let Some(el) = document.get_element_by_id(LOADING_ID) {
             match result {
                 Ok(()) => el.remove(),
-                Err(e) => el.set_inner_html(&format!("<p>GridCraft failed to start: {e:?}</p><p>A browser with WebGPU or WebGL2 is required.</p>")),
+                Err(e) => {
+                    el.set_text_content(Some(&format!("GridCraftを起動できませんでした: {e:?}\nWebGPUまたはWebGL2に対応したブラウザが必要です。")))
+                }
             }
         }
     });
@@ -116,6 +115,12 @@ fn query() -> String {
 
 fn query_param(key: &str) -> Option<String> {
     web_sys::UrlSearchParams::new_with_str(&query()).ok()?.get(key)
+}
+
+fn set_document_language(language: gridcraft_ui_egui::i18n::Language) {
+    if let Some(root) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.document_element()) {
+        let _ = root.set_attribute("lang", language.code());
+    }
 }
 
 struct WebShell {
@@ -155,6 +160,9 @@ impl eframe::App for WebShell {
         // Store changed preferences straight away: a reload or closed tab runs no exit code (#1562).
         let changed = self.prefs.changed(&self.app);
         if !changed.is_empty() {
+            if changed.iter().any(|(key, _)| *key == crate::prefs::UI_KEY) {
+                set_document_language(self.app.ui.language);
+            }
             match local_storage() {
                 Some(store) => {
                     for (key, json) in changed {
@@ -190,7 +198,7 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
             let ctx = ctx.clone();
             wasm_bindgen_futures::spawn_local(async move {
                 let Some(file) = rfd::AsyncFileDialog::new()
-                    .add_filter("Spreadsheets", &["xlsx", "xlsm", "xls", "xlsb", "ods", "csv", "tsv", "txt", "json"])
+                    .add_filter("表計算ファイル", &["xlsx", "xlsm", "xls", "xlsb", "ods", "csv", "tsv", "txt", "json"])
                     .pick_file()
                     .await
                 else {
@@ -204,7 +212,7 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         pick_picture_async: Some(Box::new(move |inbox| {
             let ctx = picture_ctx.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                let Some(file) = rfd::AsyncFileDialog::new().add_filter("Pictures (PNG, JPEG)", &["png", "jpg", "jpeg"]).pick_file().await else {
+                let Some(file) = rfd::AsyncFileDialog::new().add_filter("画像 (PNG, JPEG)", &["png", "jpg", "jpeg"]).pick_file().await else {
                     return;
                 };
                 let bytes = file.read().await;

@@ -4,7 +4,8 @@
 //! [`CORE`] is the shared reference catalog every language translates: the ribbon, sheet tabs,
 //! widgets and the most common dialog labels. [`DIALOGS`] adds the dialog titles and labels,
 //! message boxes, Backstage/File-view items, template names and native-menu strings the Brazilian
-//! Portuguese catalog (`pt.rs`) covers on top of it. The two lists never overlap.
+//! Portuguese catalog (`pt.rs`) covers on top of it. [`VBA`] extends those reference lists for
+//! the VBA editor and macro workflow. The lists never overlap.
 
 /// English label → Japanese, the shared reference set every catalog covers.
 pub(super) const CORE: &[(&str, &str)] = &[
@@ -980,10 +981,92 @@ pub(super) const DIALOGS: &[(&str, &str)] = &[
     ("Unprotect Sheet…", "シート保護の解除…"),
 ];
 
+/// Editor and macro strings beyond the shared reference catalog. Source identifiers and user
+/// program output are intentionally absent: translations apply only to interface text.
+const VBA: &[(&str, &str)] = &[
+    (
+        "This workbook contains VBA macros. The original project is preserved when saved as .xlsm. Inspect source in Macros; Excel VBA compatibility is still incomplete.",
+        "このブックには VBA マクロが含まれています。.xlsm 形式で保存すると、元のプロジェクトを保持します。コードは「マクロ」で確認できます。Excel VBA との完全互換は、まだ実現していません。",
+    ),
+    (
+        "This workbook's VBA macros could not be loaded and were dropped, so they will not be in the saved file. Keep the original file.",
+        "このブックの VBA マクロを読み込めなかったため、マクロは保存先のファイルに含まれません。元のファイルを保管してください。",
+    ),
+    (
+        "A clean-room, open-source, Rust-native spreadsheet. Part of ArtCraft.",
+        "独立したクリーンルーム実装による、オープンソースの Rust 製表計算ソフトです。ArtCraft の一つです。",
+    ),
+    ("VBA Editor", "VBA エディター"),
+    ("Recorded Scripts", "記録したスクリプト"),
+    ("Recorded script", "記録したスクリプト"),
+    (
+        "Recorded scripts run workbook commands. VBA source is available in the VBA Editor tab.",
+        "記録したスクリプトはブックの操作を実行します。VBA のコードは「VBA エディター」タブで編集できます。",
+    ),
+    ("Scripts in this workbook came from a file and are disabled.", "このブックのスクリプトはファイルから読み込まれたため、無効になっています。"),
+    ("Trust Scripts", "スクリプトを信頼する"),
+    ("Let this workbook's scripts run for the rest of this session", "このセッション中、このブックのスクリプトの実行を許可します"),
+    (
+        "— original VBA project preserved; inspect source in VBA Editor",
+        "— 元の VBA プロジェクトを保持しています。コードは VBA エディターで確認できます",
+    ),
+    ("Run script", "スクリプトを実行"),
+    ("{name} completed.", "{name} の実行が完了しました。"),
+    ("VBA project preserved", "VBA プロジェクトを保持"),
+    ("Return to the original workbook to edit or run this module.", "このモジュールを編集・実行するには、元のブックに戻ってください。"),
+    (
+        "Edit or paste VBA, then choose a procedure and Run. Unsupported code reports an error.",
+        "VBA のコードを入力または貼り付け、プロシージャを選んで実行してください。未対応のコードはエラーを表示します。",
+    ),
+    (
+        "Only a subset of VBA is supported. Full Excel VBA compatibility has not been achieved.",
+        "現在は VBA の一部に対応しています。Excel VBA との完全互換は、まだ実現していません。",
+    ),
+    (
+        "The original VBA project is preserved in .xlsm files. Excel VBA compatibility is still incomplete.",
+        ".xlsm ファイルには元の VBA プロジェクトを保持します。Excel VBA との互換性には未対応の機能があります。",
+    ),
+    (
+        "Saving source updates GridCraft's copy; the original Excel macro project is preserved.",
+        "コードを保存すると GridCraft 側のコピーを更新します。元の Excel マクロプロジェクトは変更しません。",
+    ),
+    ("VBA source import: {error}", "VBA コードの読み込み: {error}"),
+    ("Module error: {error}", "モジュールのエラー: {error}"),
+    ("VBA error: {error}", "VBA エラー: {error}"),
+    ("Line {line}: {message}", "{line} 行目: {message}"),
+    ("Execution failed", "実行に失敗しました"),
+    ("Run VBA", "VBA を実行"),
+    ("Stop VBA", "VBA を停止"),
+    ("{state} · line {line} · {steps} steps", "{state}・{line} 行目・{steps} ステップ"),
+    ("VBA state|idle", "待機中"),
+    ("VBA state|running", "実行中"),
+    ("VBA state|completed", "完了"),
+    ("VBA state|failed", "失敗"),
+    ("VBA state|stopped", "停止"),
+    ("Macros are disabled until you trust this workbook.", "このブックを信頼するまで、マクロは実行できません。"),
+    ("New module", "新しいモジュール"),
+    ("Save module", "モジュールを保存"),
+    ("Unsaved changes", "未保存の変更があります"),
+    ("Discard edits", "変更を破棄"),
+    ("Module name:", "モジュール名:"),
+    ("Procedure:", "プロシージャ:"),
+    ("Choose…", "選択…"),
+    ("Replace module \"{name}\"?", "モジュール「{name}」を置き換えますか？"),
+    ("Replace module", "モジュールを置き換える"),
+    ("Cancel replacement", "置き換えをキャンセル"),
+    ("Insert summary example", "集計のサンプルを挿入"),
+    ("The example writes to E1:E2 only when you press Run.", "サンプルは「VBA を実行」を押すと E1:E2 に書き込みます。"),
+    ("VBA|Output", "出力"),
+    ("Save changes before closing?", "閉じる前に変更を保存しますか？"),
+    ("Save and close", "保存して閉じる"),
+    ("Close without saving", "保存せずに閉じる"),
+    ("Keep editing", "編集を続ける"),
+];
+
 /// Translates an interface label; `None` for a label the catalog does not know, so `i18n.rs` can
-/// fall back to English. Dialog strings come first, the shared core second.
+/// fall back to English. The shared reference lists keep their original coverage contract.
 pub(super) fn translate(text: &str) -> Option<&'static str> {
-    DIALOGS.iter().chain(CORE).find(|(english, _)| *english == text).map(|(_, translated)| *translated)
+    DIALOGS.iter().chain(CORE).chain(VBA).find(|(english, _)| *english == text).map(|(_, translated)| *translated)
 }
 
 #[cfg(test)]
@@ -1122,5 +1205,20 @@ mod tests {
         // A `context|label` key shows only its label in English; an unknown label keeps the text.
         assert_eq!(crate::i18n::Language::En.tr("Format Cells|Fill"), "Fill");
         assert_eq!(crate::i18n::Language::Ja.tr("Not in any catalog"), "Not in any catalog");
+    }
+
+    #[test]
+    fn vba_catalog_keeps_unique_keys_placeholders_and_english_fallbacks() {
+        fn placeholders(text: &str) -> std::collections::BTreeSet<&str> {
+            text.split('{').skip(1).filter_map(|part| part.split_once('}').map(|(name, _)| name)).collect()
+        }
+        let mut keys: HashSet<&str> = catalog_keys().collect();
+        for (english, japanese) in VBA {
+            assert!(keys.insert(english), "duplicate VBA translation key: {english}");
+            assert!(!japanese.trim().is_empty(), "empty VBA translation: {english}");
+            assert_eq!(placeholders(english), placeholders(japanese), "VBA placeholders: {english}");
+            assert_eq!(crate::i18n::Language::Ja.tr(english), *japanese);
+            assert_eq!(crate::i18n::Language::En.tr(english), english.rsplit_once('|').map_or(*english, |(_, text)| text));
+        }
     }
 }

@@ -72,8 +72,8 @@ pub struct UiState {
     #[serde(skip)]
     pub keytip_invoke: Option<&'static str>,
     /// Interface language. English by default (so tests and headless renders never depend on the
-    /// host's locale); the desktop app starts from [`i18n::Language::system`] when `ui.json` has
-    /// no usable language (see [`i18n::saved_language`]). An unknown saved value reads as English
+    /// host's locale); this edition's desktop starts in Japanese and the Web does so when its
+    /// font is available. An explicit saved language takes priority (see [`i18n::saved_language`]). An unknown saved value reads as English
     /// rather than failing the whole `UiState`.
     #[serde(deserialize_with = "i18n::lenient")]
     pub language: i18n::Language,

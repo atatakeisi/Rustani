@@ -4,6 +4,20 @@
 //! whenever they change, since a reload or a closed tab runs no exit code.
 
 use gridcraft_ui_egui::SheetApp;
+use gridcraft_ui_egui::i18n::Language;
+
+/// This Japanese-oriented build starts in Japanese when its optional font can render it.
+/// Keep a readable English fallback when the external font input was not supplied.
+pub fn default_language(japanese_font_available: bool) -> Language {
+    if japanese_font_available { Language::Ja } else { Language::En }
+}
+
+/// A URL language is an explicit choice for this visit, ahead of stored preferences.
+/// Unknown tags preserve the saved choice; Japanese without the font falls back to English.
+pub fn requested_language(current: Language, requested: Option<&str>, japanese_font_available: bool) -> Language {
+    let language = requested.and_then(Language::parse).unwrap_or(current);
+    if language == Language::Ja && !japanese_font_available { Language::En } else { language }
+}
 
 /// The `localStorage` key for the desktop's `ui.json`.
 pub const UI_KEY: &str = "gridcraft.ui";
@@ -20,7 +34,7 @@ pub fn restore(app: &mut SheetApp, ui: Option<&str>, prefs: Option<&str>) {
         && let Ok(json) = serde_json::from_str::<serde_json::Value>(s)
         && let Ok(state) = serde_json::from_value::<gridcraft_ui_egui::UiState>(json.clone())
     {
-        // No usable saved language: keep the browser's, as the desktop keeps the system's.
+        // No usable saved language: keep the Japanese-oriented startup default.
         let language = gridcraft_ui_egui::i18n::saved_language(&json).unwrap_or(app.ui.language);
         app.ui = state;
         app.ui.language = language;
@@ -146,6 +160,35 @@ mod tests {
         assert_eq!(a.ui.language, Language::De);
         restore(&mut a, Some(r#"{"language":"fr"}"#), None);
         assert_eq!(a.ui.language, Language::Fr);
+    }
+
+    #[test]
+    fn japanese_startup_saved_choice_and_url_choice_survive_reload() {
+        let mut first = app();
+        first.ui.language = default_language(true);
+        restore(&mut first, Some(r#"{"dark":true}"#), None);
+        assert_eq!(first.ui.language, Language::Ja, "fresh or older preferences use Japanese");
+        restore(&mut first, Some(r#"{"dark":true,"language":"en"}"#), None);
+        assert_eq!(first.ui.language, Language::En, "an explicit saved choice is retained");
+        first.ui.language = requested_language(first.ui.language, Some("ja"), true);
+        assert_eq!(first.ui.language, Language::Ja, "a shared Japanese URL overrides earlier English");
+        assert!(first.ui.dark, "other stored preferences survive");
+        let saved = stored(&PrefsSync::default().changed(&first), UI_KEY);
+        let mut reloaded = app();
+        reloaded.ui.language = default_language(true);
+        restore(&mut reloaded, saved.as_deref(), None);
+        reloaded.ui.language = requested_language(reloaded.ui.language, None, true);
+        assert_eq!(reloaded.ui.language, Language::Ja);
+        assert!(reloaded.ui.dark);
+    }
+
+    #[test]
+    fn missing_japanese_font_keeps_the_interface_readable_and_english_can_be_selected() {
+        assert_eq!(default_language(false), Language::En);
+        assert_eq!(requested_language(Language::En, Some("ja"), false), Language::En);
+        assert_eq!(requested_language(Language::Ja, None, false), Language::En);
+        assert_eq!(requested_language(Language::Ja, Some("en"), true), Language::En);
+        assert_eq!(requested_language(Language::Ja, Some("unknown"), true), Language::Ja);
     }
 
     #[test]

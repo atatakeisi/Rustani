@@ -1387,28 +1387,29 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
                     });
                 }
                 "start" => {
-                    ui.heading("Start a new workbook");
+                    let lang = app.ui.language;
+                    ui.heading(lang.tr("Start a new workbook"));
                     ui.horizontal_wrapped(|ui| {
-                        if ui.button("Blank workbook").clicked() {
+                        if ui.button(lang.tr("Blank workbook")).clicked() {
                             app.run_or_alert("file.new", json!({}));
                             open = false;
                         }
                         for (n, t) in gridcraft_engine::sample::SAMPLES {
-                            if ui.button(*t).clicked() {
+                            if ui.button(lang.tr(t)).clicked() {
                                 app.run_or_alert("file.new", json!({"sample": n}));
                                 open = false;
                             }
                         }
                     });
                     ui.separator();
-                    ui.label(egui::RichText::new("Recent").strong());
+                    ui.label(egui::RichText::new(lang.tr("Recent")).strong());
                     for path in app.ui.recent.clone() {
                         if ui.link(&path).clicked() {
                             app.open_path(&path);
                             open = false;
                         }
                     }
-                    if ui.button("Open…").clicked() {
+                    if ui.button(lang.tr("Open…")).clicked() {
                         app.open_dialog("open", json!({}));
                         open = false;
                     }
@@ -1768,9 +1769,10 @@ fn form_fields(ui: &mut egui::Ui, d: &mut Dialog) {
 /// Help ▸ About GridCraft: the app, its contributors and the AI models that helped. The credits
 /// are compiled in (`crate::credits`, docs/contributors.md).
 fn about(ui: &mut egui::Ui, d: &mut Dialog) {
+    let lang = crate::i18n::current(ui.ctx());
     ui.horizontal(|ui| {
         for tab in ["About", "Contributors", "Models"] {
-            if ui.selectable_label(d.tab == tab, tab).clicked() {
+            if ui.selectable_label(d.tab == tab, lang.tr(tab)).clicked() {
                 d.tab = tab.to_string();
             }
         }
@@ -1781,20 +1783,21 @@ fn about(ui: &mut egui::Ui, d: &mut Dialog) {
         "Models" => crate::credits::models_ui(ui),
         _ => {
             ui.heading("GridCraft");
-            ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+            ui.label(lang.tr("Version {version}").replace("{version}", env!("CARGO_PKG_VERSION")));
             ui.add_space(4.0);
-            ui.label("A clean-room, open-source, Rust-native spreadsheet. Part of ArtCraft.");
+            ui.label(lang.tr("A clean-room, open-source, Rust-native spreadsheet. Part of ArtCraft."));
             ui.hyperlink_to("getartcraft.com/apps/gridcraft", "https://getartcraft.com/apps/gridcraft");
-            ui.hyperlink_to("Join the ArtCraft Discord", "https://discord.gg/artcraft");
+            ui.hyperlink_to(lang.tr("Join the ArtCraft Discord"), "https://discord.gg/artcraft");
         }
     }
 }
 
 /// Workbook VBA editing and recorded command scripts share the familiar Macros entry point.
 fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, open: &mut bool) {
+    let lang = app.ui.language;
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut d.tab, "VBA".into(), "VBA Editor");
-        ui.selectable_value(&mut d.tab, "Recorded Scripts".into(), "Recorded Scripts");
+        ui.selectable_value(&mut d.tab, "VBA".into(), lang.tr("VBA Editor"));
+        ui.selectable_value(&mut d.tab, "Recorded Scripts".into(), lang.tr("Recorded Scripts"));
     });
     ui.separator();
     if d.tab == "VBA" {
@@ -1807,18 +1810,18 @@ fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, open: &mut bool
     if let Some(editor) = &mut d.vba_editor {
         editor.pause_for_tab(app);
     }
-    ui.label("Recorded scripts run workbook commands. VBA source is available in the VBA Editor tab.");
+    ui.label(lang.tr("Recorded scripts run workbook commands. VBA source is available in the VBA Editor tab."));
     ui.add_space(6.0);
     let items: Vec<Json> = d.result.as_ref().and_then(Json::as_array).cloned().unwrap_or_default();
     if items.is_empty() {
-        ui.weak("This workbook has no scripts or macros.");
+        ui.weak(lang.tr("This workbook has no scripts or macros."));
         return;
     }
     // Scripts that came with a file stay disabled until the user trusts the workbook (#2178).
     if items.iter().any(|it| it.get("trusted").and_then(Json::as_bool) == Some(false)) {
         ui.horizontal(|ui| {
-            ui.weak("Scripts in this workbook came from a file and are disabled.");
-            if ui.button("Trust Scripts").on_hover_text("Let this workbook's scripts run for the rest of this session").clicked() {
+            ui.weak(lang.tr("Scripts in this workbook came from a file and are disabled."));
+            if ui.button(lang.tr("Trust Scripts")).on_hover_text(lang.tr("Let this workbook's scripts run for the rest of this session")).clicked() {
                 let _ = app.run("automate.trustScripts", json!({"trusted": true}));
                 d.result = app.session.run("view.macros", json!({})).ok();
                 if let Some(editor) = &mut d.vba_editor {
@@ -1830,20 +1833,24 @@ fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, open: &mut bool
     }
     egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
         for it in &items {
-            let name = it.get("name").and_then(Json::as_str).unwrap_or("(unnamed)");
+            let name = it.get("name").and_then(Json::as_str).unwrap_or_else(|| lang.tr("(unnamed)"));
             let is_vba = it.get("kind").and_then(Json::as_str) == Some("vba");
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(name).strong());
                 if is_vba {
-                    ui.weak("— original VBA project preserved; inspect source in VBA Editor");
+                    ui.weak(lang.tr("— original VBA project preserved; inspect source in VBA Editor"));
                 } else {
                     let steps = it.get("steps").and_then(Json::as_u64).unwrap_or(0);
-                    ui.weak(format!("— {steps} step{}", if steps == 1 { "" } else { "s" }));
+                    ui.weak(if steps == 1 {
+                        lang.tr("— 1 step").to_owned()
+                    } else {
+                        lang.tr("— {steps} steps").replace("{steps}", &steps.to_string())
+                    });
                     let trusted = it.get("trusted").and_then(Json::as_bool).unwrap_or(false);
-                    if ui.add_enabled(trusted, egui::Button::new("Run script")).clicked() {
+                    if ui.add_enabled(trusted, egui::Button::new(lang.tr("Run script"))).clicked() {
                         match app.run("automate.runScript", json!({"name": name})) {
-                            Ok(_) => app.message = Some(("Recorded script".into(), format!("{name} completed."))),
-                            Err(error) => app.message = Some(("Recorded script".into(), crate::clean_error(&error))),
+                            Ok(_) => app.message = Some((lang.tr("Recorded script").into(), lang.tr("{name} completed.").replace("{name}", name))),
+                            Err(error) => app.message = Some((lang.tr("Recorded script").into(), lang.tr_error(&crate::clean_error(&error)))),
                         }
                     }
                 }

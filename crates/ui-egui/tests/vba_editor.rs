@@ -27,6 +27,30 @@ fn status(harness: &mut Harness) -> Json {
 }
 
 #[test]
+fn japanese_controls_execute_and_save_the_same_vba_and_switch_back_to_english() {
+    let mut h = harness();
+    h.state_mut().ui.language = gridcraft_ui_egui::i18n::Language::Ja;
+    h.state_mut().open_dialog("macros", json!({}));
+    h.run_steps(4);
+    assert!(h.query_by_label("記録したスクリプト").is_some());
+    h.get_by_label("集計のサンプルを挿入").click();
+    h.run_steps(3);
+    h.get_by_label("VBA を実行").click();
+    h.run_steps(5);
+    assert_eq!(status(&mut h)["state"], "completed");
+    assert_eq!(h.state().session.active().unwrap().wb.active().unwrap().value(CellRef::parse("E1").unwrap()).display(), "Summary");
+    h.get_by_label("モジュールを保存").click();
+    h.run_steps(3);
+    let modules = h.state_mut().run("automate.vbaModules", json!({})).unwrap();
+    assert!(modules["modules"][0]["source"].as_str().unwrap().starts_with("Sub MakeSummary()"));
+    h.state_mut().ui.language = gridcraft_ui_egui::i18n::Language::En;
+    h.run_steps(3);
+    assert!(h.query_by_label("Run VBA").is_some());
+    assert!(h.query_by_label("Save module").is_some());
+    assert_eq!(status(&mut h)["state"], "completed");
+}
+
+#[test]
 fn example_insertion_is_explicit_and_execution_reports_output() {
     let mut h = harness();
     h.state_mut().open_dialog("macros", json!({}));

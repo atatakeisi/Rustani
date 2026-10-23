@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use egui::{RichText, TextEdit};
 use serde_json::{Value as Json, json};
 
-use crate::{SheetApp, theme};
+use crate::{SheetApp, i18n::Language, theme};
 
 const SAMPLE: &str = "Sub MakeSummary()\n    Range(\"E1\").Value = \"Summary\"\n    Range(\"E2\").Formula = \"=SUM(B2:B10)\"\n    Range(\"E1\").Font.Bold = True\n    Debug.Print \"Summary created in E1:E2\"\nEnd Sub\n";
 const SOURCE_LIMIT: usize = 1_048_576;
@@ -15,7 +15,7 @@ struct Module {
     name: String,
     source: String,
     procedures: Vec<String>,
-    compile_error: Option<String>,
+    compile_error: Option<Json>,
     imported: bool,
 }
 
@@ -113,15 +113,7 @@ impl VbaEditor {
                                     name: item.get("name")?.as_str()?.to_string(),
                                     source: item.get("source")?.as_str()?.to_string(),
                                     imported: item.get("origin").and_then(Json::as_str) == Some("project"),
-                                    compile_error: item.get("compileError").filter(|value| !value.is_null()).map(|value| {
-                                        if let (Some(line), Some(message)) =
-                                            (value.get("line").and_then(Json::as_u64), value.get("message").and_then(Json::as_str))
-                                        {
-                                            format!("Line {line}: {message}")
-                                        } else {
-                                            value.as_str().map(str::to_string).unwrap_or_else(|| value.to_string())
-                                        }
-                                    }),
+                                    compile_error: item.get("compileError").filter(|value| !value.is_null()).cloned(),
                                     procedures: item
                                         .get("procedures")
                                         .and_then(Json::as_array)
@@ -264,44 +256,54 @@ impl VbaEditor {
 
     pub(crate) fn show(&mut self, app: &mut SheetApp, ui: &mut egui::Ui, open: &mut bool) {
         let tokens = theme::Tokens::get(ui.ctx());
+        let lang = app.ui.language;
         let same_workbook = self.same_workbook(app);
         if !same_workbook {
             self.stop(app);
-            ui.colored_label(tokens.danger, "Return to the original workbook to edit or run this module.");
+            ui.colored_label(tokens.danger, lang.tr("Return to the original workbook to edit or run this module."));
         }
-        ui.label("Edit or paste VBA, then choose a procedure and Run. Unsupported code reports an error.");
+        ui.label(lang.tr("Edit or paste VBA, then choose a procedure and Run. Unsupported code reports an error."));
+        ui.weak(lang.tr("Only a subset of VBA is supported. Full Excel VBA compatibility has not been achieved."));
         if self.preserved_vba {
-            ui.weak("The original VBA project is preserved in .xlsm files. Excel VBA compatibility is still incomplete.");
+            ui.weak(lang.tr("The original VBA project is preserved in .xlsm files. Excel VBA compatibility is still incomplete."));
         }
         if self.modules.iter().any(|module| module.name == self.saved_name && module.imported) {
-            ui.weak("Saving source updates GridCraft's copy; the original Excel macro project is preserved.");
+            ui.weak(lang.tr("Saving source updates GridCraft's copy; the original Excel macro project is preserved."));
         }
         if let Some(error) = &self.import_error {
-            ui.colored_label(tokens.danger, format!("VBA source import: {error}"));
+            ui.colored_label(tokens.danger, lang.tr("VBA source import: {error}").replace("{error}", &lang.tr_error(error)));
         }
         if !self.dirty()
             && let Some(error) = self.modules.iter().find(|module| module.name == self.saved_name).and_then(|module| module.compile_error.as_ref())
         {
-            ui.colored_label(tokens.danger, format!("Module error: {error}"));
+            ui.colored_label(tokens.danger, lang.tr("Module error: {error}").replace("{error}", &diagnostic(lang, error)));
         }
         let running = self.running();
         // Stop is handled before the cooperative execution slice at the end of this frame.
         ui.horizontal(|ui| {
-            if ui.add_enabled(same_workbook && !running && self.trusted && !self.source.trim().is_empty(), egui::Button::new("Run VBA")).clicked() {
+            if ui
+                .add_enabled(same_workbook && !running && self.trusted && !self.source.trim().is_empty(), egui::Button::new(lang.tr("Run VBA")))
+                .clicked()
+            {
                 self.start(app);
             }
-            if ui.add_enabled(same_workbook && running, egui::Button::new("Stop VBA")).clicked() {
+            if ui.add_enabled(same_workbook && running, egui::Button::new(lang.tr("Stop VBA"))).clicked() {
                 self.stop(app);
             }
             let state = self.status.get("state").and_then(Json::as_str).unwrap_or("idle");
             let line = self.status.get("line").and_then(Json::as_u64).unwrap_or(0);
             let steps = self.status.get("steps").and_then(Json::as_u64).unwrap_or(0);
-            ui.label(format!("{state} · line {line} · {steps} steps"));
+            ui.label(
+                lang.tr("{state} · line {line} · {steps} steps")
+                    .replace("{state}", state_label(lang, state))
+                    .replace("{line}", &line.to_string())
+                    .replace("{steps}", &steps.to_string()),
+            );
         });
         if !self.trusted {
             ui.horizontal_wrapped(|ui| {
-                ui.weak("Macros are disabled until you trust this workbook.");
-                if ui.add_enabled(same_workbook, egui::Button::new("Trust Scripts")).clicked() {
+                ui.weak(lang.tr("Macros are disabled until you trust this workbook."));
+                if ui.add_enabled(same_workbook, egui::Button::new(lang.tr("Trust Scripts"))).clicked() {
                     match app.run("automate.trustScripts", json!({"trusted": true})) {
                         Ok(_) => self.refresh(app),
                         Err(error) => self.error = Some(crate::clean_error(&error)),
@@ -318,7 +320,7 @@ impl VbaEditor {
                     let mut selected = self.saved_name.clone();
                     egui::ComboBox::from_id_salt("vba_module")
                         .width(160.0)
-                        .selected_text(if self.stored_origin { self.saved_name.as_str() } else { "New module" })
+                        .selected_text(if self.stored_origin { self.saved_name.as_str() } else { lang.tr("New module") })
                         .show_ui(ui, |ui| {
                             for module in &self.modules {
                                 ui.selectable_value(&mut selected, module.name.clone(), &module.name);
@@ -327,28 +329,28 @@ impl VbaEditor {
                     if selected != self.saved_name {
                         self.select(&selected);
                     }
-                    if ui.button("New module").clicked() {
+                    if ui.button(lang.tr("New module")).clicked() {
                         self.new_module();
                     }
                 });
-                if ui.add_enabled(!self.source.is_empty() || dirty, egui::Button::new("Save module")).clicked() {
+                if ui.add_enabled(!self.source.is_empty() || dirty, egui::Button::new(lang.tr("Save module"))).clicked() {
                     self.save(app, false);
                 }
                 if dirty {
-                    ui.colored_label(tokens.accent, "Unsaved changes");
-                    if ui.button("Discard edits").clicked() {
+                    ui.colored_label(tokens.accent, lang.tr("Unsaved changes"));
+                    if ui.button(lang.tr("Discard edits")).clicked() {
                         self.discard_edits();
                     }
                 }
             });
             ui.horizontal(|ui| {
-                ui.label("Module name:");
+                ui.label(lang.tr("Module name:"));
                 ui.add(TextEdit::singleline(&mut self.name).desired_width(150.0).char_limit(128));
-                ui.label("Procedure:");
+                ui.label(lang.tr("Procedure:"));
                 ui.add(TextEdit::singleline(&mut self.procedure).desired_width(150.0).char_limit(128));
                 let procedures = procedure_suggestions(&self.source);
                 if !procedures.is_empty() {
-                    egui::ComboBox::from_id_salt("vba_procedure").selected_text("Choose…").show_ui(ui, |ui| {
+                    egui::ComboBox::from_id_salt("vba_procedure").selected_text(lang.tr("Choose…")).show_ui(ui, |ui| {
                         for name in procedures {
                             ui.selectable_value(&mut self.procedure, name.clone(), name);
                         }
@@ -357,21 +359,21 @@ impl VbaEditor {
             });
             if self.overwrite_requested {
                 ui.horizontal(|ui| {
-                    ui.colored_label(tokens.danger, format!("Replace module \"{}\"?", self.name));
-                    if ui.button("Replace module").clicked() {
+                    ui.colored_label(tokens.danger, lang.tr("Replace module \"{name}\"?").replace("{name}", &self.name));
+                    if ui.button(lang.tr("Replace module")).clicked() {
                         self.save(app, true);
                     }
-                    if ui.button("Cancel replacement").clicked() {
+                    if ui.button(lang.tr("Cancel replacement")).clicked() {
                         self.overwrite_requested = false;
                     }
                 });
             }
             ui.horizontal(|ui| {
-                if ui.add_enabled(self.source.trim().is_empty(), egui::Button::new("Insert summary example")).clicked() {
+                if ui.add_enabled(self.source.trim().is_empty(), egui::Button::new(lang.tr("Insert summary example"))).clicked() {
                     self.source = SAMPLE.into();
                     self.procedure = "MakeSummary".into();
                 }
-                ui.weak("The example writes to E1:E2 only when you press Run.");
+                ui.weak(lang.tr("The example writes to E1:E2 only when you press Run."));
             });
             let height = (ui.ctx().content_rect().height() * 0.32).clamp(130.0, 300.0);
             let line_count = self.source.lines().count().saturating_add(usize::from(self.source.ends_with('\n'))).max(1);
@@ -398,13 +400,12 @@ impl VbaEditor {
         });
         ui.separator();
         if let Some(error) = &self.error {
-            ui.colored_label(tokens.danger, error);
+            ui.colored_label(tokens.danger, lang.tr("VBA error: {error}").replace("{error}", &lang.tr_error(error)));
         }
         if let Some(error) = self.status.get("error").filter(|error| error.is_object()) {
-            let line = error.get("line").and_then(Json::as_u64).unwrap_or(0);
-            let message = error.get("message").and_then(Json::as_str).unwrap_or("Execution failed");
-            ui.colored_label(tokens.danger, format!("Line {line}: {message}"));
+            ui.colored_label(tokens.danger, diagnostic(lang, error));
         }
+        ui.weak(lang.tr("VBA|Output"));
         egui::ScrollArea::vertical().id_salt("vba_output").max_height(100.0).stick_to_bottom(true).show(ui, |ui| {
             if let Some(log) = self.status.get("log").and_then(Json::as_array) {
                 for entry in log.iter().filter_map(Json::as_str) {
@@ -414,15 +415,15 @@ impl VbaEditor {
         });
         if self.close_requested {
             ui.horizontal_wrapped(|ui| {
-                ui.label("Save changes before closing?");
-                if ui.add_enabled(editable, egui::Button::new("Save and close")).clicked() && self.save(app, false) {
+                ui.label(lang.tr("Save changes before closing?"));
+                if ui.add_enabled(editable, egui::Button::new(lang.tr("Save and close"))).clicked() && self.save(app, false) {
                     *open = false;
                 }
-                if ui.button("Close without saving").clicked() {
+                if ui.button(lang.tr("Close without saving")).clicked() {
                     self.discard_edits();
                     *open = false;
                 }
-                if ui.button("Keep editing").clicked() {
+                if ui.button(lang.tr("Keep editing")).clicked() {
                     self.close_requested = false;
                 }
             });
@@ -435,6 +436,25 @@ impl VbaEditor {
             ui.ctx().request_repaint();
         }
     }
+}
+
+fn state_label(lang: Language, state: &str) -> &str {
+    match state {
+        "idle" => lang.tr("VBA state|idle"),
+        "running" => lang.tr("VBA state|running"),
+        "completed" => lang.tr("VBA state|completed"),
+        "failed" => lang.tr("VBA state|failed"),
+        "stopped" => lang.tr("VBA state|stopped"),
+        _ => state,
+    }
+}
+
+fn diagnostic(lang: Language, error: &Json) -> String {
+    let Some(message) = error.get("message").and_then(Json::as_str) else {
+        return error.as_str().map(|message| lang.tr_error(message)).unwrap_or_else(|| error.to_string());
+    };
+    let line = error.get("line").and_then(Json::as_u64).unwrap_or(0);
+    lang.tr("Line {line}: {message}").replace("{line}", &line.to_string()).replace("{message}", &lang.tr_error(message))
 }
 
 /// Suggestions only: the engine is the authority on syntax and callable procedures.
@@ -499,5 +519,19 @@ mod tests {
     #[test]
     fn procedure_choices_include_multiple_procedures_without_treating_comments_as_code() {
         assert_eq!(procedure_suggestions("' Sub Ignored()\nPublic Sub First()\nEnd Sub\nsub second()\nEnd Sub\n"), vec!["First", "second"]);
+    }
+
+    #[test]
+    fn status_and_diagnostic_chrome_follow_the_language_without_changing_source_text() {
+        assert_eq!(state_label(Language::Ja, "running"), "実行中");
+        assert_eq!(state_label(Language::En, "running"), "running");
+        let error = json!({"line": 7, "message": "Unsupported member MyProcedure"});
+        assert_eq!(diagnostic(Language::Ja, &error), "7 行目: Unsupported member MyProcedure");
+        assert_eq!(diagnostic(Language::En, &error), "Line 7: Unsupported member MyProcedure");
+        let mut app = app();
+        app.ui.language = Language::Ja;
+        let editor = VbaEditor::new(&mut app, &json!({"source": SAMPLE, "procedure": "MakeSummary"}));
+        assert_eq!(editor.source, SAMPLE);
+        assert_eq!(editor.procedure, "MakeSummary");
     }
 }

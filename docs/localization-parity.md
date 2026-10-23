@@ -1,13 +1,21 @@
 # Localization parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-21 · **Change:** minor (the Japanese catalog covers the dialogs, messages and menus; Dutch interface language; Romanian interface catalog) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-23 (Japanese edition changes only) · **Last updated:** 2026-10-23 · **Change:** minor (Japanese startup, VBA editor and README) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Per-language status against Excel, which ships its UI in dozens of languages (Windows language
 packs cover 100+), with localized function names, argument separators, number and date formats,
 right-to-left sheets and full complex-script support. Part of
 [target-app-parity.md](target-app-parity.md). **Localization: ~10% ready, 100–165 h** (estimated).
 
-## Where we are (measured from source on `main`, after the 2026-10-10 merges)
+## 日本語版の更新（2026-10-23）
+
+この独自開発版は、日本語をアプリの初期言語にします。Web版は外部craft-fontsの日本語フォントが利用可能な場合に日本語で起動し、フォントがない場合は英語を使います。保存済みの言語選択を優先し、Webの `lang=ja` / `lang=en` は明示指定として保存済み設定より優先します。
+
+日本語辞書は既存の954キーに、VBA編集・状態・診断見出しなど50キーを追加しました。記録したスクリプト画面、開始画面、About画面の翻訳経路も接続しています。コード・識別子・ユーザーのログ出力は翻訳せず、詳細なエンジン診断等には英語が残ります。翻訳の追加を、全UI・数値/日付ロケール・Excel互換性の完成とは扱いません。
+
+README本体とWeb配信手順も日本語化しました。日本語操作と保存・英語への再切替のテスト、Chromeの日本語画面からのVBA実行・保存を確認しています。実OSのIMEとSafariの試験範囲は [日本語対応記録](web-japanese.md)を参照してください。以下の他言語の件数・割合・工数は以前の評価で、今回再見積していません。
+
+## Where we were (historical source assessment after the 2026-10-10 merges)
 
 - **A first catalog exists, for the ribbon only.** `crates/ui-egui/src/i18n.rs` (merged 10-10 in
   #31, #104, #82; German added 10-11) adds an interface-language preference that defaults to the
@@ -76,9 +84,7 @@ separators, number/date formats, machine translation with agent review, and scri
 | French | fr | 0 (0%) | no | Latin: yes | no | none | 6–10 h |
 | Portuguese | pt-BR | 943 (~43%) | dialogs and tooltips (dialogs take effect with #669) | Latin: yes | no | menus, File view, dialogs | 2–4 h |
 | Indonesian | id | 0 (0%) | no | Latin: yes | no | none | 5–8 h |
-| Japanese | ja | 268 (~12%) | no | CJK system-font fallback; IME unverified; no furigana display, but phonetic runs (ふりがな) survive an XLSX open + save | no | menus only | 8–12 h |
-| Japanese | ja | 943 (~43%) | dialogs and messages | CJK system-font fallback; IME unverified; no furigana display | no | menus, File view, dialogs, messages | 3–5 h |
-| Japanese | ja | 268 (~12%) | no | CJK system-font fallback; the theme's East Asian typeface (`<a:ea>`) survives open + save (rendering does not use it yet); IME unverified; no furigana display | no | menus only | 8–12 h |
+| Japanese | ja | 1,004 catalog keys; whole-UI coverage not remeasured | menus, File view, dialogs, VBA editor and diagnostic headings; English remains | Native system fonts; optional Web Japanese font; real OS IME/Safari unverified; no furigana display | no | partial, Japanese first-run default | not re-estimated |
 | German | de | 266 (~12%) | no | Latin: yes | no | menus only | 4–8 h |
 | Italian | it | 971 (~44%) | dialogs, tooltips, pivot pane | Latin: yes | no | menus, File view, dialogs, pivot pane | 3–5 h |
 | Korean | ko | 266 (~12%) | no | Hangul via the CJK fallback; IME unverified | no | menus only | 6–10 h |
@@ -109,6 +115,7 @@ language (none so far) and of localized function names.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | Japanese startup policy, 50 additional editor/diagnostic keys, translated drawing paths and Japanese README; full coverage/locale estimates unchanged |
 | 2026-10-21 | minor | Romanian interface (`ro`, Română): 970 labels covering every key of the other catalogs (`crates/ui-egui/src/i18n/ro.rs`), `ro-*` system locales, the View-tab switcher and `app.language.set`; context keys show no prefix (File › Options test). English formulas and formats; AI-assisted draft pending native-speaker review |
 | 2026-10-20 | minor | Japanese: furigana (`rPh` phonetic runs and `<phoneticPr>` in `xl/sharedStrings.xml`) is no longer deleted by an open + save; it is kept on the workbook and written back (a `<phoneticPr>` without runs is kept too, while duplicate texts with different readings keep only the first, reported on open). Display of the readings is still missing (`crates/xlsx/src/tests/phonetic_tests.rs`) |
 | 2026-10-20 | minor | Japanese catalog (`i18n/ja.rs`) covers every key the Brazilian Portuguese catalog translates: the 398-label shared core moved verbatim plus 545 dialog, message, Backstage and menu strings — 943 keys, ~12% → ~43%. A test parses `pt.rs`'s source, so the two catalogs can't drift apart again. Portuguese re-measured at 943 (was 923) |

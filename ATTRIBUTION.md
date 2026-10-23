@@ -53,6 +53,7 @@ Chinese/Korean coverage or every Japanese Unicode glyph. See [the integration no
 | `assets/app-icon/README.md` | GridCraft contributors | original | MIT OR Apache-2.0 | Icon documentation |
 | `assets/app-icon/LICENSE.txt` | (licence text) | original | — | Licence of the app icon files |
 | `docs/images/hero-sales.png` | GridCraft contributors | screenshot of GridCraft rendered offscreen (`crates/ui-egui/examples/snapshot.rs`) showing an original sample workbook | MIT OR Apache-2.0 | README screenshot; no third-party content |
+| `docs/images/japanese-vba.jpg` | GridCraft contributors | Chrome screenshot of the local GridCraft Web app with an original Japanese VBA example and generated worksheet | MIT OR Apache-2.0 | Japanese README screenshot; no Excel screenshot or user workbook data |
 | `docs/images/budget.png` | GridCraft contributors | screenshot of GridCraft rendered offscreen (`crates/ui-egui/examples/snapshot.rs`) showing an original sample workbook | MIT OR Apache-2.0 | README screenshot; no third-party content |
 | `docs/images/grades-formulas.png` | GridCraft contributors | screenshot of GridCraft rendered offscreen (`crates/ui-egui/examples/snapshot.rs`) showing an original sample workbook | MIT OR Apache-2.0 | README screenshot; no third-party content |
 | `docs/images/dark-insert.png` | GridCraft contributors | screenshot of GridCraft rendered offscreen (`crates/ui-egui/examples/snapshot.rs`) showing an original sample workbook | MIT OR Apache-2.0 | README screenshot; no third-party content |

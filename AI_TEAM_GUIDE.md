@@ -111,7 +111,7 @@ Gemini CLIの代わりにAntigravityへ同じ調査を依頼できます。最�
 生成済みのWeb版を起動する場合は、`gridcraft` ルートのターミナルで次を実行します。すでに8771番で起動中なら、そのブラウザタブを使い続けてください。
 
 ```sh
-python3 -u -m http.server 8771 --bind 127.0.0.1 --directory dist/web-vba-20261023T141229Z
+python3 -u -m http.server 8771 --bind 127.0.0.1 --directory dist/web-ja-20261023T144825Z
 ```
 
 ソースを再ビルドするときは、導入済みの `../.tools/trunk-0.22.0/trunk` を使えます。PATHや環境変数の変更、再インストールは不要です。次は `gridcraft` ルートから実行する例です。既存出力を上書きしないよう、`web-new-output` は未使用の名前に置き換えてください。コンパイルと必要に応じたツール取得を伴います。
@@ -121,7 +121,7 @@ cd apps/gridcraft-web
 ../../../.tools/trunk-0.22.0/trunk --skip-version-check serve --dist ../../dist/web-new-output
 ```
 
-起動完了後、Chromeで `http://127.0.0.1:8771/?sample=sales` を開きます。今後のSafari比較にも同じURLを使い、WebGL2との比較には `&webgl` を付けます。`cargo xtask wasm` の成功は、これらのブラウザ操作をすべて検証した意味ではありません。
+起動完了後、Chromeで `http://127.0.0.1:8771/?sample=sales&lang=ja` を開きます。今後のSafari比較にも同じURLを使い、WebGL2との比較には `&webgl` を付けます。`cargo xtask wasm` の成功は、これらのブラウザ操作をすべて検証した意味ではありません。
 
 起動してもアプリが表示されない場合はターミナルのエラーをこのCodexチャットへ伝えてください。既存の未コミット変更を消したり、環境変数を書き換えて解決しようとする必要はありません。
 
