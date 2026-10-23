@@ -172,10 +172,44 @@ fn entry_shrank(chars_before: usize, text: &str) -> bool {
     text.chars().count() < chars_before
 }
 
+/// The selected grid and its first cell editor are one logical IME target. egui's normal focus
+/// change requests cancellation, so clear that request only for this one handoff, and only if
+/// the cell editor still owns focus when the backend receives the output.
+#[derive(Default)]
+struct DirectImeFocus {
+    pending: Option<(egui::ViewportId, egui::Id)>,
+}
+
+impl egui::Plugin for DirectImeFocus {
+    fn debug_name(&self) -> &'static str {
+        "gridcraft direct IME focus"
+    }
+
+    fn output_hook(&mut self, ctx: &egui::Context, output: &mut egui::FullOutput) {
+        if let Some((viewport, editor)) = self.pending.take()
+            && ctx.viewport_id() == viewport
+            && ctx.memory(|m| m.has_focus(editor))
+            && let Some(ime) = &mut output.platform_output.ime
+        {
+            ime.should_interrupt_composition = false;
+        }
+    }
+}
+
+pub(crate) fn focus_direct_ime(ctx: &egui::Context) {
+    let editor = egui::Id::new("gridcraft.cell_editor");
+    ctx.plugin_or_default::<DirectImeFocus>().lock().pending = Some((ctx.viewport_id(), editor));
+    ctx.memory_mut(|m| m.request_focus(editor));
+}
+
 /// The text editor used in the cell and in the formula bar (they share `app.editor`).
 pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: FontId, multiline: bool, width: f32) {
     let Some(mut ed) = app.editor.take() else { return };
     let mine = ed.from_formula_bar == (id == egui::Id::new("gridcraft.formula_bar"));
+    // Direct typing was focused by the grid before TextEdit consumes the first input events.
+    // Keep their caret/composition selection rather than applying the ordinary startup cursor.
+    let starts_with_input =
+        mine && ed.request_focus && ui.input(|i| i.events.iter().any(|event| matches!(event, egui::Event::Ime(_) | egui::Event::Text(_))));
     // Keys the editor handles itself (before the TextEdit sees them), only where it has focus.
     let focused = ui.ctx().memory(|m| m.focused());
     let has_focus = focused == Some(id) || (mine && (ed.request_focus || focused.is_none()));
@@ -339,16 +373,20 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
         }
         ed.request_focus = false;
         ed.sync_caret = false;
-        let cursor = egui::text::CCursor::new(ed.caret);
-        output.state.cursor.set_char_range(Some(egui::text::CCursorRange::one(cursor)));
-        output.state.store(ui.ctx(), id);
+        if !starts_with_input {
+            let cursor = egui::text::CCursor::new(ed.caret);
+            output.state.cursor.set_char_range(Some(egui::text::CCursorRange::one(cursor)));
+            output.state.store(ui.ctx(), id);
+        }
     } else if resp.clicked() || resp.gained_focus() {
         // Clicking into the other editor moves editing there.
         ed.from_formula_bar = id == egui::Id::new("gridcraft.formula_bar");
         ed.enter_mode = false;
         app.session.mode = gridcraft_engine::Mode::Edit;
     }
-    if !synced && let Some(r) = output.cursor_range {
+    if (!synced || starts_with_input)
+        && let Some(r) = output.cursor_range
+    {
         ed.caret = r.primary.index.into();
     }
     if resp.changed() {

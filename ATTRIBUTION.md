@@ -6,6 +6,23 @@ Every non-code asset in this repository (images, icons, fonts, example files, pr
 
 Generated-in-code art is original and has no file to list: the UI icon set (`crates/ui-egui/src/icons.rs`), themes (`crates/engine/src/cmd/view.rs`), cell styles (`crates/engine/src/cmd/format.rs`), table styles (`crates/engine/src/tables.rs`), chart palettes and the sample workbooks (`crates/engine/src/sample.rs`).
 
+## Optional embedded Web font
+
+Wasm builds may embed **BIZ UDPGothic Regular**, by **The BIZ UDGothic Project Authors
+(Morisawa Inc.)**, under the [SIL Open Font License 1.1](https://github.com/storytold/craft-fonts/blob/abb83316d96aa59c1cf64784289e378fe9fa5695/fonts/biz-ud-pgothic/OFL.txt).
+The external build input is [craft-fonts at `abb83316d96aa59c1cf64784289e378fe9fa5695`](https://github.com/storytold/craft-fonts/tree/abb83316d96aa59c1cf64784289e378fe9fa5695),
+with the unmodified font from [morisawa-biz-ud-gothic at `18934af56b9c003ca58c54bffbf226848cb11032`](https://github.com/googlefonts/morisawa-biz-ud-gothic/tree/18934af56b9c003ca58c54bffbf226848cb11032).
+
+The selected file is `fonts/biz-ud-pgothic/BIZUDPGothic-Regular.ttf` **in that external checkout**:
+4,669,688 bytes, verified SHA-256 `258d7156c165f2ff774b6efee637c22c3b950de0d8a10e501137061bc8085d01`.
+Its source file is not committed to GridCraft. The build reads an existing `CRAFT_FONTS_DIR`
+or auto-discovers sibling `../craft-fonts`; no font is embedded when the optional source is absent.
+Packages include `OFL-biz-ud-pgothic.txt`, and the Web app displays its embedded OFL at
+`?font-license=1`. This font supplies Japanese fallback, with no promise of complete
+Chinese/Korean coverage or every Japanese Unicode glyph. See [the integration notes](docs/web-japanese.md).
+
+## Repository assets
+
 | Asset | Author | Source | Licence | Notes |
 |---|---|---|---|---|
 | `docs/brand/artcraft-logo.svg` | ArtCraft Team | craftrules `assets/brand/` | ArtCraft brand terms (`docs/brand/LICENSE-brand.txt`) | Trademark, not open source |

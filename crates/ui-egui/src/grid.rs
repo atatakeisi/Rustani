@@ -2931,6 +2931,18 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
     ctx.memory_mut(|m| {
         m.set_focus_lock_filter(resp.id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true })
     });
+    // Keep the browser's hidden text input focused while the grid is ready for typing. Without
+    // IME output eframe focuses the canvas, so composition cannot start before F2/cell editing.
+    let active = app.session.active().map(|d| d.selection.active).unwrap_or_default();
+    let ime_rect = geo.cell_rect(sh, sh.merge_at(active).map(|merge| merge.start).unwrap_or(active));
+    ctx.output_mut(|o| {
+        o.ime = Some(egui::output::IMEOutput {
+            purpose: egui::IMEPurpose::Normal,
+            rect: ime_rect,
+            cursor_rect: Rect::from_min_size(ime_rect.min, vec2(1.0, ime_rect.height())),
+            should_interrupt_composition: false,
+        });
+    });
     let events = ctx.input(|i| i.events.clone());
     // A shortcut key that also types a character (Shift+Space sends Text(" ")) must not start an edit.
     let shortcut_pressed = events.iter().any(|e| {
@@ -2950,11 +2962,24 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
                 app.copy_to_clipboard(ctx, "edit.cut");
             }
             egui::Event::Paste(text) => app.paste_external(text),
+            // IMEs send Preedit/Commit instead of Text. Open the editor before it is drawn below,
+            // and give it focus so egui can consume the original composition event exactly once.
+            egui::Event::Ime(egui::ImeEvent::Preedit { ref text, .. } | egui::ImeEvent::Commit(ref text))
+                if !text.is_empty() && text != "\n" && text != "\r" =>
+            {
+                app.begin_edit(Some(String::new()), false);
+                if app.editor.is_some() {
+                    crate::formula_bar::focus_direct_ime(ctx);
+                }
+                return;
+            }
             egui::Event::Text(_) if shortcut_pressed || shortcut_ran => {}
             egui::Event::Text(text) if text.chars().all(|c| !c.is_control()) && !text.is_empty() => {
-                app.begin_edit(Some(text), false);
-                if let Some(ed) = app.editor.as_mut() {
-                    ed.caret = ed.text.chars().count();
+                // TextEdit must consume every text event received before this repaint, not just
+                // the first character that opened the editor.
+                app.begin_edit(Some(String::new()), false);
+                if app.editor.is_some() {
+                    ctx.memory_mut(|m| m.request_focus(egui::Id::new("gridcraft.cell_editor")));
                 }
                 return;
             }

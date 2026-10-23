@@ -15,6 +15,19 @@ pub fn start() {
             log::error!("no document");
             return;
         };
+        // The font licence travels in the wasm as well as release packages, so a standalone
+        // static deployment can always show the licence for the bytes it actually embeds.
+        if query_param("font-license").is_some() {
+            if let Some(loading) = document.get_element_by_id(LOADING_ID) {
+                let _ = loading.set_attribute(
+                    "style",
+                    "display:block;overflow:auto;padding:24px;white-space:pre-wrap;pointer-events:auto;box-sizing:border-box",
+                );
+                loading
+                    .set_text_content(Some(gridcraft_ui_egui::web_fonts::japanese_licence().unwrap_or("This build has no embedded Japanese font.")));
+            }
+            return;
+        }
         let Some(canvas) = document.get_element_by_id(CANVAS_ID).and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok()) else {
             log::error!("missing <canvas id=\"{CANVAS_ID}\">");
             return;
@@ -60,13 +73,12 @@ pub fn start() {
                     }
                     let mut app = SheetApp::new(session, services);
                     app.ui.system_theme = true;
-                    // Follow the browser's language, except a CJK one: the web build has no system
-                    // CJK fonts (none are bundled), so that interface would render as tofu.
+                    // Follow Japanese only when the optional font was embedded and validated.
+                    // Its Japanese coverage does not imply full Chinese or Korean coverage.
                     let browser = gridcraft_ui_egui::i18n::Language::system();
-                    if !matches!(
-                        browser,
-                        gridcraft_ui_egui::i18n::Language::Zh | gridcraft_ui_egui::i18n::Language::Ja | gridcraft_ui_egui::i18n::Language::Ko
-                    ) {
+                    if !matches!(browser, gridcraft_ui_egui::i18n::Language::Zh | gridcraft_ui_egui::i18n::Language::Ko)
+                        && (browser != gridcraft_ui_egui::i18n::Language::Ja || gridcraft_ui_egui::web_fonts::japanese_available())
+                    {
                         app.ui.language = browser;
                     }
                     // Preferences from an earlier visit (#1562), as the desktop app reads `ui.json`

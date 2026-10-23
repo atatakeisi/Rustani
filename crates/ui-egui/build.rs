@@ -9,6 +9,8 @@
 //! A missing or malformed file gives empty tables (or no names) and a warning.
 
 use std::fmt::Write as _;
+use std::io::Read as _;
+use std::path::{Component, Path, PathBuf};
 
 use serde_json::Value;
 
@@ -27,6 +29,119 @@ fn main() {
     if let Err(e) = std::fs::write(&out, generate(&json, &people)) {
         println!("cargo::warning=writing {}: {e}", out.display());
     }
+    web_fonts(&manifest);
+}
+
+/// Fonts stay in the optional external craft-fonts checkout, never in this repository. Only the
+/// browser needs an embedded fallback: native builds keep their existing system font discovery.
+fn web_fonts(manifest_dir: &Path) {
+    println!("cargo::rerun-if-env-changed=CRAFT_FONTS_DIR");
+    println!("cargo::rerun-if-env-changed=CRAFT_FONTS_REQUIRED");
+    let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap_or_default());
+    let empty = "const JAPANESE_FONT_BYTES: &[u8] = &[];\nconst JAPANESE_FONT_LICENCE: &str = \"\";\n";
+    let mut generated = empty.to_string();
+    if std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
+        let explicit = std::env::var_os("CRAFT_FONTS_DIR").map(PathBuf::from);
+        let sibling = manifest_dir.join("../../../craft-fonts");
+        let source = explicit.clone().unwrap_or(sibling);
+        // Watch the absent checkout too, so adding it later enables the optional fallback.
+        println!("cargo::rerun-if-changed={}", source.display());
+        let required = std::env::var_os("CRAFT_FONTS_REQUIRED").is_some_and(|v| v == "1");
+        if explicit.is_some() || source.exists() || required {
+            match japanese_font(&source, &out) {
+                Ok(src) => generated = src,
+                Err(e) => {
+                    let level = if required { "error" } else { "warning" };
+                    println!("cargo::{level}=Web Japanese fallback unavailable ({}): {e}", source.display());
+                }
+            }
+        }
+    }
+    let path = out.join("web_fonts.rs");
+    if let Err(e) = std::fs::write(&path, generated) {
+        println!("cargo::error=writing {}: {e}", path.display());
+    }
+}
+
+/// Read bounded snapshots into OUT_DIR, so rustc embeds the bytes that were size-checked even
+/// when the external checkout changes between this script and compilation.
+fn japanese_font(dir: &Path, out: &Path) -> Result<String, String> {
+    let root = dir.canonicalize().map_err(|e| format!("opening checkout: {e}"))?;
+    let manifest = checked_font_path(&root, "fonts/manifest.txt")?;
+    let text = String::from_utf8(read_bounded(&manifest, 64 * 1024)?).map_err(|e| format!("font manifest is not UTF-8: {e}"))?;
+    let mut selected = None;
+    let mut count = 0;
+    for (i, line) in text.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        count += 1;
+        if count > 128 {
+            return Err("font manifest exceeds 128 entries".into());
+        }
+        let fields: Vec<_> = line.split('|').map(str::trim).collect();
+        let [family, style, file, scripts, licence, licence_file, sha256, _source] = fields.as_slice() else {
+            return Err(format!("font manifest line {} must have 8 fields", i + 1));
+        };
+        if *family != "BIZ UDPGothic" || *style != "Regular" {
+            continue;
+        }
+        if selected.is_some() {
+            return Err("duplicate BIZ UDPGothic Regular entry".into());
+        }
+        if !scripts.split(',').any(|s| s.trim() == "Jpan") || *licence != "OFL-1.1" {
+            return Err("BIZ UDPGothic Regular must declare Jpan and OFL-1.1".into());
+        }
+        if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("BIZ UDPGothic Regular must have a SHA-256 in the manifest".into());
+        }
+        selected = Some((checked_font_path(&root, file)?, checked_font_path(&root, licence_file)?));
+    }
+    let (font_path, licence_path) = selected.ok_or("BIZ UDPGothic Regular is missing from fonts/manifest.txt")?;
+    let bytes = read_bounded(&font_path, 8 * 1024 * 1024)?;
+    if bytes.len() < 12 || !matches!(bytes.get(..4), Some([0, 1, 0, 0]) | Some(b"OTTO")) {
+        return Err("BIZ UDPGothic Regular is not a supported TrueType/OpenType font".into());
+    }
+    let licence = String::from_utf8(read_bounded(&licence_path, 64 * 1024)?).map_err(|e| format!("font licence is not UTF-8: {e}"))?;
+    if !licence.contains("SIL OPEN FONT LICENSE") {
+        return Err("font licence does not contain the SIL Open Font License".into());
+    }
+    let embedded_font = out.join("web-japanese.ttf");
+    let embedded_licence = out.join("web-japanese-OFL.txt");
+    std::fs::write(&embedded_font, bytes).map_err(|e| format!("writing font snapshot: {e}"))?;
+    std::fs::write(&embedded_licence, licence).map_err(|e| format!("writing font licence snapshot: {e}"))?;
+    Ok(format!(
+        "const JAPANESE_FONT_BYTES: &[u8] = include_bytes!({:?});\nconst JAPANESE_FONT_LICENCE: &str = include_str!({:?});\n",
+        embedded_font.display().to_string(),
+        embedded_licence.display().to_string(),
+    ))
+}
+
+fn checked_font_path(root: &Path, file: &str) -> Result<PathBuf, String> {
+    if file.is_empty() || !Path::new(file).components().all(|c| matches!(c, Component::Normal(_))) {
+        return Err(format!("font manifest path must stay inside its checkout: {file:?}"));
+    }
+    let path = root.join(file);
+    println!("cargo::rerun-if-changed={}", path.display());
+    let path = path.canonicalize().map_err(|e| format!("opening {file}: {e}"))?;
+    if !path.starts_with(root) || !path.is_file() {
+        return Err(format!("font manifest path must be a file inside its checkout: {file:?}"));
+    }
+    Ok(path)
+}
+
+fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("opening {}: {e}", path.display()))?;
+    if file.metadata().map_err(|e| format!("reading {} metadata: {e}", path.display()))?.len() > limit as u64 {
+        return Err(format!("{} exceeds its {limit}-byte limit", path.display()));
+    }
+    let mut bytes = Vec::new();
+    file.take(limit as u64 + 1).read_to_end(&mut bytes).map_err(|e| format!("reading {}: {e}", path.display()))?;
+    if bytes.len() > limit {
+        return Err(format!("{} exceeds its {limit}-byte limit", path.display()));
+    }
+    Ok(bytes)
 }
 
 fn read<T>(path: &std::path::Path, fallback: &str, parse: impl Fn(&str) -> Result<T, String>) -> Option<T> {

@@ -508,6 +508,9 @@ pub fn font_definitions_with(language: crate::i18n::Language, used: &[String]) -
     if let Some(ui) = fonts.families.get(&FontFamily::Name(UI.into())).cloned() {
         fonts.families.insert(FontFamily::Proportional, ui);
     }
+    // Reapply the optional browser font on every rebuild (startup, language and workbook font
+    // changes). This also covers egui's default Monospace family used by code/text editors.
+    crate::web_fonts::append_fallback(&mut fonts);
     drop_unparseable_fonts(&mut fonts);
     // Only families egui still has data for count as bound (a dropped face can empty a chain).
     bound.retain(|f| fonts.families.get(&FontFamily::Name(f.as_str().into())).is_some_and(|c| !c.is_empty()));

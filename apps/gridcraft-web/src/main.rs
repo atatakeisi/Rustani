@@ -9,6 +9,7 @@
 //! files are read asynchronously.
 //!
 //! URL query flags: `?webgl` forces WebGL2; `?sample=sales|budget|grades` opens a sample;
+//! `?font-license=1` shows the embedded Japanese font's licence without starting the app;
 //! `?host=parent` (inside an `<iframe>`) talks to a same-origin parent page instead: it sends the
 //! workbook to open and stores what GridCraft saves (`host`), and `&author=` names the user for
 //! notes and comments. Preferences (theme, interface size, editing options…) are kept in

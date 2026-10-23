@@ -54,11 +54,12 @@ copy_docs() {
 }
 
 # Builds made with craft-fonts (CRAFT_FONTS_DIR, set by the release workflow) embed its fonts, so
-# the package carries their licences as OFL-<family-dir>.txt. Nothing without CRAFT_FONTS_DIR.
+# the package carries their licences as OFL-<family-dir>.txt. The Web font build also discovers
+# a sibling checkout, so use the same fallback here without setting an environment variable.
 copy_font_licences() {
-  local dest="$1" f
-  [ -n "${CRAFT_FONTS_DIR:-}" ] || return 0
-  for f in "$CRAFT_FONTS_DIR"/fonts/*/OFL.txt; do
+  local dest="$1" f font_source="${CRAFT_FONTS_DIR:-$ROOT/../craft-fonts}"
+  [ -d "$font_source/fonts" ] || return 0
+  for f in "$font_source"/fonts/*/OFL.txt; do
     if [ -f "$f" ]; then cp "$f" "$dest/OFL-$(basename "$(dirname "$f")").txt"; fi
   done
 }

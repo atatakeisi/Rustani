@@ -77,8 +77,29 @@ Local test: `python3 -m http.server 8765` inside the folder, then open http://lo
 
 GridCraft's web build is the same egui app as the desktop one, compiled to wasm
 (`apps/gridcraft-web`). It renders with the backend `apps/gridcraft-web` selects (WebGPU
-where available, otherwise WebGL2). If the web app adds URL flags to force a backend (as the
-sibling Craft apps do with `?webgl` / `?cpu`), document them here; they also work on the
-iframe `src`.
+where available, otherwise WebGL2). Add `?webgl` to force WebGL2, or append `&webgl` after
+other options, for example `?sample=sales&webgl`. This also works on the iframe `src`.
 
 A browser with neither WebGPU nor WebGL2 gets a message in place of the app.
+
+## Optional Japanese font
+
+Web builds can embed BIZ UDPGothic Regular from an external craft-fonts checkout. The build
+reads an existing `CRAFT_FONTS_DIR`, or automatically finds `../craft-fonts` beside GridCraft.
+No environment-variable changes are needed for the sibling layout. Font source assets remain
+outside this repository; builds without the optional source retain the previous fallback.
+Native system-font behavior is unchanged.
+
+The verified input is craft-fonts commit `abb83316d96aa59c1cf64784289e378fe9fa5695`, file
+`fonts/biz-ud-pgothic/BIZUDPGothic-Regular.ttf`, 4,669,688 bytes, SHA-256
+`258d7156c165f2ff774b6efee637c22c3b950de0d8a10e501137061bc8085d01`.
+It supplies Japanese fallback across the UI and cells; full Chinese/Korean coverage and every
+Japanese Unicode glyph are not guaranteed. Japanese browser-language detection is enabled
+only when the embedded font validates; saved language preferences still take priority.
+
+Keep `OFL-biz-ud-pgothic.txt` with packages that embed the font. The packaging helpers copy
+licences from the explicit or sibling source. A deployed site also exposes its embedded licence
+at `?font-license=1`, using the [SIL Open Font License 1.1 text](https://github.com/storytold/craft-fonts/blob/abb83316d96aa59c1cf64784289e378fe9fa5695/fonts/biz-ud-pgothic/OFL.txt).
+See [Japanese input and font verification](../../docs/web-japanese.md) for the regression tests
+and Safari/Chrome manual checks. Building the Wasm app does not establish that those browser
+checks have passed.
