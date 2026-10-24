@@ -40,6 +40,14 @@ pub fn show(app: &mut SheetApp, ui: &mut egui::Ui) {
                 let mut child = ui.new_child(egui::UiBuilder::new().max_rect(field.shrink2(vec2(6.0, 3.0))));
                 let id = egui::Id::new("gridcraft.formula_bar");
                 let read_only = active_spill_anchor(app).is_some();
+                if !read_only
+                    && app.editor.is_none()
+                    && ui.input(|i| {
+                        (i.pointer.primary_clicked() || i.pointer.secondary_clicked()) && i.pointer.interact_pos().is_some_and(|p| field.contains(p))
+                    })
+                {
+                    app.begin_edit(None, true);
+                }
                 if app.editor.is_some() {
                     editor_widget(app, &mut child, id, theme::ui_font(13.0), expanded, field.width() - 12.0);
                 } else {
@@ -178,11 +186,23 @@ fn entry_shrank(chars_before: usize, text: &str) -> bool {
 #[derive(Default)]
 struct DirectImeFocus {
     pending: Option<(egui::ViewportId, egui::Id)>,
+    boundary_target: Option<(egui::ViewportId, egui::Id)>,
 }
 
 impl egui::Plugin for DirectImeFocus {
     fn debug_name(&self) -> &'static str {
         "gridcraft direct IME focus"
+    }
+
+    fn input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
+        // Run before egui's focus handling: a newly focused TextEdit cannot install its focus
+        // filter until the following frame, so Tab/Escape would otherwise change focus first.
+        if let Some((viewport, target)) = self.boundary_target.take()
+            && input.viewport_id == viewport
+            && ctx.memory(|memory| memory.has_focus(target))
+        {
+            filter_ime_boundary_keys(&mut input.events);
+        }
     }
 
     fn output_hook(&mut self, ctx: &egui::Context, output: &mut egui::FullOutput) {
@@ -202,10 +222,38 @@ pub(crate) fn focus_direct_ime(ctx: &egui::Context) {
     ctx.memory_mut(|m| m.request_focus(editor));
 }
 
+fn filter_ime_boundary_keys(events: &mut Vec<egui::Event>) {
+    let has_composition = events.iter().any(|event| matches!(event, egui::Event::Ime(egui::ImeEvent::Preedit { .. } | egui::ImeEvent::Commit(_))));
+    if has_composition {
+        events.retain(|event| !matches!(event, egui::Event::Key { key: Key::Enter | Key::Tab | Key::Escape, .. }));
+    }
+}
+
+/// A composition and its confirmation/cancellation key can arrive before the same repaint.
+/// Neither the spreadsheet nor TextEdit should treat that key as a separate editing action.
+pub(crate) fn consume_ime_boundary_keys(ctx: &egui::Context, target: egui::Id) {
+    ctx.plugin_or_default::<DirectImeFocus>().lock().boundary_target = Some((ctx.viewport_id(), target));
+    ctx.input_mut(|input| filter_ime_boundary_keys(&mut input.events));
+}
+
+pub(crate) fn suspend_ime_boundary_keys(ctx: &egui::Context) {
+    ctx.plugin_or_default::<DirectImeFocus>().lock().boundary_target = None;
+}
+
 /// The text editor used in the cell and in the formula bar (they share `app.editor`).
 pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: FontId, multiline: bool, width: f32) {
     let Some(mut ed) = app.editor.take() else { return };
-    let mine = ed.from_formula_bar == (id == egui::Id::new("gridcraft.formula_bar"));
+    // The origin cell is offscreen while pointing at another sheet. The visible formula
+    // bar temporarily owns input, including Enter and reference-navigation keys.
+    let cross_sheet = app.session.active().is_some_and(|d| d.wb.active_sheet != ed.sheet);
+    let mine = if cross_sheet {
+        id == egui::Id::new("gridcraft.formula_bar")
+    } else {
+        ed.from_formula_bar == (id == egui::Id::new("gridcraft.formula_bar"))
+    };
+    if mine && ed.request_focus && !ui.ctx().memory(|m| m.has_focus(id)) {
+        ui.ctx().memory_mut(|m| m.request_focus(id));
+    }
     // Direct typing was focused by the grid before TextEdit consumes the first input events.
     // Keep their caret/composition selection rather than applying the ordinary startup cursor.
     let starts_with_input =
@@ -219,12 +267,13 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
     // A message box over the editor (a data validation alert, a formula error) gets Enter and Esc;
     // the editor used to take them, so the first Esc cancelled the edit behind the message.
     if has_focus && mine && app.message.is_none() {
+        consume_ime_boundary_keys(ui.ctx(), id);
         let (enter, tab, esc, alt_enter, cmd_enter, ctrl_shift_enter, shift) = ui.input_mut(|i| {
             let m = i.modifiers;
             let alt_enter =
                 i.consume_key(egui::Modifiers::ALT, Key::Enter) || i.consume_key(egui::Modifiers::CTRL | egui::Modifiers::ALT, Key::Enter);
             let ctrl_shift_enter = i.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, Key::Enter);
-            let cmd_enter = i.consume_key(egui::Modifiers::COMMAND, Key::Enter);
+            let cmd_enter = i.consume_key(egui::Modifiers::COMMAND, Key::Enter) || i.consume_key(egui::Modifiers::CTRL, Key::Enter);
             let enter = i.consume_key(egui::Modifiers::NONE, Key::Enter) || i.consume_key(egui::Modifiers::SHIFT, Key::Enter);
             let tab = i.consume_key(egui::Modifiers::NONE, Key::Tab) || i.consume_key(egui::Modifiers::SHIFT, Key::Tab);
             let esc = i.consume_key(egui::Modifiers::NONE, Key::Escape);
@@ -278,7 +327,7 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
             });
             let n = ed.autocomplete.len();
             ed.ac_index = if down { (ed.ac_index + 1) % n } else { (ed.ac_index + n - 1) % n };
-        } else if ed.enter_mode && (up || down || left || right) && !ed.from_formula_bar {
+        } else if (ed.enter_mode && !ed.from_formula_bar || ed.point_at_caret()) && (up || down || left || right) {
             let (dr, dc) = if up {
                 (-1, 0)
             } else if down {
@@ -298,7 +347,7 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
                         i.consume_key(egui::Modifiers::SHIFT, k);
                     }
                 });
-                crate::grid::point_move(app, &mut ed, dr, dc, ashift);
+                crate::grid::point_move(app, ui.ctx(), &mut ed, dr, dc, ashift);
             } else {
                 action = Some((dr, dc, false, false));
                 arrow = true;
@@ -356,6 +405,7 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
     } else {
         TextEdit::singleline(&mut ed.text)
     };
+    crate::text_menu::before_show(ui.ctx(), id);
     let mut output = edit
         .id(id)
         .frame(egui::Frame::NONE)
@@ -366,9 +416,12 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
         .event_filter(egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true })
         .show(ui);
     let resp = output.response.clone();
+    crate::text_menu::show(app, ui, &resp, ed.text.chars().count());
     let synced = mine && (ed.request_focus || ed.sync_caret);
     if synced {
-        if ed.request_focus {
+        // Direct input was already focused before TextEdit handled its composition. A second
+        // request would reset TextEdit's focus filter, so next-frame Escape/Tab could steal focus.
+        if ed.request_focus && !ui.ctx().memory(|memory| memory.has_focus(id)) {
             resp.request_focus();
         }
         ed.request_focus = false;
@@ -378,9 +431,11 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
             output.state.cursor.set_char_range(Some(egui::text::CCursorRange::one(cursor)));
             output.state.store(ui.ctx(), id);
         }
-    } else if resp.clicked() || resp.gained_focus() {
+    } else if resp.clicked() || resp.secondary_clicked() || resp.gained_focus() {
         // Clicking into the other editor moves editing there.
-        ed.from_formula_bar = id == egui::Id::new("gridcraft.formula_bar");
+        if !cross_sheet || resp.clicked() || resp.secondary_clicked() {
+            ed.from_formula_bar = id == egui::Id::new("gridcraft.formula_bar");
+        }
         ed.enter_mode = false;
         app.session.mode = gridcraft_engine::Mode::Edit;
     }

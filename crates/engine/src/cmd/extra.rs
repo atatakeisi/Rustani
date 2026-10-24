@@ -7,6 +7,8 @@ use serde_json::{Value as Json, json};
 
 use super::*;
 
+pub(crate) mod recorder;
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         // Chart Design / Format
@@ -182,7 +184,15 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         cmd!(query "data.queriesConnections", "Queries & Connections", ["Data", "Queries & Connections"], None, "{} → imported tables", has_doc, queries),
         // Automate
-        cmd!(noundo "automate.recordActions", "Record Actions", ["Automate", "Scripting Tools"], None, "{stop?: bool, name?: script name when stopping}", has_doc, record),
+        cmd!(
+            "automate.recordActions",
+            "Record Actions",
+            ["Automate", "Scripting Tools"],
+            None,
+            "{stop?: bool, cancel?: bool, name?: macro name when stopping} → recording state; stopping saves a script and generated VBA module",
+            has_doc,
+            record
+        ),
         cmd!(
             "automate.newScript",
             "New Script",
@@ -967,16 +977,11 @@ fn queries(s: &mut Session, _: &Json) -> Result<Json> {
 }
 
 fn record(s: &mut Session, p: &Json) -> Result<Json> {
-    if bool_param(p, "stop").unwrap_or(false) || s.recording.is_some() {
-        let Some(start) = s.recording.take() else { return Ok(json!({"recording": false})) };
-        let cmds: Vec<Json> =
-            s.journal.iter().skip(start).filter(|(id, _)| !id.starts_with("automate.")).map(|(id, p)| json!({"command": id, "params": p})).collect();
-        let name = str_param(p, "name").map(str::to_string).unwrap_or_else(|| format!("Script {}", start));
-        s.execute("automate.newScript", json!({"name": name, "commands": cmds}))?;
-        return Ok(json!({"recording": false, "saved": name, "steps": cmds.len()}));
+    if bool_param(p, "cancel").unwrap_or(false) || bool_param(p, "stop").unwrap_or(false) || s.recording.is_some() {
+        recorder::stop(s, p)
+    } else {
+        recorder::begin(s)
     }
-    s.recording = Some(s.journal.len());
-    Ok(json!({"recording": true}))
 }
 
 fn new_script(s: &mut Session, p: &Json) -> Result<Json> {

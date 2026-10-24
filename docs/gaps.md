@@ -1,19 +1,31 @@
 # Gaps
 
-> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (full VBA compatibility required; document the partial local implementation) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-24 (operational-parity and remaining-work reconciliation) · **Last updated:** 2026-10-24 · **Change:** minor (remove obsolete implementation gaps; retain browser and VBA verification requirements) · **Target:** Microsoft Excel (Microsoft 365)
 
-Every known shortfall against Excel, one entry each, ranked by user impact (what blocks someone
-using GridCraft for real work first). This is the work list: pick from the top, check the open
-PRs first (50 open on 2026-10-10; several already address entries here), and update the entry
-when you land work. Estimates are Opus 5.5 agent-hours. Area detail lives in the linked parity
-docs; the summary is in [target-app-parity.md](target-app-parity.md).
+Ranked shortfalls against Excel. Check the current source and PR status before starting work;
+the inherited issue references, numerical estimates and readiness assessments below have not
+been comprehensively remeasured. Agent-hour estimates are historical Opus 5.5 estimates, not a
+current delivery forecast. Area detail lives in the linked parity docs; the summary is in
+[target-app-parity.md](target-app-parity.md).
 
 Kinds: **F** feature · **U** UI/UX · **FF** file format · **H** hardware · **L** localization ·
 **P** performance · **S** stability.
 
+## Current validation remainder (2026-10-24)
+
+The multi-area editing, grouped-sheet, clipboard, macro-control and picture workflows in
+[operational-parity.md](operational-parity.md) are implemented and covered by CI plus selected
+Chrome live checks ([PROJECT_STATUS.md §13](../PROJECT_STATUS.md)). They are no longer absent
+features. Remaining validation includes **Safari on a real browser**, **real OS Japanese IME
+candidate conversion**, browser permission/file-save paths, WebGPU/WebGL comparisons and
+Windows/Linux hardware checks. Synthetic input and WASM compilation do not establish those
+results. **Full Excel VBA compatibility remains unmet**; see §21 for language and project-writing
+work rather than interpreting the operational fixes as completion of that requirement.
+
 ## Beta blockers
 
-No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-gate).
+The inherited [alpha gate](roadmap.md#alpha-gate) records earlier core-workflow results; it is
+not a new whole-product readiness assessment.
 
 
 ### 1. XLSX output not proven in Excel or on real files (FF)
@@ -27,8 +39,9 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 
 ### 2. Large workbooks don't open; recalc is single-threaded (P, H)
 - **Missing:** streaming read for ~100 MB XLSX; multi-threaded recalc; 100k-dependent edit under
-  100 ms (was ~0.4 s); whole-sheet operations bounded.
-- **Evidence:** #175; no threading in `crates/calc`; PR #152 (whole-sheet Fill/Remove Duplicates
+  100 ms (historically ~0.4 s), with fresh scale benchmarks still needed. Current paste/fill/group
+  commands have explicit bounds; this is not an assertion that those guards remain unimplemented.
+- **Historical evidence to recheck:** #175; PR #152 (whole-sheet Fill/Remove Duplicates
   out of memory), PR #151 (current region past 10,000 rows).
 - **Impact:** finance and data users routinely have big workbooks.
 - **Estimate:** 25–40 h. [target-app-parity.md](target-app-parity.md#performance), [hardware-parity.md](hardware-parity.md)
@@ -44,28 +57,30 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 
 ### 4. Charts lose options on round trip; shallow chart model (F, FF)
 - **Missing:** axis scaling, label options, error bars, per-point formatting.
-- **Evidence:** `Chart` holds only title, legend position, two flags and axis titles
-  (`crates/model/src/features.rs`); PRs #158, #161 open; charts can't be resized (#190). Smooth lines (#62), Switch Row/Column (#116) and trendlines (read, written, drawn) landed. Multi-level category axes (year beside month) are read, drawn and written back.
-  (`crates/model/src/features.rs`); all 2-D kinds survive XLSX round trip (#158, #161); charts
-  can't be resized (#190). Smooth lines (#62), Switch Row/Column (#116) and trendlines (read,
-  written, drawn) landed.
+- **Present:** chart movement and resizing are implemented (`ui-egui/src/chartview.rs` and
+  `grid.rs`); the former “cannot resize” entry is obsolete. Smooth lines, Switch Row/Column,
+  trendlines and multi-level category axes have read/render/write paths. The chart parity
+  inventory records the previously merged chart-kind work; those PRs are not listed as open here.
+- **Evidence for remaining loss:** the partial chart model and XLSX chart writer preserve only
+  modelled options. Real Excel round-trip fidelity still needs verification.
 - **Impact:** charts are in most business workbooks.
 - **Estimate:** 25–35 h for beta (40–60 h full). [chart-parity.md](chart-parity.md)
 
-### 5. Text in non-Latin scripts doesn't render or export (L)
-- **Missing:** CJK font fallback, complex shaping (Arabic, Devanagari, Thai), bidi, non-Latin PDF.
-- **Evidence:** system-font fallback for CJK, Thai and Hebrew landed in #38 (closed #32); #142
-  (Chinese text) awaits confirmation; #54 (symbols as boxes on Fedora); no shaping for Arabic or
-  Devanagari; PDF writer uses 14 standard fonts only.
+### 5. Script coverage, shaping and non-Latin export remain incomplete (L)
+- **Present:** native system-font fallback and an optional external `craft-fonts` BIZ UDPGothic
+  Web fallback. Japanese UI rendering has selected Chrome evidence; font sources are not
+  committed to GridCraft. This does not guarantee every Japanese character or full Chinese/Korean coverage.
+- **Missing:** complex shaping (Arabic, Devanagari, Thai), bidi, non-Latin PDF, and real-browser/
+  real-OS IME confirmation. The PDF writer's standard-font path does not provide CJK export.
 - **Impact:** blocks most of the world's users even with an English UI.
 - **Estimate:** 12–20 h. [localization-parity.md](localization-parity.md)
 
 ### 6. Calculation correctness bugs (F)
-- **Missing:** nothing known. The four this entry tracked have landed: 15-significant-digit
+- **Status:** the issues previously tracked here have landed: 15-significant-digit
   equality (#57, so `=0.1+0.2=0.3` is TRUE and MATCH and COUNTIF agree), spill updates after
   structural edits and cleared blockers (#133, #139; PRs #148, #157), 3-D span deletion (#140),
   and qualified names after a sheet rename (#134). Iterative calculation for circular references
-  landed too (no Options dialog yet, which is §13's).
+  landed too. This dated fix list does not replace a complete calculation oracle suite.
 - **Impact:** wrong numbers are worse than missing features, so this entry is kept until the
   oracle suite of §15 can say the category is clear rather than only these five reports being so.
 - **Estimate:** — [function-parity.md](function-parity.md#formula-language)
@@ -81,18 +96,20 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
   routine in business.
 - **Estimate:** 14–21 h (`.xls` styles and objects 10–15, encryption 4–6). [file-format-parity.md](file-format-parity.md)
 
-### 8. PivotTables: no slicers, calculated items, PivotCharts; unverified in Excel (F)
-- **Evidence:** `parity-checklist.md` missing `insert.slicer`, `insert.timeline`,
-  `insert.pivotChart`, `table.insertSlicer`; calculated items and GETPIVOTDATA missing (calculated fields
-  and values on rows done).
+### 8. PivotTables: slicers, calculated items and Excel verification remain (F)
+- **Remaining:** slicers/timelines, calculated items and real Excel validation. PivotCharts,
+  calculated fields and values on rows are implemented; PivotChart field buttons remain absent
+  ([chart-parity.md](chart-parity.md)). Command registration alone does not prove runtime fidelity.
 - **Impact:** pivots are the analyst's main tool.
 - **Estimate:** 20–30 h for beta (25–40 h full).
 
 ### 9. Keyboard-first users: key tips, shortcuts, context menus (U)
-- Next/previous sheet navigation now skips Hidden and VeryHidden worksheets without activating a
-  hidden sheet at the workbook boundary. Other keyboard gaps below remain.
-- **Evidence:** #33, #49 (key tips: initial Home-tab support landed in #43 on 10-10, the rest of the ribbon not yet), #110, #28 (selection),
-  59 command shortcuts vs Excel's 200+.
+- **Present:** the generated KeyTips table spans File/Backstage and multiple ribbon tabs, not
+  just Home. Multi-area selections, sheet modifier selection, text context menus, Mac Control+
+  Enter and macro KeyTips have operational regression tests. Sheet navigation skips hidden tabs.
+- **Remaining:** broader shortcut/KeyTip fidelity and real-platform keyboard/IME checks. The old
+  shortcut count and Home-only claim are not a current coverage measurement. See
+  [operational-parity.md](operational-parity.md) for the verified scope.
 - **Estimate:** 12–20 h. [ui-parity.md](ui-parity.md)
 
 ### 10. Crashes and freezes reported from the field (S)
@@ -102,49 +119,53 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 
 ## After beta
 
-### 11. No localization at all (L)
-- Catalog: ribbon-only in five languages (#31, #104, #82; ~12% of strings each), and 943 strings
-  (~43%) in Japanese (10-17) and Brazilian Portuguese, including the dialog labels, messages, File
-  view and menus. The remaining dialogs, menus and messages are English; en-US function names and
-  separators (#45); German in PR #163. **Estimate:**
-  100–165 h including #5. [localization-parity.md](localization-parity.md)
+### 11. Localization and locale behavior remain partial (L)
+- Language catalogs, language switching and Japanese UI defaults are implemented. Japanese
+  menus, dialogs, VBA editing and diagnostic headings are translated; the latest operational
+  changes also translate static and parameterized formula errors. English remains in parts of
+  the UI/diagnostics, and full locale-aware function names, separators and number/date behavior
+  remain separate work. Whole-UI and per-language coverage have not been remeasured here.
+- **Historical estimate:** 100–165 h including #5, not refreshed after these changes.
+  [localization-parity.md](localization-parity.md)
 
 ### 12. Get & Transform, external data, data model (F)
 - No Power Query editor, connections, refresh, From Web/database/folder sources, relationships or
   data model (`data.fromWeb`, `data.relationships` missing). **Estimate:** 60–100 h.
 
-### 13. Analysis tools: Solver, Analysis ToolPak, Forecast Sheet (F)
-- `data.solver`, `data.analysisToolPak` missing. Forecast Sheet (`data.forecastSheet`) and the
-  FORECAST.ETS family are in, including Forecast Start (hindcast, #785). **Estimate:** 15–25 h.
+### 13. Analysis tools: remaining Solver/ToolPak/Forecast parity (F)
 - Solver (`data.solver`, #327) has Simplex LP with integer/binary branch and bound, a local
   nonlinear method (augmented Lagrangian, not GRG), the Evolutionary method, and Answer and
   Limits reports. Report refusal leaves the solution, saved model and history unchanged; a
   successful solve and its reports share one Undo step (#1050). AllDifferent constraints,
   the Solver Options dialog, the Sensitivity and Population reports and Load/Save Model remain.
   The Analysis ToolPak
-  (`data.analysisToolPak`) has 13 of 19 tools. Forecast Sheet (`data.forecastSheet`) and the
-  FORECAST.ETS family are in; the sheet has no Forecast Start (hindcast) option yet. **Estimate:** 12–20 h.
+  (`data.analysisToolPak`) has a partial tool set. Forecast Sheet (`data.forecastSheet`), Forecast
+  Start (hindcast) and the FORECAST.ETS family are implemented. Historical tool counts and
+  **12–20 h** estimate have not been remeasured here.
 
 ### 14. Page Layout view and print polish (U, F)
 - Page Layout view landed (#329): paper view with rulers and in-place header/footer editing.
   Margins are dragged on the rulers (#792). Remaining: pictures in headers/footers, Different First Page / Odd & Even pages. Desktop now submits directly through craft-print with printer choice, copies, duplex and grayscale; browser printing stays available. Print ranges and driver tray/options UI remain. **Estimate:** 5–10 h.
 
 ### 15. Remaining functions and an oracle suite (F)
-- 18 missing, 9 stubs; no Excel-computed oracle corpus; #137, #138. **Estimate:** 16–26 h.
-- 20 missing, 9 stubs; no Excel-computed oracle corpus; #137, #138. **Estimate:** 17–29 h.
-- 21 missing, 9 stubs; no Excel-computed oracle corpus; #137, #138. **Estimate:** 18–30 h.
-- 18 missing, 9 stubs; no Excel-computed oracle corpus; #137, #138. **Estimate:** 18–30 h.
-  [function-parity.md](function-parity.md)
+- Remaining/stubbed function coverage needs a fresh inventory; the contradictory inherited
+  counts are not a current measurement. An Excel-computed oracle corpus is still needed.
+  **Historical estimate:** 18–30 h, not refreshed. [function-parity.md](function-parity.md)
 
 ### 16. Collaboration and review (F)
-- No co-authoring, Show Changes, comment navigation, notes ↔ comments
-  conversion; cloud storage requested (#86). **Estimate:** 35–55 h (co-authoring scope needs the owner).
+- Co-authoring and Show Changes remain absent; cloud storage was requested (#86). Comment
+  navigation, Show Comments/Notes and notes-to-comments conversion are implemented.
+  **Historical estimate:** 35–55 h (co-authoring scope needs the owner).
 
 ### 17. Insert objects (F)
 - Ink strokes now survive XLSX save/reopen as editable polylines. Inserted icons still lose their
   identity/artwork on save (#551); native Office InkML import is not implemented.
 - SmartArt, WordArt, equations, signature line, objects, 3-D models, screenshot; 8 shape kinds vs
-  ~170; pictures in cells (#61, PR #105). **Estimate:** 25–40 h.
+  ~170 were the inherited inventory; current shape counts were not remeasured.
+- **Present:** pictures in cells, floating/cell placement conversion, clipboard PNG insertion,
+  selection and all eight floating-picture resize handles. CI and selected Chrome evidence are
+  recorded in [operational-parity.md](operational-parity.md); this does not prove full Excel
+  picture/package fidelity. **Historical estimate:** 25–40 h, not refreshed.
 
 ### 18. Accessibility (U)
 - AccessKit on, but no accessible grid/ribbon tree, no high contrast, no checker. **Estimate:** 12–18 h.
@@ -165,10 +186,14 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 - **Present locally:** original VBA project bytes retained for `.xlsm`/`.xltm`; bounded source
   extraction; partial cooperative VM and Excel object adapter; source editor, run/stop, output
   and line diagnostics. Loaded VBA/script content needs explicit trust; edits are staged and commit
-  only after success. Source edits save in GridCraft metadata and do not update or create the
-  original Excel `vbaProject.bin`.
-- **Missing:** broad language/library/object-model coverage, project writing, events/forms,
-  native execution architecture, macro UDFs, add-in lifecycle and Excel corpus verification.
+  only after success. Macro controls and recording generate valid supported VBA into a standard
+  module, with unsupported operations explicitly reported. Source edits save in GridCraft metadata.
+- **Missing:** parameterized `Sub`, `Function`, `ByRef`/`ByVal` and broader language/library/
+  object-model coverage; **generating or rewriting an executable Excel `vbaProject.bin`**;
+  events/forms, native execution architecture, macro UDFs and add-in lifecycle.
+- **Verification remaining:** Excel-authored macro corpus tests and **open/edit/save/reopen in
+  real Excel**, including edited executable projects. Retaining original project bytes and
+  passing local CI/Chrome editor tests do not establish this round-trip compatibility.
   Office Scripts compatibility and a plugin/custom-function API also remain absent.
 - **Estimate:** full VBA compatibility **not yet estimated**. The historical 25–40 h covers
   the plugin/custom-function API only and must not be read as an estimate for complete VBA.
@@ -189,6 +214,7 @@ No alpha blockers: every core workflow passes the [alpha gate](roadmap.md#alpha-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Reconcile operational implementation with CI/Chrome evidence; remove obsolete resize/Home-only KeyTips/no-localization/no-cell-picture claims and contradictory inherited entries; keep historical estimates separate from Safari/real-OS IME and full VBA/project-writing verification gaps |
 | 2026-10-23 | minor | §21: replace obsolete VBA exclusion/drop claim with the full requirement, local partial implementation and unestimated remaining scope; readiness unchanged |
 | 2026-10-20 | minor | §11: the Japanese catalog covers the dialogs, messages and menus — 943 keys (~43%), matching the pt-BR coverage; a test keeps the two catalogs in step |
 | 2026-10-17 | minor | §6: the five reports it tracked are closed and their PRs merged (#57, #133, #139, #140, #134; PRs #148, #155, #156, #157); the entry stays open for §15's oracle suite |

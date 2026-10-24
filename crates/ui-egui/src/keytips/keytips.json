@@ -2326,7 +2326,7 @@
   {
    "seq": "WMR",
    "kind": "command",
-   "target": "view.macros",
+   "target": "automate.recordActions",
    "excel": "Record Macro",
    "note": "Record Macro (macros menu)"
   },

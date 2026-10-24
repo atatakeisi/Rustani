@@ -3401,8 +3401,17 @@ fn cell_picture_clipboard_clear_and_structural_edits_keep_complete_payload() {
     assert_eq!(cell_picture(&s, "C3").unwrap().alt, original.alt);
     s.execute("edit.cut", json!({"range": "C3"})).unwrap();
     s.execute("home.insertSheet", json!({"name": "Destination"})).unwrap();
+    assert!(s.clipboard.is_none(), "inserting a worksheet ends the previous cut operation");
+    assert!(s.execute("edit.paste", json!({"at": "E4"})).is_err());
+    assert!(cell_picture(&s, "E4").is_none());
+    let retained = s.doc().unwrap().wb.sheet(0).unwrap().cell_pictures.get(&CellRef::parse("C3").unwrap()).unwrap();
+    assert!(std::sync::Arc::ptr_eq(retained, &original), "canceling cut keeps the complete source picture");
+    s.execute("sheet.activate", json!({"sheet": 0})).unwrap();
+    s.execute("edit.cut", json!({"range": "C3"})).unwrap();
+    s.execute("sheet.activate", json!({"sheet": "Destination"})).unwrap();
     s.execute("edit.paste", json!({"at": "E4"})).unwrap();
     assert_eq!(cell_picture(&s, "E4").unwrap().alt, original.alt);
+    assert!(std::sync::Arc::ptr_eq(&cell_picture(&s, "E4").unwrap(), &original));
     assert!(s.doc().unwrap().wb.sheet(0).unwrap().cell(CellRef::parse("C3").unwrap()).is_none());
     s.execute("home.deleteColumns", json!({"cols": "E:E"})).unwrap();
     assert!(cell_picture(&s, "E4").is_none());
@@ -3482,16 +3491,28 @@ fn cell_picture_side_map_follows_fill_shift_merge_and_undo() {
 }
 
 #[test]
-fn cell_picture_cut_uses_live_source_after_edit() {
+fn cell_picture_source_edits_cancel_cut_and_fresh_cut_moves_current_payload() {
     for clear in [false, true] {
         let mut s = s();
         insert_cell_picture(&mut s, "B2", "original");
+        insert_cell_picture(&mut s, "D2", "destination remains until a fresh cut");
+        let destination = cell_picture(&s, "D2").unwrap();
         s.execute("edit.cut", json!({"range": "B2"})).unwrap();
         if clear {
             s.execute("edit.clearContents", json!({"range": "B2"})).unwrap();
         } else {
             insert_cell_picture(&mut s, "B2", "replacement");
         }
+        assert!(s.clipboard.is_none(), "editing the source cancels cut mode");
+        assert!(s.execute("edit.paste", json!({"at": "D2"})).is_err());
+        assert!(std::sync::Arc::ptr_eq(&cell_picture(&s, "D2").unwrap(), &destination));
+        let current = cell_picture(&s, "B2");
+        if clear {
+            assert!(current.is_none());
+        } else {
+            assert_eq!(current.as_ref().unwrap().alt, "replacement");
+        }
+        s.execute("edit.cut", json!({"range": "B2"})).unwrap();
         s.execute("edit.paste", json!({"at": "D2"})).unwrap();
         assert!(cell_picture(&s, "B2").is_none());
         if clear {
@@ -3499,6 +3520,7 @@ fn cell_picture_cut_uses_live_source_after_edit() {
             assert_eq!(v(&s, "D2"), Value::Empty);
         } else {
             assert_eq!(cell_picture(&s, "D2").unwrap().alt, "replacement");
+            assert!(std::sync::Arc::ptr_eq(&cell_picture(&s, "D2").unwrap(), current.as_ref().unwrap()));
             assert_eq!(v(&s, "D2"), Value::Error(gridcraft_core::CellError::Value));
         }
     }

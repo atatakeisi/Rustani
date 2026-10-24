@@ -259,7 +259,7 @@ pub fn formula_refs(text: &str) -> Vec<(usize, usize, RangeRef, Option<String>, 
     while i < toks.len() {
         use gridcraft_engine::formula::lexer::Tok;
         let (sheet, start, j) = match &toks[i].tok {
-            Tok::Sheet(a, _) => (Some(a.clone()), toks[i].start, i + 1),
+            Tok::Sheet(a, b) => (Some(b.as_ref().map_or_else(|| a.clone(), |b| format!("{a}:{b}"))), toks[i].start, i + 1),
             _ => (None, toks[i].start, i),
         };
         if let Some(Tok::Word(w)) = toks.get(j).map(|t| &t.tok) {
@@ -306,6 +306,16 @@ pub fn formula_refs(text: &str) -> Vec<(usize, usize, RangeRef, Option<String>, 
 /// pointing at another sheet.
 pub fn ref_is_on_sheet(ref_sheet: Option<&str>, origin: &str, shown: &str) -> bool {
     ref_sheet.unwrap_or(origin).eq_ignore_ascii_case(shown)
+}
+
+pub fn ref_is_on_sheet_in_workbook(ref_sheet: Option<&str>, origin: &str, shown: &str, wb: &gridcraft_engine::model::Workbook) -> bool {
+    if let Some((first, last)) = ref_sheet.and_then(|sheet| sheet.split_once(':')) {
+        if let (Some(first), Some(last), Some(shown)) = (wb.sheet_index(first), wb.sheet_index(last), wb.sheet_index(shown)) {
+            return (first.min(last)..=first.max(last)).contains(&shown);
+        }
+        return false;
+    }
+    ref_is_on_sheet(ref_sheet, origin, shown)
 }
 
 /// Excel-style AutoComplete: the one distinct text entry in the same column (contiguous data
@@ -398,6 +408,21 @@ mod tests {
         assert_eq!(r[0].4, r[2].4); // A1 and a1 share a colour
         assert_eq!(r[1].2.a1(), "B2:C3");
         assert_eq!(r[3].3.as_deref(), Some("Sheet2"));
+    }
+
+    #[test]
+    fn three_dimensional_references_keep_endpoints_and_outline_intermediate_sheets() {
+        let refs = formula_refs("=SUM('Start Here:End Here'!A1)");
+        assert_eq!(refs[0].3.as_deref(), Some("Start Here:End Here"));
+        let mut wb = gridcraft_engine::model::Workbook::new();
+        wb.sheets.clear();
+        for name in ["Start Here", "Middle", "End Here", "Outside"] {
+            wb.sheets.push(std::sync::Arc::new(gridcraft_engine::model::Sheet::new(name)));
+        }
+        for name in ["Start Here", "Middle", "End Here"] {
+            assert!(ref_is_on_sheet_in_workbook(refs[0].3.as_deref(), "Outside", name, &wb));
+        }
+        assert!(!ref_is_on_sheet_in_workbook(refs[0].3.as_deref(), "Outside", "Outside", &wb));
     }
 
     #[test]

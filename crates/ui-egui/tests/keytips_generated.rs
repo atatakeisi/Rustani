@@ -2541,7 +2541,7 @@ fn keytip_wm_() {
 fn keytip_wmr_() {
     let mut h = harness(blank());
     sequence(&mut h, "WMR", false);
-    assert!(h.state().message.is_none() && h.state().toast.is_none(), "WMR must run view.macros cleanly");
+    assert!(h.state().session.journal.iter().any(|(id, _)| id == "automate.recordActions"), "WMR must journal automate.recordActions");
 }
 
 #[test]

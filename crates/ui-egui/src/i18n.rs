@@ -221,6 +221,17 @@ impl Language {
 
     pub(crate) fn tr_error(self, message: &str) -> String {
         let message = if message.starts_with("command `") { crate::clean_error(message) } else { message.to_owned() };
+        if self == Self::Ja {
+            if let Some(reason) = message.strip_prefix("There's a problem with this formula: ") {
+                return format!("この数式には問題があります: {}", japanese_formula_reason(reason));
+            }
+            for (pattern, description) in [(" has too few arguments. Use ", "少なすぎます"), (" has too many arguments. Use ", "多すぎます")]
+            {
+                if let Some((name, signature)) = message.split_once(pattern) {
+                    return format!("この関数に対して、入力されている引数が{description} ({name})。使用方法: {signature}");
+                }
+            }
+        }
 
         let translated = self.tr(&message);
         let fallback = message.rsplit_once('|').map_or(message.as_str(), |(_, label)| label);
@@ -247,6 +258,43 @@ impl Language {
             _ => None,
         }
     }
+}
+
+fn japanese_formula_reason(reason: &str) -> String {
+    if let Some(translated) = ja::translate(reason) {
+        return translated.into();
+    }
+    let token = |s: &str| match s {
+        "end of formula" => "数式の終わり".into(),
+        "a reference after the sheet name" => "シート名に続くセル参照".into(),
+        "a number in array" => "配列内の数値".into(),
+        "`,` or `)`" => "`,` または `)`".into(),
+        "`,` or `;` or `}`" | "`,`, `;` or `}`" => "`,`、`;` または `}`".into(),
+        other => ja::translate(other).unwrap_or(other).to_owned(),
+    };
+    if let Some(rest) = reason.strip_prefix("expected ")
+        && let Some((expected, found)) = rest.split_once(", found ")
+    {
+        return format!("{} が必要ですが、{} が見つかりました", token(expected), token(found));
+    }
+    if let Some(rest) = reason.strip_prefix("unexpected character ") {
+        return format!("使用できない文字 {rest} があります");
+    }
+    if let Some(rest) = reason.strip_prefix("unexpected ") {
+        return format!("予期しない {} です", token(rest));
+    }
+    if let Some(rest) = reason.strip_prefix("formula is longer than ").and_then(|s| s.strip_suffix(" characters")) {
+        return format!("数式は {rest} 文字以内にしてください");
+    }
+    for (prefix, label) in [("bad number ", "無効な数値"), ("number too large ", "数値が大きすぎます")] {
+        if let Some(value) = reason.strip_prefix(prefix) {
+            return format!("{label}: {value}");
+        }
+    }
+    if let Some(rest) = reason.strip_prefix("array constants may only contain constants, found ") {
+        return format!("配列定数に指定できるのは定数だけです: {}", token(rest));
+    }
+    reason.into()
 }
 
 /// English text and its translation, sorted by the English.
@@ -321,6 +369,33 @@ fn name_sort_key(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn japanese_formula_errors_translate_structure_without_losing_parameters() {
+        for (source, expected) in [
+            ("There's a problem with this formula: unexpected end of formula", "この数式には問題があります: 数式が途中で終わっています"),
+            (
+                "There's a problem with this formula: expected `,` or `)`, found end of formula",
+                "この数式には問題があります: `,` または `)` が必要ですが、数式の終わり が見つかりました",
+            ),
+            (
+                "SUM has too few arguments. Use SUM(number1, [number2])",
+                "この関数に対して、入力されている引数が少なすぎます (SUM)。使用方法: SUM(number1, [number2])",
+            ),
+            ("IF has too many arguments. Use IF(test, a, b)", "この関数に対して、入力されている引数が多すぎます (IF)。使用方法: IF(test, a, b)"),
+            ("There's a problem with this formula: unterminated text", "この数式には問題があります: 文字列が閉じられていません"),
+        ] {
+            assert_eq!(Language::Ja.tr_error(source), expected);
+            assert_eq!(Language::En.tr_error(source), source);
+        }
+        let keys: std::collections::HashSet<_> = ja::CORE.iter().chain(ja::DIALOGS).chain(ja::VBA).map(|(key, _)| key).collect();
+        let mut extra = std::collections::HashSet::new();
+        for (key, translated) in ja::ERRORS {
+            assert!(!keys.contains(key), "duplicate key {key}");
+            assert!(extra.insert(key));
+            assert_eq!(Language::Ja.tr_error(key), *translated);
+        }
+    }
 
     /// Help tables are sorted, unique, and keyed by text the function catalog still has.
     #[test]

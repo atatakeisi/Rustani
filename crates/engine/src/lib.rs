@@ -63,6 +63,8 @@ pub struct HistoryEntry {
     pub label: String,
     pub wb: Arc<Workbook>,
     pub selection: Selection,
+    pub selected_sheets: Vec<usize>,
+    pub sheet_selection_anchor: usize,
     /// Estimate of storage this snapshot retains beyond the next workbook version.
     pub retained_bytes: usize,
 }
@@ -111,6 +113,10 @@ pub struct DocState {
     pub title: String,
     /// Per-sheet selection memory.
     pub sheet_selections: Vec<Selection>,
+    /// Visible worksheet indices selected as a group, including the active worksheet.
+    pub selected_sheets: Vec<usize>,
+    /// Fixed starting worksheet for Shift-click tab selection.
+    pub sheet_selection_anchor: usize,
     /// Allow Edit Ranges unlocked with their password in this session: (sheet name, title).
     pub unlocked_ranges: Vec<(String, String)>,
     /// The format `path`'s content was recognised as when its extension doesn't name one (an
@@ -162,7 +168,8 @@ fn push_history_with_budget(
     byte_budget: usize,
 ) {
     let retained_bytes = history_retained_bytes(&wb, next);
-    history.push(HistoryEntry { label, wb, selection, retained_bytes });
+    let active = wb.active_sheet;
+    history.push(HistoryEntry { label, wb, selection, selected_sheets: vec![active], sheet_selection_anchor: active, retained_bytes });
     let mut total = history.iter().fold(0usize, |sum, entry| sum.saturating_add(entry.retained_bytes));
     // Always preserve the latest action, even if that one edit exceeds the budget.
     while history.len() > 1 && (history.len() > UNDO_LIMIT || total > byte_budget) {
@@ -177,6 +184,7 @@ impl DocState {
         let scripts_trusted = !cmd::extra::has_scripts(&wb) && !vba::has_modules(&wb) && wb.vba_project.is_none();
         let wb = Arc::new(wb);
         let sel = Selection::at(wb.active().map(|s| s.view_active).unwrap_or_default());
+        let active_sheet = wb.active_sheet;
         DocState {
             saved: wb.clone(),
             wb,
@@ -189,6 +197,8 @@ impl DocState {
             uid: NEXT_UID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             title,
             sheet_selections: vec![],
+            selected_sheets: vec![active_sheet],
+            sheet_selection_anchor: active_sheet,
             unlocked_ranges: vec![],
             content_kind: None,
             scripts_trusted,
@@ -199,6 +209,18 @@ impl DocState {
     }
     pub fn sheet_index(&self) -> usize {
         self.wb.active_sheet
+    }
+    pub fn normalize_sheet_selection(&mut self) {
+        let active = self.wb.active_sheet;
+        self.selected_sheets.retain(|&i| self.wb.sheet(i).is_some_and(|s| s.visibility == gridcraft_model::Visibility::Visible));
+        if self.wb.sheet(active).is_some_and(|s| s.visibility == gridcraft_model::Visibility::Visible) && !self.selected_sheets.contains(&active) {
+            self.selected_sheets.push(active);
+        }
+        self.selected_sheets.sort_unstable();
+        self.selected_sheets.dedup();
+        if !self.selected_sheets.contains(&self.sheet_selection_anchor) {
+            self.sheet_selection_anchor = active;
+        }
     }
     /// Records the view state that is saved with the file (`sheetView topLeftCell`, the active
     /// cell): the first visible cell of the scrolling area per sheet index in `tops`, and the
@@ -292,6 +314,8 @@ pub type TextWidth = Arc<dyn Fn(&str, &model::Font, bool) -> f32 + Send + Sync>;
 #[derive(Default)]
 pub struct Session {
     pub(crate) vba: vba::State,
+    pub(crate) recorder: crate::cmd::extra::recorder::Recorder,
+    pub(crate) execute_depth: usize,
     docs: Vec<DocState>,
     active: usize,
     pub clipboard: Option<Clipboard>,
@@ -353,6 +377,19 @@ impl Session {
     }
     pub fn doc_mut(&mut self) -> Result<&mut DocState> {
         self.active_mut().ok_or(EngineError::NoDocument)
+    }
+    /// Refuse starting a cell edit with the same protection rules and message used when an edit
+    /// commits, including Allow Edit Ranges unlocked in this document's session.
+    pub fn check_cell_editable(&self, sheet: usize, cell: CellRef) -> Result<()> {
+        let d = self.doc()?;
+        let sh = d.wb.sheet(sheet).ok_or_else(|| EngineError::Other("no such sheet".into()))?;
+        if sh.is_protected()
+            && d.wb.styles.get(sh.style_id(cell)).protection.locked
+            && let Some(message) = cmd::locked_cell_error(sh, cell, &d.unlocked_ranges)
+        {
+            return Err(EngineError::Other(message));
+        }
+        Ok(())
     }
     pub fn add_document(&mut self, d: DocState) -> usize {
         self.docs.push(d);
@@ -421,38 +458,315 @@ impl Session {
         if let Err(why) = (spec.enabled)(self) {
             return Err(EngineError::Disabled(id.to_string(), why));
         }
-        let before = self.active().map(|d| (d.uid, d.wb.clone(), d.selection.clone()));
+        let before = self.active().map(|d| (d.uid, d.wb.clone(), d.selection.clone(), d.selected_sheets.clone(), d.sheet_selection_anchor));
         let params = if params.is_null() { Json::Object(Default::default()) } else { params };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (spec.run)(self, &params)));
+        let top_level = self.execute_depth == 0;
+        let record_before = if top_level && self.recording.is_some() { self.active().cloned() } else { None };
+        self.execute_depth = self.execute_depth.saturating_add(1);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if self.should_group_command(id, &params) { self.execute_grouped(spec, &params) } else { (spec.run)(self, &params) }
+        }));
+        self.execute_depth = self.execute_depth.saturating_sub(1);
         let result = match result {
             Ok(r) => r,
             Err(p) => {
                 let msg =
                     p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_else(|| "panic".into());
                 // Restore the workbook as it was.
-                if let Some((uid, wb, sel)) = &before
+                if let Some((uid, wb, sel, sheets, anchor)) = &before
                     && let Some(d) = self.docs.iter_mut().find(|d| d.uid == *uid)
                 {
                     d.wb = wb.clone();
                     d.selection = sel.clone();
+                    d.selected_sheets = sheets.clone();
+                    d.sheet_selection_anchor = *anchor;
                     d.calc.rebuild(&d.wb);
                 }
                 return Err(EngineError::Internal(id.to_string(), msg));
             }
         };
-        if spec.journal && result.is_ok() {
+        if result.is_err() {
+            // A command may have completed an internal step before a later validation failed.
+            // Never publish that partial workbook, add history, or end copy mode on an error.
+            if let Some((uid, wb, sel, sheets, anchor)) = &before
+                && let Some(d) = self.docs.iter_mut().find(|d| d.uid == *uid)
+            {
+                if !Arc::ptr_eq(&d.wb, wb) {
+                    d.wb = wb.clone();
+                    d.calc.rebuild(&d.wb);
+                }
+                d.selection = sel.clone();
+                d.selected_sheets = sheets.clone();
+                d.sheet_selection_anchor = *anchor;
+            }
+            return result;
+        }
+        if top_level && spec.journal && result.is_ok() {
             self.push_journal(id, cmd::journal_params(&params));
         }
         if spec.undoable
-            && let Some((uid, wb, sel)) = before
+            && let Some((uid, wb, sel, sheets, anchor)) = before
             && let Some(d) = self.docs.iter_mut().find(|d| d.uid == uid)
             && !Arc::ptr_eq(&d.wb, &wb)
         {
             push_history(&mut d.undo, spec.label.trim_end_matches('…').to_string(), wb, &d.wb, sel);
+            if let Some(entry) = d.undo.last_mut() {
+                entry.selected_sheets = sheets;
+                entry.sheet_selection_anchor = anchor;
+            }
             d.redo.clear();
             d.revision += 1;
+            d.normalize_sheet_selection();
+            // A successful edit ends copy mode, while repeated pastes of a copied block keep it.
+            let repeated_copy = matches!(id, "edit.paste" | "edit.pasteSpecial") && self.clipboard.as_ref().is_some_and(|clip| !clip.cut);
+            if !repeated_copy {
+                self.clipboard = None;
+            }
+        }
+        if top_level && result.is_ok() {
+            if let Some(d) = self.active_mut() {
+                d.normalize_sheet_selection();
+            }
+            crate::cmd::extra::recorder::capture(self, id, &params, record_before.as_ref());
         }
         result
+    }
+
+    fn should_group_command(&self, id: &str, params: &Json) -> bool {
+        if self.active().is_none_or(|d| d.selected_sheets.len() < 2) || params.get("sheet").is_some() {
+            return false;
+        }
+        if ["cell", "range", "at"]
+            .iter()
+            .any(|key| params.get(*key).and_then(Json::as_str).is_some_and(|s| gridcraft_core::split_sheet(s).0.is_some()))
+        {
+            return false;
+        }
+        matches!(
+            id,
+            "cell.set"
+                | "range.setValues"
+                | "range.fill"
+                | "edit.paste"
+                | "edit.pasteSpecial"
+                | "edit.clearAll"
+                | "edit.clearContents"
+                | "edit.clearFormats"
+                | "edit.clearComments"
+                | "edit.clearHyperlinks"
+                | "edit.fillDown"
+                | "edit.fillUp"
+                | "edit.fillRight"
+                | "edit.fillLeft"
+                | "edit.autoFill"
+                | "edit.fillSeries"
+                | "formulas.autoSum"
+                | "home.insertRows"
+                | "home.insertColumns"
+                | "home.deleteRows"
+                | "home.deleteColumns"
+                | "home.insertCells"
+                | "home.deleteCells"
+        ) || cmd::format::specs().iter().any(|spec| spec.id == id)
+    }
+
+    /// Run existing command implementations against one private workbook. Individual commits
+    /// and protection checks stay inside the staging session; publishing once creates one Undo.
+    fn execute_grouped(&mut self, spec: &CommandSpec, params: &Json) -> Result<Json> {
+        let original = self.doc()?.clone();
+        let mut sheets = original.selected_sheets.clone();
+        sheets.sort_unstable();
+        sheets.dedup();
+        if sheets.len() > 256 {
+            return Err(EngineError::Other("Too many grouped sheets for one edit (maximum 256).".into()));
+        }
+        if matches!(spec.id, "edit.paste" | "edit.pasteSpecial") && self.clipboard.as_ref().is_some_and(|clip| clip.cut) {
+            return Err(EngineError::Other("Cut cells cannot be pasted into grouped sheets.".into()));
+        }
+        self.check_group_budget(spec.id, params, &sheets)?;
+        let mut params = params.clone();
+        // A toolbar toggle derives one new state from the active sheet and applies that state
+        // to the entire group, including sheets whose previous formatting differs.
+        if params.get("on").is_none() {
+            let st = cmd::format::active_style(self)?;
+            let current = match spec.id {
+                "home.bold" => Some(st.font.bold),
+                "home.italic" => Some(st.font.italic),
+                "home.strikethrough" => Some(st.font.strike),
+                "home.superscript" => Some(st.font.vert == gridcraft_model::VertAlign::Superscript),
+                "home.subscript" => Some(st.font.vert == gridcraft_model::VertAlign::Subscript),
+                "home.wrapText" => Some(st.align.wrap),
+                "home.shrinkToFit" => Some(st.align.shrink),
+                "home.lockCell" => Some(st.protection.locked),
+                "home.underline" | "home.doubleUnderline" => {
+                    let desired =
+                        if spec.id == "home.doubleUnderline" { "double" } else { params.get("style").and_then(Json::as_str).unwrap_or("single") };
+                    Some(
+                        st.font.underline
+                            == match desired {
+                                "double" => gridcraft_model::Underline::Double,
+                                "singleAccounting" => gridcraft_model::Underline::SingleAccounting,
+                                "doubleAccounting" => gridcraft_model::Underline::DoubleAccounting,
+                                "none" => gridcraft_model::Underline::None,
+                                _ => gridcraft_model::Underline::Single,
+                            },
+                    )
+                }
+                _ => None,
+            };
+            if let Some(current) = current {
+                params["on"] = Json::Bool(!current);
+            }
+        }
+        let mut stage = Session::new();
+        stage.prefs = self.prefs.clone();
+        stage.text_width = self.text_width.clone();
+        stage.clipboard = self.clipboard.clone();
+        stage.execute_depth = 1;
+        stage.add_document(original.clone());
+        let mut active_selection = original.selection.clone();
+        let mut active_requests = Vec::new();
+        let mut changed = false;
+        let mut result = Json::Null;
+        for sheet in sheets {
+            let d = stage.doc_mut()?;
+            if d.wb.sheet(sheet).is_none_or(|s| s.visibility != gridcraft_model::Visibility::Visible) {
+                return Err(EngineError::Other("A grouped sheet is no longer visible.".into()));
+            }
+            Arc::make_mut(&mut d.wb).active_sheet = sheet;
+            d.selection = original.selection.clone();
+            d.selected_sheets = vec![sheet];
+            d.sheet_selection_anchor = sheet;
+            let before = d.wb.clone();
+            let response = (spec.run)(&mut stage, &params)?;
+            changed |= !Arc::ptr_eq(&stage.doc()?.wb, &before);
+            let requests = stage.take_ui_requests();
+            if sheet == original.wb.active_sheet {
+                active_selection = stage.doc()?.selection.clone();
+                active_requests = requests;
+                result = response;
+            }
+        }
+        let mut staged = stage.doc()?.clone();
+        Arc::make_mut(&mut staged.wb).active_sheet = original.wb.active_sheet;
+        let d = self.doc_mut()?;
+        if changed {
+            d.wb = staged.wb;
+            d.calc = staged.calc;
+        }
+        d.selection = active_selection;
+        self.ui_requests.extend(active_requests);
+        Ok(result)
+    }
+
+    fn check_group_budget(&self, id: &str, params: &Json, sheets: &[usize]) -> Result<()> {
+        const MAX_WORK: u64 = 5_000_000;
+        const MAX_BYTES: u64 = 64 * 1024 * 1024;
+        let d = self.doc()?;
+        let ranges = if id == "edit.autoFill" {
+            vec![params.get("target").and_then(Json::as_str).and_then(RangeRef::parse).ok_or_else(|| cmd::bad(id, "missing or invalid target"))?]
+        } else {
+            cmd::target_ranges(self, params)?
+        };
+        if ranges.len() > 4096 {
+            return Err(EngineError::Other("Too many selected areas for one grouped edit.".into()));
+        }
+        let mut work = 0u64;
+        let mut bytes = 0u64;
+        for &sheet in sheets {
+            let sh = d.wb.sheet(sheet).ok_or_else(|| EngineError::Other("A grouped sheet no longer exists.".into()))?;
+            if matches!(id, "edit.paste" | "edit.pasteSpecial") {
+                let (cells, owned) = cmd::edit::grouped_paste_budget(self, params, id, sheet)?;
+                work = work.saturating_add(cells);
+                bytes = bytes.saturating_add(owned);
+            } else if id == "cell.set" {
+                work = work.saturating_add(if params.get("array").and_then(Json::as_bool) == Some(true) { d.selection.current().count() } else { 1 });
+                bytes = bytes
+                    .saturating_add(params.get("input").or_else(|| params.get("value")).and_then(Json::as_str).map_or(0, |s| s.len() as u64 * 4));
+            } else if id == "range.setValues" {
+                if let Some(rows) = params.get("values").and_then(Json::as_array) {
+                    for row in rows {
+                        let values: &[Json] = row.as_array().map(Vec::as_slice).unwrap_or_else(|| std::slice::from_ref(row));
+                        work = work.saturating_add(values.len() as u64);
+                        bytes = values.iter().fold(bytes, |sum, value| sum.saturating_add(value.as_str().map_or(0, |s| s.len() as u64 * 4)));
+                    }
+                }
+            } else if matches!(
+                id,
+                "home.insertRows" | "home.insertColumns" | "home.deleteRows" | "home.deleteColumns" | "home.insertCells" | "home.deleteCells"
+            ) {
+                // Line commands accept comma-separated rows/cols separately from `range`.
+                let areas = ["rows", "cols"]
+                    .iter()
+                    .filter_map(|key| params.get(*key).and_then(Json::as_str))
+                    .map(|text| text.split(',').count())
+                    .max()
+                    .unwrap_or(ranges.len());
+                if areas > 4096 {
+                    return Err(EngineError::Other("Too many selected areas for one grouped edit.".into()));
+                }
+                work = work.saturating_add((sh.cells.len() as u64).saturating_add(1).saturating_mul(areas as u64));
+            } else {
+                for range in &ranges {
+                    let count = if matches!(id, "edit.fillDown" | "edit.fillUp" | "edit.fillRight" | "edit.fillLeft") {
+                        if range.is_full_cols() || range.is_full_rows() {
+                            sh.used_range().and_then(|used| range.intersection(&used)).map_or(0, |r| r.count())
+                        } else {
+                            range.count()
+                        }
+                    } else if matches!(id, "range.fill" | "edit.autoFill" | "edit.fillSeries" | "formulas.autoSum") {
+                        range.count()
+                    } else if range.is_full_rows() || range.is_full_cols() {
+                        let lines = if range.is_full_rows() && !range.is_full_cols() { range.height() } else { range.width() };
+                        u64::from(lines).saturating_add(sh.cells.iter_range(*range).count() as u64)
+                    } else {
+                        range.count()
+                    };
+                    work = work.saturating_add(count);
+                    if matches!(id, "edit.fillDown" | "edit.fillUp" | "edit.fillRight" | "edit.fillLeft" | "edit.autoFill" | "edit.fillSeries") {
+                        let effective = if range.is_full_cols() || range.is_full_rows() {
+                            sh.used_range().and_then(|used| range.intersection(&used))
+                        } else {
+                            Some(*range)
+                        };
+                        if let Some(mut area) = effective {
+                            if id == "edit.fillDown" && area.height() == 1 {
+                                area.start.row = area.start.row.saturating_sub(1);
+                            }
+                            if id == "edit.fillRight" && area.width() == 1 {
+                                area.start.col = area.start.col.saturating_sub(1);
+                            }
+                            let max_formula = sh
+                                .cells
+                                .iter_range(area)
+                                .filter_map(|(_, cell)| cell.formula.as_ref())
+                                .map(|f| f.text.len() as u64)
+                                .max()
+                                .unwrap_or(0);
+                            bytes = bytes.saturating_add(max_formula.saturating_mul(4).saturating_mul(count));
+                        }
+                    }
+                    if id == "range.fill"
+                        && let Some(input) = params.get("input").and_then(Json::as_str)
+                    {
+                        // Plain text cells share their parsed value; each translated formula owns
+                        // its expression/text, so account for its full materialized output.
+                        bytes = bytes.saturating_add((input.len() as u64).saturating_mul(if input.starts_with('=') {
+                            count.saturating_mul(4)
+                        } else {
+                            1
+                        }));
+                    }
+                }
+            }
+            let max_work = if matches!(id, "edit.paste" | "edit.pasteSpecial") { 4_000_000 } else { MAX_WORK };
+            if work > max_work || bytes > MAX_BYTES {
+                return Err(EngineError::Other(
+                    "The grouped edit is too large (5000000 operations, or 4000000 pasted cells, and 64 MiB of owned data).".into(),
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub fn run(&mut self, id: &str, params: Json) -> std::result::Result<Json, String> {

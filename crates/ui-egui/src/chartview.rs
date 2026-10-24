@@ -10,6 +10,89 @@ use crate::SheetApp;
 use crate::grid::Geo;
 use crate::theme;
 
+// Retain the original corner's 10-point grab radius for every handle. Selection hit-testing
+// uses the same margin, so the outer half is as easy to grab as the inner half.
+pub(crate) const HANDLE_HIT_RADIUS: f32 = 10.0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResizeHandle {
+    Nw,
+    N,
+    Ne,
+    W,
+    E,
+    Sw,
+    S,
+    Se,
+}
+
+impl ResizeHandle {
+    fn axes(self) -> (i8, i8) {
+        match self {
+            Self::Nw => (-1, -1),
+            Self::N => (0, -1),
+            Self::Ne => (1, -1),
+            Self::W => (-1, 0),
+            Self::E => (1, 0),
+            Self::Sw => (-1, 1),
+            Self::S => (0, 1),
+            Self::Se => (1, 1),
+        }
+    }
+
+    pub(crate) fn cursor(self, rtl: bool) -> egui::CursorIcon {
+        let (mut x, y) = self.axes();
+        if rtl {
+            x = -x;
+        }
+        match (x, y) {
+            (0, _) => egui::CursorIcon::ResizeVertical,
+            (_, 0) => egui::CursorIcon::ResizeHorizontal,
+            _ if x == y => egui::CursorIcon::ResizeNwSe,
+            _ => egui::CursorIcon::ResizeNeSw,
+        }
+    }
+
+    pub(crate) fn resized(self, original: Rect, delta: egui::Vec2) -> Rect {
+        let (x, y) = self.axes();
+        let mut rect = original;
+        if x < 0 {
+            rect.min.x = (original.min.x + delta.x).clamp(0.0, (original.max.x - 20.0).max(0.0));
+        }
+        if x > 0 {
+            rect.max.x = (original.max.x + delta.x).max(original.min.x + 20.0);
+        }
+        if y < 0 {
+            rect.min.y = (original.min.y + delta.y).clamp(0.0, (original.max.y - 20.0).max(0.0));
+        }
+        if y > 0 {
+            rect.max.y = (original.max.y + delta.y).max(original.min.y + 20.0);
+        }
+        rect
+    }
+}
+
+fn handles(rect: Rect) -> [(ResizeHandle, Pos2); 8] {
+    [
+        (ResizeHandle::Nw, rect.left_top()),
+        (ResizeHandle::N, rect.center_top()),
+        (ResizeHandle::Ne, rect.right_top()),
+        (ResizeHandle::W, rect.left_center()),
+        (ResizeHandle::E, rect.right_center()),
+        (ResizeHandle::Sw, rect.left_bottom()),
+        (ResizeHandle::S, rect.center_bottom()),
+        (ResizeHandle::Se, rect.right_bottom()),
+    ]
+}
+
+pub(crate) fn resize_handle(rect: Rect, point: Pos2) -> Option<ResizeHandle> {
+    handles(rect)
+        .into_iter()
+        .filter(|(_, center)| center.distance(point) <= HANDLE_HIT_RADIUS)
+        .min_by(|(_, a), (_, b)| a.distance_sq(point).total_cmp(&b.distance_sq(point)))
+        .map(|(handle, _)| handle)
+}
+
 fn rgba(c: [u8; 4]) -> Color32 {
     Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3])
 }
@@ -327,7 +410,7 @@ pub(crate) fn paint_objects(app: &SheetApp, p: &Painter, geo: &Geo, wb: &Workboo
         if label && !sp.text.is_empty() && !app.editing_text_box(sp.id) {
             paint_shape_text(p, wb, sp, r, geo.z);
         }
-        if label && sp.kind == ShapeKind::TextBox && app.selected_chart == Some(sp.id) {
+        if app.selected_chart == Some(sp.id) {
             selection_frame(p, r);
         }
         done(start, r);
@@ -492,7 +575,7 @@ pub fn slicer_click(geo: &Geo, sh: &Sheet, wb: &Workbook, si: usize, p: Pos2) ->
 
 fn selection_frame(p: &Painter, r: Rect) {
     p.rect_stroke(r, 0.0, Stroke::new(1.0, Color32::from_gray(120)), StrokeKind::Outside);
-    for c in [r.left_top(), r.center_top(), r.right_top(), r.left_center(), r.right_center(), r.left_bottom(), r.center_bottom(), r.right_bottom()] {
+    for (_, c) in handles(r) {
         p.circle_filled(c, 4.0, Color32::WHITE);
         p.circle_stroke(c, 4.0, Stroke::new(1.0, Color32::from_gray(100)));
     }
@@ -512,19 +595,22 @@ pub fn hit(app: &SheetApp, geo: &Geo, sh: &Sheet, p: Pos2) -> Option<(&'static s
     }
     for ch in sh.charts.iter().rev() {
         let r = anchor_rect(geo, sh, &ch.anchor);
-        if r.expand(4.0).contains(p) && geo.cells.contains(p) {
+        let margin = if app.selected_chart == Some(ch.id) { HANDLE_HIT_RADIUS } else { 4.0 };
+        if r.expand(margin).contains(p) && geo.cells.contains(p) {
             return Some(("chart", ch.id, r));
         }
     }
     for im in sh.images.iter().rev() {
         let r = anchor_rect(geo, sh, &im.anchor);
-        if r.contains(p) && geo.cells.contains(p) {
+        let margin = if app.selected_chart == Some(im.id) { HANDLE_HIT_RADIUS } else { 0.0 };
+        if r.expand(margin).contains(p) && geo.cells.contains(p) {
             return Some(("image", im.id, r));
         }
     }
     for s in sh.shapes.iter().rev() {
         let r = anchor_rect(geo, sh, &s.anchor);
-        if r.expand(3.0).contains(p) && geo.cells.contains(p) {
+        let margin = if app.selected_chart == Some(s.id) { HANDLE_HIT_RADIUS } else { 3.0 };
+        if r.expand(margin).contains(p) && geo.cells.contains(p) {
             return Some(("shape", s.id, r));
         }
     }

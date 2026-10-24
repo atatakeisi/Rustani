@@ -114,21 +114,27 @@ fn describe(name: &str, source: &str, origin: &str, kind: &str) -> Json {
 
 pub(crate) fn modules(s: &mut Session, _: &Json) -> Result<Json> {
     let d = s.doc()?;
-    let own = sources(&d.wb)?;
-    let mut list: Vec<Json> = own.iter().map(|(name, source)| describe(name, source, "gridcraft", "standard")).collect();
+    let mut own = sources(&d.wb)?;
+    let mut list = Vec::new();
     let mut import_error = None;
     if let Some(project) = &d.wb.vba_project {
         match gridcraft_xlsx::vba::read_modules(project) {
             Ok(imported) => {
                 for module in imported {
-                    if !own.keys().any(|n| n.eq_ignore_ascii_case(&module.name)) {
-                        list.push(describe(&module.name, &module.source, "project", &module.kind));
-                    }
+                    // Saved sources override the imported text, not its canonical identity or
+                    // position. Older metadata may have saved the name in a different case.
+                    let saved_key = own.keys().find(|n| n.eq_ignore_ascii_case(&module.name)).cloned();
+                    let saved = saved_key.and_then(|key| own.remove(&key));
+                    let origin = if saved.is_some() { "gridcraft" } else { "project" };
+                    list.push(describe(&module.name, saved.as_deref().unwrap_or(&module.source), origin, &module.kind));
                 }
             }
             Err(error) => import_error = Some(error),
         }
     }
+    // Modules created in GridCraft have no imported identity; keep their existing sorted order
+    // after the original project's modules. Also retain them when the original project is unreadable.
+    list.extend(own.iter().map(|(name, source)| describe(name, source, "gridcraft", "standard")));
     Ok(json!({"modules":list,"trusted":d.scripts_trusted,"preservedVba":d.wb.vba_project.is_some(),"importError":import_error}))
 }
 
@@ -143,7 +149,20 @@ pub(crate) fn save_module(s: &mut Session, p: &Json) -> Result<Json> {
         return Err(bad("module source exceeds 1 MiB"));
     }
     let mut own = sources(&s.doc()?.wb)?;
-    let key = own.keys().find(|n| n.eq_ignore_ascii_case(name)).cloned().unwrap_or_else(|| name.to_owned());
+    let saved_key = own.keys().find(|n| n.eq_ignore_ascii_case(name)).cloned();
+    let imported = s
+        .doc()?
+        .wb
+        .vba_project
+        .as_ref()
+        .and_then(|project| gridcraft_xlsx::vba::read_modules(project).ok())
+        .and_then(|modules| modules.into_iter().find(|module| module.name.eq_ignore_ascii_case(name)));
+    let (key, kind) = imported
+        .map(|module| (module.name, module.kind))
+        .unwrap_or_else(|| (saved_key.clone().unwrap_or_else(|| name.to_owned()), "standard".into()));
+    if let Some(alias) = saved_key.filter(|alias| *alias != key) {
+        own.remove(&alias);
+    }
     own.insert(key.clone(), source.to_owned());
     if own.len() > 128 || own.values().map(String::len).sum::<usize>() > MAX_TOTAL_SOURCE {
         return Err(bad("too many modules or total source exceeds 8 MiB"));
@@ -158,7 +177,7 @@ pub(crate) fn save_module(s: &mut Session, p: &Json) -> Result<Json> {
         comment: "GridCraft VBA source; does not rewrite vbaProject.bin".into(),
         hidden: true,
     });
-    Ok(describe(&key, source, "gridcraft", "standard"))
+    Ok(describe(&key, source, "gridcraft", &kind))
 }
 
 fn idle() -> Json {

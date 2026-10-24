@@ -1,8 +1,8 @@
 # GridCraft 現状共有シート
 
-更新日: 2026-10-24（日本時間）。対象: ローカルの作業ツリーと実装コミット。作業開始時の基点: `main` / `ac8da7d4`（Release 0.11.1）。コミット記録は「9」、最新の日本語版と起動先は末尾の「10」を参照。
+更新日: 2026-10-24（日本時間）。レビュー比較基点: `0a87bfe8`。今回の統合単位は `EXCEL.1`（`main` / `origin/main`）。「13」のExcel操作差異修正を統合し、CI全8項目・2,321テスト成功、最新版WASMを8784番へ反映済み。飛び地貼り付けは「12」、IME/VBAレビューは「11」、統合範囲と現在の残課題は「14」を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
 
-現在の体制は **Codex + Gemini**。ユーザーの指定によりClaude CLIは使用しない。CLIがインストール済みであることと、アカウントで利用可能であることは別。Claudeの認証・契約変更を準備の前提にしない。
+現在の体制は **Codex + Antigravity上のGemini**。ユーザー指定でGemini CLI・Claude CLIは使用しない。Geminiは `ai-team/tasks/` を直接読み、`ai-team/reports/` に新規レポートを保存する。コード編集・Cargo等の実行はCodexが担当する。
 
 この文書はAIの初回引き継ぎ用です。実装・資料・未確認事項を区別しています。全機能の動作保証ではありません。作業開始時に `git status --short` と担当ソースを再確認してください。
 
@@ -49,6 +49,7 @@ gridcraft/
 │       ├── src/main.rs         wasm入口 / nativeでは案内のみ
 │       ├── src/web.rs          WebRunner、描画設定、ブラウザ入出力
 │       ├── src/host.rs         iframe親とのpostMessage連携
+│       ├── src/host_file.rs    親へ渡す保存ファイルの分類（engineの形式判定を共用）
 │       ├── src/prefs.rs        localStorage設定の復元・同期
 │       ├── index.html         canvasとTrunkの入口
 │       └── Trunk.toml         配信先・開発サーバー設定
@@ -65,8 +66,8 @@ gridcraft/
 ├── .github/workflows/          CI・配布
 ├── packaging/web/              静的Web配布・ホスティング手順
 ├── docs/ / ROADMAP.md          設計・互換性・既知課題
-├── scripts/ai-team.sh          AI起動・事前確認・prompt出力
-├── ai-team/tasks/              GEMINI.mdが有効（CLAUDE.mdは休止中の参考資料）
+├── scripts/ai-team.sh          Antigravity起動・事前確認・短い参照案内（CLI起動なし）
+├── ai-team/tasks/              README.mdに依頼状態。完了済みは自動再実行しない
 ├── ai-team/reports/            各AIからCodexへの調査結果
 └── target/ / dist/web/         生成物（gitignore対象、ソースの代替にしない）
 ```
@@ -96,7 +97,7 @@ gridcraft/
 - **計算**: 数式lexer/parser/AST、参照調整、関数、依存グラフ、dirty伝播、増分再計算、dynamic array/spill、循環参照の反復計算。`calc/src/recalc.rs` はdirtyセルの整列と必要時の依存評価を組み合わせる実装。単純なDAGトポロジカルソートと決めつけない。
 - **データ機能**: ソート/フィルタ、テーブル、条件付き書式、入力検証、チャート、ピボット、Undo/Redo等の実装がある。Excel完全互換ではなくalpha段階。関数数や完成率を資料の古い数値だけで断定しない。
 - **ファイル**: XLSX/CSV等の入出力、legacy XLSやXLSB/ODSの部分的読込み、PDF出力。Webでは非同期ファイル選択/ドロップ、保存ダウンロード。`showSaveFilePicker` が使える場合に利用し、それ以外はBlob + anchor downloadへフォールバックする。
-- **Web周辺**: HTML/plain textコピー、localStorage設定保存、PDF iframeを使うブラウザ印刷、`?host=parent` のsame-origin親連携。キーボード貼付けはeguiの `Event::Paste`。Webのリボン/メニュー貼付けは内部コピーを使う（Servicesに `paste_text` / `paste_html` が未設定）。外部クリップボードと内部コピーを別々に検証する。
+- **Web周辺**: HTML/plain textコピー、localStorage設定保存、PDF iframeを使うブラウザ印刷、`?host=parent` のsame-origin親連携。リボン/メニューの貼付けは `Services::paste_async` から外部クリップボードを非同期取得し、拒否・空の場合は内部コピーへフォールバックする。キーボード貼付けはeguiの `Event::Paste` とDOM画像pasteブリッジを使う。非同期完了時に移動先や入力所有者が変わった場合は破棄する。
 - **AI操作**: ネイティブのTCP control channel、headless CLI/MCPが既存。Webのiframe bridgeは別経路。これらは表計算アプリの操作APIで、Gemini/Claude間の自動会話機能ではない。
 
 ## 5. 直近のハードル・検証対象
@@ -104,13 +105,14 @@ gridcraft/
 | 項目 | 確認済みの現状 | 次の担当作業 |
 |---|---|---|
 | CJK/日本語表示 | 外部 `../craft-fonts` のBIZ UDPGothic/OFLをWebへ任意に埋め込む経路を追加。利用可能なWebビルドは日本語を初期表示。保存済み言語を優先し、`lang=ja` で明示選択できる。全CJK対応ではない | Chromeで日本語UI・VBA実行を確認済み。実OS IME/Safari比較は残る。フォントはrepoへコピーしない |
-| Safari/Chrome入力 | IMEイベント処理を修正し、人工イベントのIME試験10件と既存UI操作44件が成功。実OSのIME操作・Safari実機比較は未検証 | Gemini: 既存の限定依頼に沿い独立検証。貼付けと実IME試験を区別する |
+| Safari/Chrome入力 | 同一フレームのIMEとEnter/Tab/Escape、保護セルへの編集開始を追加対策（「11」）。実OSのIME操作・Safari実機比較は未検証 | Codexが回帰テスト・実機検証を担当。Geminiは指定範囲の静的レビューと検証案のみ |
 | 描画性能 | 仮想化は既存。GPU描画と数式再計算は別のボトルネック | Gemini: WebGPU/WebGL2別に計測計画。測定なしで高速化率を断定しない |
 | 再計算/大規模データ | `calc` は単一スレッド。大量依存セル・spill・循環・深い式の安全性が重要 | Codex: parser/recalcの設計・実装を担当。必要な箇所を絞ってGeminiへレビュー依頼 |
 | Web API差 | 保存・Clipboard・印刷にはブラウザ機能/許可/ユーザー操作に関わる分岐がある | Gemini: コード経路と公式資料を確認し、実ブラウザ試験を提案 |
-| 実装の管理 | 日本語フォント/IMEとVBA基盤をコミット・push済み。最新の日本語UI・README対応は末尾「10」 | Codexが統合管理。Geminiは限定レビューの新規レポートのみ作成 |
+| VBA I/O | imported moduleの種別・名前・順序を保ち、最終RawChunkのゼロ埋めを本文から除外。CFB mini-streamを一度だけ確保して共用（「11」） | 実Excelでの保存・再読込確認は残る。編集sourceは引き続きGridCraft metadataのみ |
+| 実装の管理 | 「11」〜「13」の修正・回帰試験・文書を `EXCEL.1` のレビュー統合単位に集約。CI全8項目成功 | Codexが統合管理。実際のGit同期状態を確認し、Geminiは指定された限定レビューの新規レポートのみ作成 |
 
-今回開始時の変更範囲（`git status` のスナップショット。起動時に取り直す）:
+以前のVBA実装開始時の変更範囲（過去の記録。現在の状態は `git status --short` で取り直す）:
 
 ```text
 M  Cargo.lock
@@ -127,7 +129,7 @@ VBAは部分的なローカル実装です。ソース抽出、エディタ、�
 
 ## 6. このMacの準備状況と検証コマンド
 
-2026-10-23確認: Rust/cargo 1.99.1、`wasm32-unknown-unknown` 導入済み、Gemini CLI 0.64.0（`/opt/homebrew/bin/gemini`）、`/Applications/Antigravity.app` とVS Codeあり。Geminiの利用枠回復はユーザー申告によります。こちらで認証操作やGeminiの起動・送信は行っていません。
+2026-10-23確認: Rust/cargo 1.99.1、`wasm32-unknown-unknown` 導入済み、`/Applications/Antigravity.app` とVS Codeあり。2026-10-24よりGemini CLIは使用中止。CLIの認証・APIキー設定・利用枠回復を作業の前提にしない。
 
 Claude Code 2.1.246のCLIも見つかったが、ユーザーはClaudeを無料版で利用しており、今回はCLIを使用しないと指定。Claudeの起動・契約手続きは不要。既存のClaude用依頼ファイルは休止中として保持する。
 
@@ -145,7 +147,7 @@ cd apps/gridcraft-web
 ../../../.tools/trunk-0.22.0/trunk --skip-version-check serve --dist ../../dist/web-new-output
 ```
 
-開発URL: `http://127.0.0.1:8771/?sample=sales&lang=ja`、比較用: `http://127.0.0.1:8771/?sample=sales&webgl&lang=ja`。
+最新確認版: `http://127.0.0.1:8784/?sample=sales&lang=ja`（「13」）。配信対象は `dist/web-excel-parity-complete-20261024-v2`。8785番は「12」の旧版、従来の開発URLは8771番。WebGL比較は `&webgl` を付けるが、今回その比較試験は実施していない。
 
 `cargo xtask wasm` はWasm向けの **cargo check**。Safari/Chromeでの動作試験とは別です。共有体制準備時点ではビルド/実機試験は未実施でした。その後の検証は末尾へ記録します。既存の `dist/web` は以前のビルドで、現在のVBA実装の確認には新しい出力先を使用します。
 
@@ -156,15 +158,13 @@ cd apps/gridcraft-web
 | 担当 | 作業 | 書込先 |
 |---|---|---|
 | Codex | 実装リード、Rust設計、数式parser/再計算、ソース編集、ビルド/テスト、採否判断・統合 | 必要なソースとこの共有シート |
-| Gemini（CLIまたはAntigravity） | Wasm/描画/ブラウザ互換性の調査。初回完了後はCodexの具体的な依頼に沿ってRust設計もレビュー | 起動promptで指定された新規レポート1本 |
+| Gemini（Antigravity） | Wasm/描画/ブラウザ互換性、指定されたRust設計の限定調査・静的レビュー | `ai-team/reports/` の新規レポート1本 |
 
-Geminiはまず既存のブラウザ調査を完了する。Rust全体のレビューを同時に追加せず、必要な範囲をCodexから順に依頼する。Claudeの結果を待つ工程はない。
+今回のブラウザ調査・VBA I/O調査は完了し、Codexが結果を受領済み。次の指定がなければGeminiは待機する。依頼状態は `ai-team/tasks/README.md` を読む。
 
-調査担当はソース・Cargo.lock・他担当レポートを変更せず、commit/merge、依存追加、ビルドを行わない。これは担当ルールでありOSによる書込み隔離ではない。別々のターミナルでも同じ作業ツリーを共有する。
+調査担当はソース・既存文書・Cargo.lock・既存レポートを変更せず、commit/merge、依存追加、Cargo/rustc/Trunk/テスト実行を行わない。これは担当ルールでありOSによる書込み隔離ではない。両アプリで同じ作業ツリーを共有する。
 
-`scripts/ai-team.sh` は現在の共有シートと担当依頼を初回promptに埋め込み、ルートへ移動してCLIを起動する。レポート名は時刻（UTC）とプロセスIDで分かれる。Antigravityには `prompt` 出力を貼り付ける。
-
-すでにGeminiを起動している場合は、再起動せず会話欄で `PROJECT_STATUS.md` と `ai-team/tasks/GEMINI.md` を読み直すよう伝える。Claude用の起動コマンドはスクリプト側で休止し、AIを起動せず説明を表示する。
+`scripts/ai-team.sh` はAntigravityを開く補助と、文書参照だけの短い `prompt gemini` を提供する。全文埋込みはしない。古い `gemini` / `claude` 起動コマンドはエラーで停止しCLIを起動しない。すでにAntigravityで同じフォルダを開いていればターミナルの追加・分割は不要。
 
 連携方式は **共有Markdown + 人間からCodexへの完了通知**。自動転送・常駐オーケストレータ・他AIの返答の自動検知は今回導入していない。調査完了後、このチャットに「`ai-team/reports/` を読んで統合して」と伝えれば、Codexが実際のファイルを確認できる。
 
@@ -172,6 +172,8 @@ Geminiはまず既存のブラウザ調査を完了する。Rust全体のレビ�
 
 
 ## 8. VBA統合時の検証と当時の起動先（2026-10-23 23:16 JST）
+
+以下「8」〜「12」は各検証時点の履歴。旧サーバー・旧件数・当時のGit状態を現在の状態として扱わない。最新配信は「13」、残課題と統合単位は「14」。
 
 - `cargo xtask ci` の8項目すべて成功。全workspaceで2,206件成功、既存の時間計測用テスト1件はignored。engine lib443件、xlsx lib258件、VBAエディタ操作9件、IME10件を含む。
 - 初回はsandboxがローカルTCPを拒否して既存control_serverテスト2件が失敗したため、必要な権限で再実行して成功。Wasmの既存 `backstage.rs` dead_code警告1件は残る。
@@ -194,7 +196,7 @@ Geminiはまず既存のブラウザ調査を完了する。Rust全体のレビ�
 |---|---|
 | `4322e62d` / WEB.1 | 任意のWeb日本語フォント、IME入力、回帰テスト、配布時ライセンスと資料 |
 | `ea820e0e` / VBA.1 | VBAソース抽出、部分VM/Excel adapter、編集/実行/停止/変更破棄、回帰テスト、互換性の境界 |
-| DEV.1（この共有シートを含むコミット） | Codex/Geminiの依頼・レポート・手順・省トークンの継続レビュー運用 |
+| `e4c29d83` / DEV.1 | Codex/Geminiの依頼・レポート・手順・省トークンの継続レビュー運用 |
 
 3コミットそれぞれの直前にAGENTS.md所定の `cargo xtask ci` を実行し、いずれも全8項目成功を確認しました。CIが検証したのは統合した作業ツリーです。最新ログは `/private/tmp/gridcraft-precommit-ci-20261023T143204Z.log`。push完了はGitの送信結果とローカルHEAD/リモートmainの一致で確認し、その結果をチャットへ報告します。文書へ未確認のpush成功を書きません。
 
@@ -210,4 +212,92 @@ Geminiへ渡す対象は `ea820e0e` の読込/保存/再読込3ファイル。�
 - Chromeで日本語のリボン・ファイル・マクロ画面を確認。日本語ソースの貼付け、集計マクロ実行（合計1,500）、モジュール保存を確認した。HTMLのlang属性はja、確認時のブラウザエラーログは0件。画面証跡は `../outputs/GridCraft-日本語版確認-20261023.jpg`。
 - 言語切替前後のマクロ実行・保存と、保存済み言語/URL指定/フォントなしの復元経路を回帰テストへ追加。実OS IMEとSafari、実ExcelとのVBA往復互換は未検証のまま。完全VBA互換は最終要件で未達である。
 - コミット前の `cargo xtask ci` は全8項目成功。workspaceで2,211件成功、0件失敗、既存の時間計測テスト1件はignored。新規の日本語マクロ操作試験とWeb設定復元試験も含む。35アセットの由来、レイヤー、Wasm、parity/keytipsを確認。Wasmに既存の `backstage.rs` dead_code警告1件が残る。ログは `../outputs/GridCraft-日本語版CI-20261023.log`。
-- この節を含む変更は `JA.1` としてコミットする。前回のpush済みHEADは `e4c29d83`。今回の送信結果はGitで確認し、引き継ぎ文書とチャットへ記録する。
+- この節を含む変更は `0a87bfe8` / `JA.1`。その前のレビュー体制の記録は `e4c29d83` / `DEV.1`。今回のレビュー比較基点はこの `0a87bfe8`。
+
+## 11. Antigravityレビューの照合・修正（2026-10-24）
+
+基点は `0a87bfe8`。受領したレポートは `ai-team/reports/gemini-browser-20261024-064000.md` と `gemini-vba-io-20261024-064100.md`。Geminiの静的レビューを、Codexが現行コードと自作回帰テストで照合した。レポート自体は変更していない。
+
+照合時の補正: レポートの一部行番号・テスト名・PreeditのAPI例は現行ソースと異なる。日本語フォントの「オンデマンド取得」という記載も現行実装からは確認できず、実際は `build.rs` による外部フォントの任意埋込みと初回検証・キャッシュである。指摘のコード例をそのまま適用せず、実ソースの挙動を基準にした。
+
+- **IMEの同一フレーム入力**: 選択セル・編集中セル・数式バーで、Preedit/Commitに伴うEnter/Tab/Escapeをセル操作やTextEditが先に処理しないよう対策。両イベント順を試験する。直接IME開始直後はeguiのfocus filterがまだ効かず、次フレームのTab/EscapeでUI処理前にfocusを失う問題も、取消試験から特定した。直前のfocused grid/editorに限定したinput hookと重複focus要求の抑止で対応する。
+- **保護セル**: 編集開始時に `Session::check_cell_editable` で既存のengine保護判定を共用。ロックされた保護セルは直接IME・通常入力・F2でeditorを開かず、拒否されたcompositionをブラウザへ中断通知する。非ロックセルやAllow Edit Rangesは引き続き編集できる。
+- **iframe親連携の保存判定**: `host_file.rs` がengineのFileKind判定を共用し、`.xlsx` / `.xlsm` / `.xltx` / `.xltm` を保存済み判定へ含める。CSV/PDF等のexportではdirtyを解除しない。親側による保存成功通知を追加した意味ではなく、既存のbridge契約のファイル分類修正である。
+- **VBAのモジュール情報**: 編集ソースを元projectのモジュールへ重ね、元のkind・綴り・順序を一覧と保存戻り値で維持。旧metadataの小文字別名にも対応。自作CFBでstandard/document/class/form/objectの5種類と保存・再読込を確認する。hidden nameは従来どおり名前→ソースのJSON mapで、レポート中のversion/modules wrapperではない。元projectを含めない`.xlsx`保存でimport情報の維持を保証する変更ではない。
+- **OVBA取込**: 最終RawChunkだけの末尾ゼロ埋めをモジュール本文から除く。本文途中のNUL、圧縮チャンク内のNUL、割当て上限を引き続き検査し、汎用展開はバイナリを変更しない。ゼロ埋めは[MS-OVBA §2.4.1.3.10](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-ovba/09da186d-7e14-4927-82ae-5e19e018e5b3)で確認した。`0x0033`後の完全な名前レコード＋controlも互換目的で受理する。これは[REFERENCEORIGINALの説明](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-ovba/3ba66994-8c7a-4634-b2da-f9331ace6686)から必須だと断定していない。名前のUnicode部`0x003E`は[REFERENCENAME仕様](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-ovba/135dd749-c217-4d73-8549-b54e52e89945)で必須のため、省略を許す変更はしない。
+- **CFB**: mini-streamコンテナを遅延生成して一度だけ共用し、巨大mini-FAT全体の訪問済み配列も各streamで再確保しない。fileサイズ・宣言サイズ・caller上限・循環の検査を維持する。既存の最終sectorの欠けたpadding許容を保ち、対象streamが必要とするbyte不足はエラーにする。速度・メモリ削減率は未計測。
+- **連携運用**: `AI_TEAM_GUIDE.md`、task一覧、起動補助をAntigravity専用へ更新。Geminiは新規レポートのみ作成し、コード無変更・Cargo未実行。古いCLI起動コマンドは停止する。
+
+検証結果:
+
+- `cargo xtask ci` 全8項目成功: fmt、workspace Clippy（警告をエラー扱い）、workspace test、assets、layers、Wasm、parity、keytips。**2,231件成功・失敗0件・既存計測用1件ignored**。engine lib446件、xlsx lib263件、IME20件、Web native8件（保存形式分類2件を含む）。35アセットの由来確認も成功。Wasmには既存 `backstage.rs` のdead_code警告1件が残る。
+- 追加したOVBAの2件は修正前の失敗を再現し、修正後に成功。IME取消の失敗も期待値を緩めずに解消し、別widget・messageのキーを奪わない試験を含め20件成功。
+- CIログ: `../outputs/GridCraft-Geminiレビュー統合CI-20261024T0702.log`。起動補助の構文・doctor・prompt・Antigravity dry-runと、Gemini CLI起動の拒否を確認。AI起動・自動送信はしていない。
+- ローカルTrunk 0.22.0で新規Web出力 `dist/web-review-20261024T0707` を生成。ログ: `../outputs/GridCraft-GeminiReview-Web-20261024T0707.log`。既存出力は削除・上書きしていない。devビルドであり、配布サイズや描画性能の測定結果ではない。
+- Chromeで最新Web版の日本語UIとグリッド・チャート描画、ASCIIと日本語文字列の入力・Returnによる確定を確認。確認時のブラウザerrorログは0件。画像: `../outputs/GridCraft-Geminiレビュー統合Chrome-20261024.jpg`。これは自動入力の確認で、OS IME候補の変換操作の試験ではない。
+- Native offscreen captureはGPU adapterを取得できず画像生成に失敗したため、上記Chromeで描画を確認。Safariは操作環境の画面取得エラーにより起動確認を完了できなかった。実OS IME、Safari/Chromeの実機比較、iframe親との実ファイル保存、Excel-authoredコーパスとExcel再保存互換は未検証。
+- 新しい確認用サーバーはこのMac内の `127.0.0.1:8784`。URL: `http://127.0.0.1:8784/?sample=sales&lang=ja`。停止後の再開はrepoルートから `python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-review-20261024T0707`。既存8771番のサーバーには触れていない。
+
+この節の修正とレポートは「14」の `EXCEL.1` に含む。編集ソースは引き続きGridCraft metadataで、Excelの実行可能なVBA projectの書換え・生成や完全互換を実装したものではない。
+
+## 12. 手動報告からの飛び地貼り付け修正（2026-10-24）
+
+人間が確認し、AntigravityのGeminiが原因箇所を特定した「コピー後に飛び地選択して貼り付けると最後の範囲しか変わらない」不具合を修正した。「11」のIME/VBA変更と併せて統合した。
+
+- `engine/src/cmd/edit.rs`: 共通の貼り付け計画で `selection.ranges` 全体を対象にする。通常貼り付け・形式を選択して貼り付け・外部TSV/HTMLへ適用。連続範囲がコピーサイズの整数倍で既存の条件に合うときは、範囲ごとに繰り返す。それ以外は各範囲の左上へ1ブロック貼り付ける。明示的な `at` は従来どおり1箇所だけ。
+- 全範囲を1回のトランザクションで処理し、Undo/Redoは1操作。結果の全範囲と最終範囲内のactive/anchorを保持する。コピー元のsnapshotから相対数式・書式・結合等を各貼り付け先へ反映する。
+- `cut_move` は複数範囲・複数タイルへの複製を事前拒否し、元データ・clipboard・選択を維持。貼り付け先同士の重複、飛び地の一部がシート外へ出る場合、累積上限超過も変更前に拒否。保護セル等で失敗した場合は全範囲の変更を破棄する。単一コピーの従来の端クリップ処理は維持。
+- 累積4,000,000セル・4,096範囲と、反復するTSV/HTML文字列・owned metadata等の64MiB予算を事前検査。Arcで共有する内部コピーの文字列・画像byteを複製分として数えない。この予算は文字列等に基づく概算で、Rustの割当て総量や実行時間の厳密な保証ではない。
+- `ui-egui/src/grid.rs`: MacのCtrl＋primary clickを既存のコンテキストメニュー経路へ接続。WebのeguiはmouseのcommandをCtrlまたはMetaとして渡すため、そのままでは追加選択になる。Cmd＋クリックの追加選択、Windows/LinuxのCtrl＋クリック、数式参照追加条件は維持する。Ctrl-clickでメニューを開く慣例は[Apple公式](https://support.apple.com/en-gb/guide/mac-help/mh35853/mac)で確認。
+- 回帰試験: engine `tests/multi_area_paste.rs` 14件、UI `tests/selection.rs` 17件が成功。両貼り付け経路、複数ブロック・相対数式・書式・転置・skipBlanks・HTML数値・疎なTSV、明示at、Undo/Redo、失敗時の原子性、コピー状態維持、Mac/Windows/Linuxの修飾イベントを含む。UIの17件は実ブラウザの操作試験とは別。
+
+検証結果:
+
+- `cargo xtask ci` 全8項目成功。**2,248件成功・失敗0件・既存計測用1件ignored**。fmt、Clippy（警告をエラー扱い）、workspace test、assets、layers、Wasm、parity、keytipsを確認。Wasmの既存 `backstage.rs` dead_code警告1件は継続。ログ: `../outputs/GridCraft-MultiAreaPaste-CI-20261024T1156.log`。
+- 新しいWeb出力 `dist/web-multi-paste-20261024T1200` をローカルTrunkで生成。ログ: `../outputs/GridCraft-MultiAreaPaste-Web-20261024T1200.log`。旧配信出力は削除・上書きしていない。
+- Chromeの旧8784番で「A1をコピー→Cmd-clickでC20/E22を選択→Cmd+V」により最後のE22だけへ貼り付くことを再現。新8785番では、空のC25/E27へ両方とも4が入り、選択2範囲とコピー状態が残ることを確認した。Cmd+Zを1回押すと両方とも空に戻り、再度Cmd+Vで両方へ貼り付けられた。
+- Chromeで外部の「外部テキスト」も選択したC20/E22の両方へ貼り付けられ、1回のUndoで両セルとも元の4へ戻った。Webの外部テキスト確認はキーボード／Pasteイベント経由。HTML数値や転置などの詳細オプションは上記回帰試験で検証した。
+- ChromeでMac Controlキーを明示したクリックによりコンテキストメニューが開くことも確認。確認時のブラウザerrorログは0件。Safari実機、Windows/Linux実機は今回未確認（Windows/LinuxはUIイベント試験）。
+- 画像: `../outputs/GridCraft-MultiAreaPaste-before-20261024.jpg`（旧版）、`GridCraft-MultiAreaPaste-confirmed-20261024.jpg`（修正版の内部コピー）、`GridCraft-MultiAreaPaste-external-20261024.jpg`（外部テキスト）、`GridCraft-MultiAreaPaste-control-click-20261024.jpg`（Control-clickメニュー）。後3本も同じ `../outputs/`。
+- 最新URL: `http://127.0.0.1:8785/?sample=sales&lang=ja`。このMac内で配信中。停止後の再開はrepoルートから `python3 -u -m http.server 8785 --bind 127.0.0.1 --directory dist/web-multi-paste-20261024T1200`。従来の8771/8784番には今回の貼り付け修正を反映していない。
+
+この節の修正も「14」の `EXCEL.1` に含む。Geminiの既存レポートは変更していない。
+
+
+## 13. Excel操作差異の全項目修正（2026-10-24、検証・8784番反映済み）
+
+対象レポート `ai-team/reports/gemini-excel-parity-20261024-080500.md` 全285行を精読。
+Root Causes A〜E、Item 0/0b、Item 1〜16 の対応表は `docs/operational-parity.md`。
+マクロのUI入口と記録→VBA保存、複数セル範囲操作、非同期Webクリップボード、右クリック編集、
+日本語数式エラー、画像変換/8ハンドル、グループシート編集/3Dポイント参照の変更を統合した。
+コマンド登録数はExcel互換率ではないと表示し、UI/動作の回帰テストを別に管理する。
+
+- クイックアクセス・表示・自動化・ステータスバーの4箇所それぞれにMacrosとRecord/Stopを配置。記録は赤丸、停止は赤四角。`view.macros` はUIから一覧を開き、headlessではqueryのまま。録画停止は編集中セルを確定してからVBAを生成し、エディタを開く。
+- 通常はModule1へ重複しないSub名で追記する。既存Module1がclass/documentまたは不正ソースの場合は、新しいstandard ModuleNへ退避して既存ソースを保つ。行・列のInsert/Deleteも実行可能なVBAとして記録・再生する。非対応操作はコメントと `unsupported` / `vbaComplete: false` で明示し、再生できたとは扱わない。
+- 複数範囲/グループシートの編集は、保護・入力検証・累積作業量上限を検査して1回のUndoへ統合する。途中エラー時は変更を戻す。RTLの画像リサイズ、3D参照中の矢印、テキスト右クリック時の選択保持、Alt+=の入力イベント消費も回帰テストで確認した。
+
+最終検証:
+
+- `cargo xtask ci`: fmt / clippy / test / assets / layers / wasm / parity / keytips の全8項目成功。158 suite、**2,321成功・0失敗・既存ignore 1件**。ログ: `../outputs/GridCraft-ExcelParity-CI-Complete-20261024T1800.log`。QAT録画・statusマクロ補完後のソースを検証した結果。
+- 重点テスト: grouped_sheets 12、multi_area_operations 12、macro_recorder 6、picture_placement 4、multi_area_formulas 3、IME 22、async_clipboard 6、format_painter 6、macro_controls 4。画像8ハンドルのLTR/RTL、画像paste、3D参照、数式/VBAテキストメニューも全体CIに含む。
+- Trunk 0.22.0のWASM build成功。新規出力 `dist/web-excel-parity-complete-20261024-v2`、WASM `gridcraft-web-df06ff5f13b65506_bg.wasm`。ログ: `../outputs/GridCraft-ExcelParity-Web-Complete-20261024-v2.log`。既存のdistは削除・上書きしていない。
+- Chrome実機: Mac Control+Enter、飛び地2セルpasteと1回Undo、PNG直接paste/自動選択/NWリサイズ、浮動画像→セル内画像、選択2シートへの同時編集と非選択シートの不変を確認。最終版ではQATから記録開始→未確定F25入力→statusから停止→Module1の `Sub Macro1()` / `.Range("F25").Value = 7` / `End Sub` 生成まで確認した。確認時のブラウザerrorログ0件。
+- 画像証跡: `../outputs/GridCraft-ExcelParity-Final-Controls-20261024.jpg`、`../outputs/GridCraft-ExcelParity-Final-VBA-20261024.jpg`、`../outputs/GridCraft-ExcelParity-Picture-20261024.jpg`。入力済みのユーザータブは更新せず保持し、別の検証タブを使用した。
+- 配信URL: `http://127.0.0.1:8784/?sample=sales&lang=ja`。停止後はrepoルートから `python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-excel-parity-complete-20261024-v2` で再開できる。起動中の旧8784サーバーを特定して停止し、同じポートへ切り替えた。
+
+未検証/制約: Safari実機、実OS IMEの候補変換、WebGPU/WebGL比較、実ExcelでのVBA往復は未確認。録画ソースの保存先はGridCraft metadataであり、実行可能なExcel `vbaProject.bin` の生成・書換えではない。Excel VBA完全互換には未達。残課題は以下へ集約する。
+
+## 14. レビュー統合と現在の残課題（2026-10-24、EXCEL.1）
+
+統合単位 `EXCEL.1` は「11」のAntigravityレビュー照合・IME/VBA I/O、「12」の飛び地貼り付け、「13」のRoot Causes A〜E / Item 0・0b / Item 1〜16、関連回帰テストと文書整理を含む。ユーザーからAntigravity上のGeminiによるコード・テストレビュー完了と問題なしの報告を受けた。既存レポートの内容は変更しない。コマンド登録率をExcel互換率として扱わない。
+
+コミット先は `main`、送信先は `origin/main`（`https://github.com/atatakeisi/gridcraft.git`）。Git状態は文書へ固定せず、実際の `git status -sb`、`git log -1 --oneline`、`git rev-list --left-right --count HEAD...origin/main` と、送信後のリモートmainのhash一致を正とする。
+
+文書整理後・統合コミット直前の `cargo xtask ci` は全8項目成功。158 suite、2,321成功・0失敗・既存ignore 1件。ログ: `../outputs/GridCraft-ExcelParity-Precommit-CI-20261024.log`。この再確認では実装ソースを変更していない。
+
+| 残課題 | 現在の状態 | 次の完了条件 |
+|---|---|---|
+| Safari・実OS日本語IME | 合成IMEイベントとChromeの選択操作は回帰確認済み。Safari実機とOS候補変換は未検証 | Safari/Chromeで候補確定・取消・Enter/Tab/Escape・スクロールを実機比較し、再現した差異を修正して回帰試験へ追加 |
+| VBA言語の拡張 | 引数なしSubの部分実装。引数付きSub、Function、ByRef/ByVal、optional/named arguments等は未実装 | 引数/戻り値/参照渡しと呼出し規則を実装し、再現可能なExcel観察と境界試験で比較。詳細は `docs/vba-compatibility.md` |
+| Excel実行可能VBAの保存 | 元のbinary project保持とGridCraft metadataへのソース保存のみ。編集を実行可能な `vbaProject.bin` へ反映できない | 新規project生成・既存project書換えを実装し、Excelで保存物を開く→編集したマクロを実行→再保存・再読込まで検証 |
+| その他の互換性 | VBA events/UserForms/Windows依存実行、実Excelコーパス、WebGPU/WebGL性能比較等は未完了 | `docs/vba-compatibility.md` / `docs/gaps.md` / `docs/roadmap.md` の境界を維持し、対象を絞って順に検証。過去の工数・readinessを完了率と読み替えない |

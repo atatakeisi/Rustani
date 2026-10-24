@@ -125,6 +125,8 @@ pub(crate) struct Compound<'a> {
     fat: Vec<u32>,
     mini_fat: Vec<u32>,
     entries: Vec<DirEntry>,
+    /// Lazily shared by all small streams; malformed containers are cached as errors too.
+    mini_stream: std::cell::OnceCell<Result<Vec<u8>, String>>,
 }
 
 impl<'a> Compound<'a> {
@@ -172,7 +174,16 @@ impl<'a> Compound<'a> {
             let s = sector(id).ok_or_else(|| bad("FAT sector out of range"))?;
             fat.extend((0..per).filter_map(|i| u32_at(s, i * 4)));
         }
-        let mut cf = Compound { bytes: b, sector_size, mini_sector_size: 64, mini_cutoff: 4096, fat, mini_fat: vec![], entries: vec![] };
+        let mut cf = Compound {
+            bytes: b,
+            sector_size,
+            mini_sector_size: 64,
+            mini_cutoff: 4096,
+            fat,
+            mini_fat: vec![],
+            entries: vec![],
+            mini_stream: std::cell::OnceCell::new(),
+        };
         if let Some(c) = u32_at(b, 56) {
             cf.mini_cutoff = u64::from(c);
         }
@@ -246,7 +257,9 @@ impl<'a> Compound<'a> {
     fn read_mini_chain(&self, container: &[u8], start: u32, limit: usize) -> Result<Vec<u8>, String> {
         let mut out = Vec::new();
         let mut id = start;
-        let mut seen = vec![false; self.mini_fat.len()];
+        // Track only sectors this stream visits, rather than clearing an entire (potentially
+        // large) mini FAT bitmap for every tiny stream in a VBA project.
+        let mut seen = std::collections::BTreeSet::new();
         let mut cut = false;
         while id != END_OF_CHAIN && out.len() < limit {
             if cut {
@@ -255,10 +268,9 @@ impl<'a> Compound<'a> {
             if id >= MAX_REG_SECT {
                 return Err("damaged compound file: broken mini sector chain".into());
             }
-            match seen.get_mut(id as usize) {
-                Some(v) if !*v => *v = true,
-                Some(_) => return Err("damaged compound file: mini sector chain loops".into()),
-                None => return Err("damaged compound file: mini sector missing from the mini FAT".into()),
+            let next = *self.mini_fat.get(id as usize).ok_or("damaged compound file: mini sector missing from the mini FAT")?;
+            if !seen.insert(id) {
+                return Err("damaged compound file: mini sector chain loops".into());
             }
             let at = (id as usize).checked_mul(self.mini_sector_size);
             let s = at
@@ -266,9 +278,24 @@ impl<'a> Compound<'a> {
                 .ok_or("damaged compound file: mini sector out of range")?;
             cut = s.len() < self.mini_sector_size;
             out.extend_from_slice(s);
-            id = *self.mini_fat.get(id as usize).ok_or("damaged compound file: mini sector missing from the mini FAT")?;
+            id = next;
         }
         Ok(out)
+    }
+
+    fn mini_stream(&self) -> Result<&[u8], String> {
+        self.mini_stream
+            .get_or_init(|| {
+                let root = self.entries.first().ok_or("damaged compound file: missing root entry")?;
+                if root.size > self.bytes.len() as u64 || root.size > MAX_STREAM {
+                    return Err("damaged compound file: mini stream exceeds the reading limit or file size".into());
+                }
+                let mut data = self.read_chain(root.start, root.size)?;
+                data.truncate(usize::try_from(root.size).map_err(|_| "compound mini stream too large")?);
+                Ok(data)
+            })
+            .as_deref()
+            .map_err(Clone::clone)
     }
 
     /// The contents of the stream called `name` (case-insensitive) directly under the root
@@ -306,16 +333,16 @@ impl<'a> Compound<'a> {
     /// The contents of the stream called `name` (case-insensitive) directly under the root
     /// storage, or `None` when there is no such stream.
     pub(crate) fn root_stream(&self, name: &str) -> Result<Option<Vec<u8>>, String> {
-        let Some(root) = self.entries.first() else { return Ok(None) };
         let found = self.root_entry(name)?;
         let Some(e) = found else { return Ok(None) };
         if e.size > MAX_STREAM {
             return Err("the workbook stream is larger than 1 GiB".into());
         }
         let size = usize::try_from(e.size).map_err(|_| "stream too large".to_string())?;
-        let mut data = if e.size < self.mini_cutoff {
-            let container = self.read_chain(root.start, root.size)?;
-            self.read_mini_chain(&container, e.start, size)?
+        let mut data = if size == 0 {
+            Vec::new()
+        } else if e.size < self.mini_cutoff {
+            self.read_mini_chain(self.mini_stream()?, e.start, size)?
         } else {
             self.read_chain(e.start, e.size)?
         };
@@ -368,13 +395,10 @@ impl<'a> Compound<'a> {
             return Err(format!("compound stream exceeds the {limit}-byte reading limit"));
         }
         let size = usize::try_from(e.size).map_err(|_| "compound stream too large".to_string())?;
-        let mut data = if e.size < self.mini_cutoff {
-            let root = self.entries.first().ok_or("damaged compound file: missing root entry")?;
-            if root.size > self.bytes.len() as u64 {
-                return Err("damaged compound file: mini stream exceeds the file size".into());
-            }
-            let container = self.read_chain(root.start, root.size)?;
-            self.read_mini_chain(&container, e.start, size)?
+        let mut data = if size == 0 {
+            Vec::new()
+        } else if e.size < self.mini_cutoff {
+            self.read_mini_chain(self.mini_stream()?, e.start, size)?
         } else {
             self.read_chain(e.start, e.size)?
         };
@@ -484,6 +508,53 @@ pub(crate) mod tests {
         assert_eq!(cf.root_stream("Workbook").unwrap().unwrap(), data);
         let cf = Compound::open(&file[..file.len() - 1]).unwrap();
         assert!(cf.root_stream("Workbook").is_err());
+    }
+
+    #[test]
+    fn many_small_streams_share_one_bounded_container() {
+        let names: Vec<String> = (0..128).map(|i| format!("Module{i}")).collect();
+        let sources: Vec<Vec<u8>> = (0..128).map(|i| vec![i as u8; 100]).collect();
+        let streams: Vec<(&str, &[u8])> = names.iter().zip(&sources).map(|(name, source)| (name.as_str(), source.as_slice())).collect();
+        let file = crate::testing::compound_file(&streams);
+        let cf = Compound::open(&file).unwrap();
+        assert!(cf.mini_stream.get().is_none());
+        let mut container = None;
+        for (name, source) in &streams {
+            assert_eq!(cf.stream_path(&[name], 100).unwrap().unwrap(), *source);
+            assert_eq!(cf.root_stream(name).unwrap().unwrap(), *source);
+            let pointer = cf.mini_stream().unwrap().as_ptr();
+            assert_eq!(*container.get_or_insert(pointer), pointer);
+        }
+        assert!(cf.stream_path(&["Module0"], 99).is_err());
+        assert!(cf.stream_path(&["Missing"], 100).unwrap().is_none());
+    }
+
+    #[test]
+    fn mini_container_size_and_truncation_are_checked() {
+        let mut file = crate::testing::compound_file(&[("Small", &[7; 100])]);
+        // The root's declared container must fit in the physical file before allocation.
+        file[1024 + 120..1024 + 124].copy_from_slice(&u32::MAX.to_le_bytes());
+        let cf = Compound::open(&file).unwrap();
+        assert!(cf.stream_path(&["Small"], 100).is_err());
+        assert!(cf.root_stream("Small").is_err());
+        // Mini sectors outside the declared container are not part of the stream.
+        file[1024 + 120..1024 + 124].copy_from_slice(&64u32.to_le_bytes());
+        let cf = Compound::open(&file).unwrap();
+        assert!(cf.stream_path(&["Small"], 100).is_err());
+        assert!(cf.root_stream("Small").is_err());
+    }
+
+    #[test]
+    fn mini_sector_cycles_and_missing_fat_entries_are_errors() {
+        let mut file = crate::testing::compound_file(&[("Small", &[7; 100])]);
+        file[1024 + 128 + 120..1024 + 128 + 124].copy_from_slice(&192u32.to_le_bytes());
+        // Sector 0 -> 1 -> 0 cannot satisfy the third mini-sector read.
+        file[1536 + 4..1536 + 8].copy_from_slice(&0u32.to_le_bytes());
+        let cf = Compound::open(&file).unwrap();
+        assert!(cf.stream_path(&["Small"], 192).unwrap_err().contains("loops"));
+        file[1536 + 4..1536 + 8].copy_from_slice(&128u32.to_le_bytes());
+        let cf = Compound::open(&file).unwrap();
+        assert!(cf.stream_path(&["Small"], 192).unwrap_err().contains("missing from the mini FAT"));
     }
 
     #[test]

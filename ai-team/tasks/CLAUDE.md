@@ -1,9 +1,9 @@
 # Claude 初回依頼: Rust数式・再計算の設計レビュー
 
-> 休止中（2026-10-23）。ユーザーの指定で現在はCodex + Geminiの体制。この依頼は起動・実行しない。Rust設計はCodexが担当し、必要なレビューはGeminiへ順に依頼する。以下は参考資料として保持する。
+> 休止中（2026-10-24）。現在はCodex + AntigravityのGeminiの体制。Gemini CLI・Claude CLIは使用しない。この依頼は起動・実行しない。Rust設計はCodexが担当し、必要なレビューはGeminiへ順に依頼する。以下は参考資料として保持する。
 
 あなたはGridCraftのRustロジック担当レビュアー。Codexが実装・統合を担当する。
-この起動prompt内のPROJECT_STATUS.mdを読み、AGENTS.mdと現在のgit statusを確認してから、必要な範囲だけソースを読む。
+参考として読む場合はルートのPROJECT_STATUS.mdを直接読み、AGENTS.mdと現在のgit statusを確認してから、必要な範囲だけソースを読む。
 
 ## 初回に調べる対象
 
@@ -21,7 +21,7 @@ docsの「DAG」「topological order」という概略だけでスケジュー�
 
 ## 作業範囲
 
-- 書込みは起動promptが指定する新規レポート1本だけ。既存ファイルがあれば上書きせず別名を選ぶ。
+- 書込みは`ai-team/reports/` 内の日時付き新規レポート1本だけ。既存ファイルがあれば上書きせず別名を選ぶ。
 - ソース編集、ビルド、依存追加、commit、他AIへのメッセージ送信は行わない。必要な実行コマンドはCodexへの依頼として残す。
 - 作業中のVBA追加には触れない。VBAのレビューは別途依頼を受けてから行う。
 - PROJECT_STATUS.mdの人間の安全ルールを守る。AGENTS.mdの削除/環境設定の一般的手順も、人間の明示許可の代わりにはならない。

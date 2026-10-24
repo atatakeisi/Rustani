@@ -1853,6 +1853,12 @@ fn macros(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, open: &mut bool
                             Err(error) => app.message = Some((lang.tr("Recorded script").into(), lang.tr_error(&crate::clean_error(&error)))),
                         }
                     }
+                    if ui.button(lang.tr("Delete")).clicked() {
+                        match app.run("automate.deleteScript", json!({"name": name})) {
+                            Ok(_) => d.result = app.session.run("view.macros", json!({})).ok(),
+                            Err(error) => app.message = Some((lang.tr("Recorded script").into(), lang.tr_error(&crate::clean_error(&error)))),
+                        }
+                    }
                 }
             });
         }

@@ -1,13 +1,13 @@
 # Excel VBA compatibility
 
-> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** major (document the local VBA foundation and the full compatibility requirement) · **Target:** Microsoft Excel (Microsoft 365), including Windows VBA features
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (recording integration and explicit remaining language/project-writing work) · **Target:** Microsoft Excel (Microsoft 365), including Windows VBA features
 
 **Full compatibility with macros authored in the commercial version of Excel is the final
 requirement. It has not been achieved.** The current local implementation provides source
 import, an editor and a bounded interpreter for a small subset of VBA and the Excel object
 model. These are implementation stages toward that requirement, not a reduction of its scope.
 
-This inventory is based on source inspection on 2026-10-23. The local validation below covers
+This inventory is based on source inspection through 2026-10-24. The local validation below covers
 CI and selected Chrome editor workflows, not an Excel-authored macro corpus or full compatibility.
 Readiness percentages in the existing parity documents have not been raised. Their historical
 hour estimates do not include the newly required full VBA compatibility; that work is **not yet
@@ -23,9 +23,14 @@ estimated**.
 | Excel adapter | `crates/engine/src/vba/host.rs` maps supported object operations to existing workbook commands | Unsupported members return errors; GridCraft's calculation and chart behaviour are not an Excel conformance oracle |
 | Session | `crates/engine/src/vba/mod.rs` stages macro edits and exposes status, output, stop and commit | One running macro per session; changes publish only after successful completion |
 | Editor | `crates/ui-egui/src/vba_editor.rs`, reached through Macros → VBA Editor | Module source, procedure choice, save, run, stop, line/error/output display and a user-inserted example; no full VBE debugger or form designer |
+| Recording | Quick Access, View, Automate and status-bar Record/Stop create a unique, compile-checked `Sub` in Module1 (or a new standard ModuleN if Module1 cannot safely accept it) and retain the recorded JSON script | Captures worksheet/cell context and commits pending cell edits before stopping; unsupported operations remain explicit comments and are returned in `unsupported` / `vbaComplete:false`. Source stays in GridCraft metadata, not a rewritten Excel binary project |
 
 The editor can show imported standard, document, class and form source. A module's reported
 kind is import metadata, not evidence that class, UserForm or event execution is implemented.
+Source overlays preserve the original project's module kind, spelling and order while that
+project remains present and readable. Standalone GridCraft modules use the standard kind.
+The source reader accepts zero padding only at the end of the final raw module chunk;
+embedded nulls remain errors. CFB small streams share a bounded, lazily read mini-stream container.
 
 ## Language and object model currently represented
 
@@ -43,7 +48,7 @@ kind is import metadata, not evidence that class, UserForm or event execution is
   and `ActiveCell`. Only the current workbook is exposed.
 - `Range`, `Cells`, row/column access and counts, `Offset`, `Resize`, `End`, `Address`,
   `Value`/`Value2`, `Formula`/`Formula2`, `NumberFormat`, `ClearContents`, `Clear`, selection,
-  row/column `AutoFit`, selected font properties, fill colour and `RGB`. Argument variants,
+  row/column `AutoFit`, argumentless `EntireRow`/`EntireColumn` `Insert`/`Delete`, selected font properties, fill colour and `RGB`. Argument variants,
   mixed formats, default properties and array assignments are only partially represented.
 - `WorksheetFunction` calls use GridCraft's formula evaluator; `Calculate` and `Debug.Print`
   are available. `Debug.Print` writes to the editor output, rather than an external console.
@@ -77,6 +82,12 @@ not satisfy that requirement. Windows-dependent macros will require an explicit 
 architecture for the native dependencies; the current browser interpreter supplies none.
 The choice and its compatibility tests remain design work, not a promise that a browser-only
 runtime can reproduce every Windows feature.
+
+The next language stage is parameterized `Sub`, `Function` return values and `ByRef`/`ByVal`
+argument passing, with explicit coercion, aliasing and call-depth tests. This is remaining
+implementation work, not covered by the recording feature. Separately, executable project
+creation and rewriting must be validated by opening and running the edited output in Excel;
+passing GridCraft source-metadata round trips does not complete that stage.
 
 ## Execution, trust and current safety limits
 
@@ -169,7 +180,19 @@ will accept the metadata or execute edited source.
 - These checks used paste and UI actions. Real OS Japanese IME, Safari, browser workbook
   file save/reopen and execution of Excel-authored macro projects remain unverified.
 
-Next development should establish those baselines, expand language and object-model coverage
+### Review integration — 2026-10-24
+
+- The final interaction implementation passed all eight CI gates with 2,321 passing tests,
+  zero failures and one pre-existing ignored test. Recording, imported-source preservation,
+  structural-command replay and editor clipboard interactions are included. Evidence:
+  [operational-parity.md](operational-parity.md) and `PROJECT_STATUS.md` §11–14.
+- Chrome verified quick-access recording, status-bar stop, pending-edit commit and generated
+  Module1 VBA. The owner also reported completion of Antigravity/Gemini's code and test review.
+- Safari and real OS IME candidate conversion still need live checks. Parameterized procedures,
+  `Function`, `ByRef`/`ByVal`, executable `vbaProject.bin` writing and Excel round trips remain
+  open; this integration does not claim them.
+
+Next development should establish the remaining baselines, expand language and object-model coverage
 against reproducible Excel observations, implement project writing and form/event support,
 and decide how native Windows dependencies execute. Every supported stage must retain explicit
 diagnostics and the final full compatibility requirement. Completion criteria and effort for
@@ -179,4 +202,6 @@ the whole requirement remain to be measured.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Reconcile recording and review evidence; distinguish supported parameterless recording from missing Sub/Function arguments and ByRef/ByVal; retain metadata-only save and executable-project/Excel-round-trip requirements |
+| 2026-10-24 | minor | Preserve imported module identity when saving source overlays; accept final raw-source padding and named control-reference compatibility input; reuse CFB mini-stream storage. Validation details: PROJECT_STATUS.md §11. Full compatibility and Excel handoff remain unverified |
 | 2026-10-23 | major | Created from the local source: full VBA compatibility required but unmet; source preservation/import, partial interpreter/editor, trust, limits, metadata-only source save; recorded passing CI and selected Chrome workflows while retaining Excel verification gaps |

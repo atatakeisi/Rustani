@@ -185,6 +185,11 @@ pub(crate) fn dispatch(app: &mut SheetApp, ctx: &egui::Context, key: Key, physic
     let (active, anchor) = app.session.active().map(|d| (d.selection.active, d.selection.anchor)).unwrap_or_default();
     match shortcut {
         Shortcut::Run(id, params) => {
+            if id == "formulas.autoSum" && m.alt {
+                // Alt+= can emit a text '=' as well as the shortcut. AutoSum may open a
+                // focused editor in this frame; that generated character is already used.
+                ctx.input_mut(|input| input.events.retain(|event| !matches!(event, egui::Event::Text(text) if text == "=")));
+            }
             app.run_or_alert(id, params);
             app.grid.ensure_visible = true;
         }

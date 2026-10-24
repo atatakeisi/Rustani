@@ -1,9 +1,12 @@
 //! The browser shell: web `Services`, drag-and-drop, and the eframe web runner.
 
 use gridcraft_engine::Session;
-use gridcraft_ui_egui::{Inbox, Services, SheetApp};
+use gridcraft_ui_egui::{ImagePasteInbox, ImagePasteTargetState, Inbox, Services, SheetApp};
 use wasm_bindgen::JsCast as _;
 use wasm_bindgen::JsValue;
+
+#[path = "web_clipboard.rs"]
+mod clipboard;
 
 const CANVAS_ID: &str = "gridcraft_canvas";
 const LOADING_ID: &str = "gridcraft_loading";
@@ -91,7 +94,13 @@ pub fn start() {
                         }
                         bridge.post_ready();
                     }
-                    Ok(Box::new(WebShell { app, inbox, bridge: app_bridge, prefs }))
+                    let image_paste_target = ImagePasteTargetState::default();
+                    let clipboard_listener = app
+                        .services
+                        .clipboard_images
+                        .as_ref()
+                        .and_then(|images| clipboard::listen(images.clone(), image_paste_target.clone(), cc.egui_ctx.clone()).ok());
+                    Ok(Box::new(WebShell { app, inbox, bridge: app_bridge, prefs, image_paste_target, _clipboard_listener: clipboard_listener }))
                 }),
             )
             .await;
@@ -128,6 +137,8 @@ struct WebShell {
     inbox: Inbox,
     bridge: Option<crate::host::Bridge>,
     prefs: crate::prefs::PrefsSync,
+    image_paste_target: ImagePasteTargetState,
+    _clipboard_listener: Option<clipboard::Listener>,
 }
 
 fn local_storage() -> Option<web_sys::Storage> {
@@ -185,14 +196,18 @@ impl eframe::App for WebShell {
         if let Some(bridge) = &self.bridge {
             bridge.sync(&mut self.app);
         }
+        *self.image_paste_target.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = self.app.image_paste_target(ui.ctx());
     }
 }
 
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
     let open_inbox = inbox.clone();
     let picture_ctx = ctx.clone();
+    let paste_ctx = ctx.clone();
     Services {
         copy_html: Some(Box::new(copy_html)),
+        paste_async: Some(Box::new(move |inbox| clipboard::read(inbox, paste_ctx.clone()))),
+        clipboard_images: Some(ImagePasteInbox::default()),
         open_async: Some(Box::new(move || {
             let inbox = open_inbox.clone();
             let ctx = ctx.clone();

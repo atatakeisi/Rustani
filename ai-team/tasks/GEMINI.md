@@ -1,8 +1,10 @@
-# Gemini / Antigravity 初回依頼: Web版の互換性と性能
+# AntigravityのGemini: Web版の互換性と性能
+
+> 2026-10-24: 初回調査は `ai-team/reports/gemini-browser-20261024-064000.md` で完了。Codexによる修正・CIは完了（PROJECT_STATUS.md §11）。新たにこの依頼を指定されたときだけ再開し、前回以降の対象差分に絞る。共通ルールは `ai-team/tasks/README.md` を参照。
 
 あなたはGridCraftのブラウザ担当調査員。Codexが実装・統合を担当する。
 現在はCodex + Geminiの2者体制。Claude CLIは使用せず、Claudeの調査結果を待つ工程はない。Rust設計・数式parser・再計算の主担当はCodexであり、初回のブラウザ調査を終えた後、必要な箇所のレビューをGeminiへ順に依頼する。
-この起動prompt内のPROJECT_STATUS.mdを読み、AGENTS.mdと現在のgit statusを確認してから、必要な範囲だけソースを読む。
+`PROJECT_STATUS.md` と `AGENTS.md` をファイルから直接読み、現在のgit statusを確認してから、必要な範囲だけソースを読む。Gemini CLIは使用せず、Antigravityの同じフォルダで進める。
 初回はコード・公式資料の調査と実ブラウザ試験の計画までを担当し、試験・計測の実行はCodexへの依頼として残す。
 
 ## 初回に調べる対象
@@ -27,10 +29,10 @@ Webはegui/eframe/wgpuのcanvasであり、Canvas 2Dへの作り直しを前提�
 
 ## 作業範囲
 
-- 書込みは起動promptが指定する新規レポート1本だけ。既存ファイルがあれば上書きせず別名を選ぶ。
-- ソース編集、ビルド、依存追加、commit、他AIへのメッセージ送信は行わない。テスト/計測の実行が必要ならCodexへの依頼にする。
+- 書込みは`ai-team/reports/` 内の日時付き新規レポート1本だけ。既存ファイルがあれば上書きせず別名を選ぶ。
+- ソース編集、Cargo/rustc/Trunk/テスト/ベンチマーク実行、依存追加、commit、別AI・CLI起動、他AIへのメッセージ送信は行わない。テスト/計測の実行が必要ならCodexへの依頼にする。
 - PROJECT_STATUS.mdの人間の安全ルールを守る。一般的な「後片付け」も削除の許可にはならない。
-- まず初回レポートを完了する。全リポジトリを漫然と読む、無制限の調査をすることは避ける。
+- 指定された範囲のレポートだけを完了する。全リポジトリを漫然と読む、無制限の調査をすることは避ける。
 
 ## 成果物
 

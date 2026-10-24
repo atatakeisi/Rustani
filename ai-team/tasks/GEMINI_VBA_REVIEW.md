@@ -1,20 +1,22 @@
-# Gemini / Antigravity 限定レビュー依頼: VBAの読込・保存・再読込
+# AntigravityのGemini 限定レビュー依頼: VBAの読込・保存・再読込
 
-作成日: 2026-10-23（日本時間）。体制は **このCodexチャット + Gemini** のままです。CodexがRustの設計・実装・ビルド・テスト・統合を担当します。このファイルは人間が後で既存のGemini会話へ渡す依頼文です。作成だけでGeminiへの送信やCLI起動を行いません。
+更新日: 2026-10-24（日本時間）。体制は **Codex + AntigravityのGemini** です。CodexがRustの設計・実装・ビルド・テスト・統合を担当します。Gemini CLIは使用しません。
+
+> 初回レビューは `ai-team/reports/gemini-vba-io-20261024-064100.md` で完了。Codexによる修正・保存/再読込回帰試験・CIは完了（PROJECT_STATUS.md §11）。新たにこの依頼を指定されたときだけ再開してください。共通ルールは `ai-team/tasks/README.md` を参照。
 
 ## 今回のレビュー基点
 
-VBA実装は `ea820e0ec88c514994dcebfd9230deb31ffcfb01`（VBA.1）です。初回比較元は `ac8da7d4`。次の読取り専用コマンドで対象3ファイルの差分を確認できます。作業ツリーにその後の変更があれば、別に区別してください。次回以降は前回レビューしたcommitを比較元にし、同じ範囲の全体調査を繰り返さないでください。
+前回の対象は `0a87bfe8`、結果は `ai-team/reports/gemini-vba-io-20261024-064100.md` です。再依頼時は現在のHEADと作業ツリーを確認し、前回以降の対象3ファイルの変更と、指摘が解消されたかに絞ります。履歴確認が必要なら次の読取り専用コマンドを使えます。未コミット変更は別に区別してください。
 
 ```sh
-git diff ac8da7d4..ea820e0e -- crates/xlsx/src/vba.rs crates/xlsx/src/cfb.rs crates/engine/src/vba/mod.rs
+git diff 0a87bfe8 -- crates/xlsx/src/vba.rs crates/xlsx/src/cfb.rs crates/engine/src/vba/mod.rs
 ```
 
 ## 開始する順序
 
-- 前のSafari/Chrome・日本語/CJK・IME・描画/scrollのブラウザ調査が完了し、新規レポートの保存先を報告済みなら、この限定レビューへ進んでください。
-- ブラウザ調査が未完了なら、先に前の依頼を完了してください。このレビューを並行開始せず、完了レポートを保存・報告してから着手してください。既存の会話を使い、CLIの再起動や別AIの起動は不要です。
-- 利用制限の回復は、前の調査の完了や実機検証の実施を意味しません。実際に行った作業だけを報告してください。
+- Codexまたは人間から、この限定レビューを再開する指定があるまで待機してください。
+- Antigravityの同じGemini会話を使い、1件ずつ進めてください。別AI・CLIの起動や完了済みブラウザ調査のやり直しは不要です。
+- 実際に読んだ対象と行った作業だけを報告してください。
 
 ## 最初に読むもの
 

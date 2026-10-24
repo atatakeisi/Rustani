@@ -95,6 +95,12 @@ pub fn title_bar(app: &mut SheetApp, ui: &mut Ui) {
             if icon_button(ui, Icon::Redo, if can_redo { t.text_dim } else { t.text_disabled }, "Redo", vec2(26.0, ch)).clicked() && can_redo {
                 app.run_or_alert("edit.redo", json!({}));
             }
+            let macros = icon_button(ui, Icon::Script, t.text_dim, "Macros (Alt+F8)", vec2(26.0, ch));
+            macros.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("Macros")));
+            if macros.clicked() {
+                app.run_or_alert("view.macros", json!({}));
+            }
+            record_macro_icon(app, ui, vec2(26.0, ch));
             let more = icon_button(ui, Icon::More, t.text_dim, "More commands", vec2(26.0, ch));
             egui::Popup::menu(&more).show(|ui| {
                 for (label, id) in [
@@ -103,6 +109,7 @@ pub fn title_bar(app: &mut SheetApp, ui: &mut Ui) {
                     ("Save As…", "file.saveAs"),
                     ("Sort A to Z", "data.sortAscending"),
                     ("Calculate Now", "formulas.calculateNow"),
+                    ("Macros", "view.macros"),
                 ] {
                     if ui.button(label).clicked() {
                         app.run_or_alert(id, json!({}));
@@ -151,7 +158,14 @@ pub fn title_bar(app: &mut SheetApp, ui: &mut Ui) {
                 ui.min_rect().left()
             });
             // Centred title, cut with "…" so it never runs under the controls on either side.
-            let title = app.session.active().map(|d| d.display_title()).unwrap_or_default();
+            let title = app
+                .session
+                .active()
+                .map(|d| {
+                    let title = d.display_title();
+                    if d.selected_sheets.len() > 1 { format!("{title} {}", app.ui.language.tr("[Group]")) } else { title }
+                })
+                .unwrap_or_default();
             let dirty = app.session.active().is_some_and(|d| d.is_dirty());
             let max_w = title_max_width(rect.center().x, left_end, right.inner);
             paint_title(ui, rect.center(), &title, dirty, max_w, t.text);
@@ -1517,8 +1531,16 @@ fn insert(app: &mut SheetApp, ui: &mut Ui) {
     anchor_keytip(app, ui, &pic, &["insert.picture"]);
     pic.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), "Pictures"));
     egui::Popup::menu(&pic).show(|ui| {
-        for (label, placement) in [("Place in Cell", "cell"), ("Place over Cells", "overCells")] {
-            if ui.button(label).clicked() {
+        for (label, placement) in [("Place over Cells", "overCells"), ("Place in Cell", "cell")] {
+            if ui
+                .button(app.ui.language.tr(label))
+                .on_hover_text(app.ui.language.tr(if placement == "cell" {
+                    "The picture fits the cell and scales with its row and column."
+                } else {
+                    "The picture floats over cells and has resize handles."
+                }))
+                .clicked()
+            {
                 app.open_dialog("insertPicture", json!({"placement": placement}));
                 ui.close();
             }
@@ -2389,12 +2411,63 @@ fn view(app: &mut SheetApp, ui: &mut Ui) {
             },
         );
     });
+    sep(ui);
+    let macros = big_button(ui, Icon::Script, "Macros", "Macros (Alt+F8)", false);
+    control_keytip(app, ui, &macros, "view.macros");
+    macros.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("Macros")));
+    if macros.clicked() {
+        app.run_or_alert("view.macros", json!({}));
+    }
+    record_macro(app, ui);
+}
+
+fn recording_control(recording: bool) -> (Icon, &'static str) {
+    if recording { (Icon::StopRecording, "Stop Recording") } else { (Icon::RecordMacro, "Record Macro") }
+}
+
+fn toggle_macro_recording(app: &mut SheetApp) {
+    let recording = app.session.recording.is_some();
+    if app.commit_edit(0, 0, false, false) {
+        app.run_or_alert("automate.recordActions", json!({"stop": recording}));
+    }
+}
+
+fn record_macro_icon(app: &mut SheetApp, ui: &mut Ui, size: egui::Vec2) {
+    let (icon, label) = recording_control(app.session.recording.is_some());
+    let color = Tokens::get(ui.ctx()).text_dim;
+    let response = icon_button(ui, icon, color, label, size);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr(label)));
+    control_keytip(app, ui, &response, "automate.recordActions");
+    if response.clicked() {
+        toggle_macro_recording(app);
+    }
+}
+
+pub(crate) fn record_macro(app: &mut SheetApp, ui: &mut Ui) {
+    let (icon, label) = recording_control(app.session.recording.is_some());
+    let response = small_button(ui, icon, label, label, false);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr(label)));
+    control_keytip(app, ui, &response, "automate.recordActions");
+    if response.clicked() {
+        toggle_macro_recording(app);
+    }
 }
 
 fn automate(app: &mut SheetApp, ui: &mut Ui) {
-    if big_button(ui, Icon::Script, "Macros", "Macros and scripts in this workbook (Alt+F8)", false).clicked() {
-        app.open_dialog("macros", json!({}));
+    let macros = big_button(ui, Icon::Script, "Macros", "Macros and scripts in this workbook (Alt+F8)", false);
+    control_keytip(app, ui, &macros, "automate.allScripts");
+    macros.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("Macros")));
+    if macros.clicked() {
+        app.run_or_alert("automate.allScripts", json!({}));
     }
+    ui.vertical(|ui| {
+        record_macro(app, ui);
+        let editor = small_button(ui, Icon::Script, "VBA Editor", "Open the VBA Editor", false);
+        editor.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("VBA Editor")));
+        if editor.clicked() {
+            app.open_dialog("macros", json!({"tab": "VBA"}));
+        }
+    });
     let __k = big_button(ui, Icon::Script, "Command\nPalette", "Search and run any command", false);
     control_keytip(app, ui, &__k, "commandSearch");
     if __k.clicked() {
@@ -2656,8 +2729,7 @@ pub fn shortcut(app: &mut SheetApp, key: Key, m: Modifiers) {
                 None
             }
         },
-        // Insert works on one area at a time, so several areas still go through the dialog.
-        Key::Plus | Key::Equals if shift => match whole_lines(app).filter(|_| single_area(app)) {
+        Key::Plus | Key::Equals if shift => match whole_lines(app) {
             Some(true) => Some(("home.insertRows", json!({}))),
             Some(false) => Some(("home.insertColumns", json!({}))),
             None => {
@@ -2772,11 +2844,6 @@ mod checkbox_on_tests {
         assert!(checkbox_on(false, false));
         assert!(!checkbox_on(false, true));
     }
-}
-
-/// Whether the selection is a single area.
-fn single_area(app: &SheetApp) -> bool {
-    app.session.active().is_some_and(|d| d.selection.ranges.len() == 1)
 }
 
 /// `Some(true)` when every selected area is whole rows, `Some(false)` when every one is whole

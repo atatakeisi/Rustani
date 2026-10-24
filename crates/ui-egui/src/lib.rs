@@ -10,6 +10,7 @@ pub mod backstage;
 mod border_preview;
 mod cell_pictures;
 pub mod chartview;
+mod clipboard;
 pub mod control;
 pub mod credits;
 pub mod dialogs;
@@ -32,6 +33,7 @@ pub mod ribbon;
 pub mod selection_glide;
 pub mod tabs;
 pub mod text_box;
+mod text_menu;
 pub mod theme;
 mod vba_editor;
 pub mod web_fonts;
@@ -194,6 +196,12 @@ pub struct Services {
     /// gets it from egui's `Event::Paste`). `None` from the host, or no service (web), pastes
     /// GridCraft's own clipboard.
     pub paste_text: Option<Box<dyn FnMut() -> Option<String>>>,
+    /// Browser clipboard read, started synchronously in the user's button gesture.
+    pub paste_async: Option<Box<dyn Fn(ClipboardInbox)>>,
+    /// Native clipboard image, encoded as PNG/JPEG. Consulted before a grid text paste.
+    pub paste_image: Option<Box<dyn FnMut() -> Option<Vec<u8>>>>,
+    /// Browser image paste events, separate from workbook file opening.
+    pub clipboard_images: Option<ImagePasteInbox>,
     /// Web: deliver a file to the user (name, bytes).
     pub download: Option<Box<dyn Fn(&str, &[u8])>>,
     /// Web: start an asynchronous file pick; the bytes arrive later in `inbox`.
@@ -207,6 +215,8 @@ pub struct Services {
 
 /// Shared queue of files read asynchronously (browser file picker, drag and drop).
 pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
+
+pub use clipboard::{ClipboardData, ClipboardInbox, ImagePasteInbox, ImagePasteTarget, ImagePasteTargetState};
 
 #[derive(Clone, Debug, Default)]
 pub struct Perf {
@@ -256,6 +266,7 @@ pub struct SheetApp {
     print_feedback_seen: Option<printing::Feedback>,
     /// Synthetic input from agents, one batch per frame (drags need several frames).
     pub synthetic: std::collections::VecDeque<Vec<egui::Event>>,
+    clipboard_pending: Option<clipboard::Pending>,
     pub control_rx: Option<std::sync::mpsc::Receiver<ControlRequest>>,
     pub grid: grid::GridState,
     pub perf: Perf,
@@ -318,6 +329,7 @@ impl SheetApp {
             printing: Default::default(),
             print_feedback_seen: None,
             synthetic: Default::default(),
+            clipboard_pending: None,
             control_rx: None,
             grid: grid::GridState {
                 last_border: "bottom".into(),
@@ -421,11 +433,20 @@ impl SheetApp {
         let r = self.session.run(id, params);
         self.after_engine();
         // The new chart is selected, as after inserting any object, so Delete removes it, not its data.
-        if id == "insert.chart"
+        if matches!(id, "insert.chart" | "insert.picture" | "insert.shape" | "picture.placeOverCells")
             && let Ok(r) = &r
-            && let Some(chart) = r.get("chart").and_then(Json::as_u64).and_then(|id| u32::try_from(id).ok())
+            && let Some(chart) =
+                r.get("chart").or_else(|| r.get("image")).or_else(|| r.get("shape")).and_then(Json::as_u64).and_then(|id| u32::try_from(id).ok())
         {
             self.selected_chart = Some(chart);
+        }
+        if id == "picture.placeInCell" && r.is_ok() {
+            self.selected_chart = None;
+            if let Ok(result) = &r
+                && let Some(cell) = result.get("cell").and_then(Json::as_str)
+            {
+                let _ = self.session.run("selection.set", json!({"cell":cell}));
+            }
         }
         if id == "file.exportPdf"
             && let Ok(r) = &r
@@ -485,6 +506,14 @@ impl SheetApp {
     /// text there, no host clipboard (web), or the text that was there when GridCraft last copied
     /// without publishing, GridCraft's own clipboard is pasted.
     pub fn paste_from_clipboard(&mut self) {
+        if self.services.paste_async.is_some() {
+            self.request_clipboard(None);
+            return;
+        }
+        if let Some(bytes) = self.services.paste_image.as_mut().and_then(|read| read()) {
+            self.paste_picture(bytes);
+            return;
+        }
         match self.system_clipboard_text() {
             Some(text) if self.session.clipboard.is_none() || self.clipboard_text_at_copy.as_ref() != Some(&text) => self.paste_external(text),
             _ => self.run_or_alert("edit.paste", json!({})),
@@ -530,6 +559,9 @@ impl SheetApp {
     }
 
     pub fn run_or_alert(&mut self, id: &str, params: Json) {
+        if matches!(id, "view.macros" | "automate.allScripts") {
+            return self.open_dialog("macros", json!({}));
+        }
         if id == "automate.newScript" && params.as_object().is_none_or(serde_json::Map::is_empty) {
             return self.open_dialog("vbaEditor", json!({}));
         }
@@ -551,8 +583,22 @@ impl SheetApp {
         if id == "insert.recommendedCharts" && params.get("type").is_none() {
             return self.open_dialog("recommendedCharts", json!({}));
         }
-        if let Err(e) = self.run(id, params) {
-            self.alert(e);
+        match self.run(id, params) {
+            Ok(result) if id == "automate.recordActions" && result.get("module").is_some() => {
+                if let Some(commands) = result.get("unsupported").and_then(Json::as_array).filter(|commands| !commands.is_empty()) {
+                    let count = commands.len();
+                    self.toast = Some((
+                        match self.ui.language {
+                            i18n::Language::Ja => format!("VBA に変換できない {count} 種類の操作をコメントとして記録しました。"),
+                            _ => format!("{count} unsupported operation types were recorded as VBA comments."),
+                        },
+                        now_ms(),
+                    ));
+                }
+                self.open_dialog("vbaEditor", result);
+            }
+            Err(e) => self.alert(e),
+            _ => {}
         }
     }
 
@@ -962,6 +1008,10 @@ impl SheetApp {
         let Some(d) = self.session.active() else { return };
         let Some(sh) = d.wb.active() else { return };
         let at = sh.merge_at(d.selection.active).map(|m| m.start).unwrap_or(d.selection.active);
+        if let Err(error) = self.session.check_cell_editable(d.wb.active_sheet, at) {
+            self.message = Some(("GridCraft".into(), clean_error(&error.to_string())));
+            return;
+        }
         // A picture has no editable scalar text. Selecting it, F2, or clicking
         // the formula bar must not turn its fallback value into a text edit.
         // Typing still starts an intentional replacement.
@@ -1030,10 +1080,10 @@ impl SheetApp {
             self.session.mode = gridcraft_engine::Mode::Edit;
             return false;
         }
-        // Committing nothing into an empty cell changes nothing: no undo step (#1855, Backspace has
-        // already cleared the cell as its own step).
+        // Committing nothing into an empty cell changes nothing: no undo step (#1855).
         let unchanged = !fill_selection
             && !array
+            && self.session.active().is_none_or(|d| d.selected_sheets.len() == 1)
             && text.is_empty()
             && self
                 .session
@@ -1166,6 +1216,10 @@ impl SheetApp {
 
     /// Per-frame logic (control channel, screenshots). Call before `ui`.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        self.poll_clipboard(ctx);
+        if self.editor.is_none() {
+            ctx.data_mut(|data| data.remove::<(String, String)>(egui::Id::new("gridcraft.formula_sheet_span")));
+        }
         if self.session.text_width.is_none() {
             let ctx = ctx.clone();
             self.session.text_width = Some(std::sync::Arc::new(move |text, font, exact| theme::cell_text_width(&ctx, text, font, exact)));
@@ -1333,6 +1387,9 @@ impl SheetApp {
         }
         dialogs::show(self, &ctx);
         widgets::message_box(self, &ctx);
+        if self.dialog.is_some() || self.message.is_some() || self.backstage.is_some() {
+            formula_bar::suspend_ime_boundary_keys(&ctx);
+        }
         widgets::toast(self, &ctx);
         control::issue_screenshots(self, &ctx);
         control::collect_screenshots(self, &ctx);

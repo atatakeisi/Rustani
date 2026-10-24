@@ -1,5 +1,6 @@
 //! Cell selection consumes every pointer position without editing cell contents.
 
+use egui::os::OperatingSystem;
 use egui::{Event, Modifiers, PointerButton, Pos2};
 use gridcraft_engine::Session;
 use gridcraft_engine::core::{CellRef, RangeRef};
@@ -9,13 +10,17 @@ use serde_json::{Value, json};
 type Harness = egui_kittest::Harness<'static, SheetApp>;
 
 fn harness(initial: &str) -> Harness {
+    harness_with_os(initial, OperatingSystem::Nix)
+}
+
+fn harness_with_os(initial: &str, os: OperatingSystem) -> Harness {
     let mut session = Session::new();
     session.new_workbook();
     session.execute("range.setValues", json!({"range": "A1", "values": [["sentinel", 2], [3, "untouched"]]})).unwrap();
     session.execute("cell.set", json!({"cell": "C3", "input": "123"})).unwrap();
     session.execute("cell.set", json!({"cell": "F7", "input": "=C3*2"})).unwrap();
     session.execute("selection.set", json!({"cell": initial})).unwrap();
-    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+    let mut h = Harness::builder().with_os(os).with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
         |ui, app: &mut SheetApp| {
             let ctx = ui.ctx().clone();
             app.logic(&ctx);
@@ -54,11 +59,15 @@ fn press(h: &mut Harness, cell: &str) {
 }
 
 fn click_with_modifiers(h: &mut Harness, cell: &str, modifiers: Modifiers) {
+    click_button_with_modifiers(h, cell, PointerButton::Primary, modifiers);
+}
+
+fn click_button_with_modifiers(h: &mut Harness, cell: &str, button: PointerButton, modifiers: Modifiers) {
     let pos = point(h, cell);
     frame(h, Event::ModifiersChanged(modifiers));
     frame(h, Event::PointerMoved(pos));
     for pressed in [true, false] {
-        frame(h, Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers });
+        frame(h, Event::PointerButton { pos, button, pressed, modifiers });
     }
     h.run_steps(2);
 }
@@ -127,6 +136,184 @@ fn clicking_then_hovering_does_not_extend_selection() {
     frame(&mut h, Event::PointerMoved(to));
     assert_selection(&h, "C3", "C3");
     assert_eq!(cells(&h), before);
+}
+
+#[test]
+fn additive_click_after_copy_keeps_both_paste_destinations_and_the_copy_marquee() {
+    for (os, modifiers) in [
+        (OperatingSystem::Mac, Modifiers { mac_cmd: true, command: true, ..Modifiers::NONE }),
+        (OperatingSystem::Windows, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }),
+        (OperatingSystem::Nix, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }),
+    ] {
+        for source in ["C3", "A1:B2"] {
+            let mut h = harness_with_os("A1", os);
+            h.state_mut().session.execute("selection.set", json!({"range": source})).unwrap();
+            h.run_steps(2);
+            frame(&mut h, Event::Copy);
+            let copied = h.state().session.clipboard.as_ref().unwrap().text.clone();
+            let source_range = RangeRef::parse(source).unwrap();
+            click_with_modifiers(&mut h, "D5", Modifiers::NONE);
+            click_with_modifiers(&mut h, "F7", modifiers);
+            assert_eq!(h.state().session.active().unwrap().selection.a1(), "D5,F7");
+            assert!(h.state().editor.is_none());
+            assert!(h.state().grid.context_menu.is_none());
+            let clip = h.state().session.clipboard.as_ref().expect("copy mode stays active while choosing destinations");
+            assert_eq!(clip.range, source_range);
+            assert!(!clip.cut);
+            let before_paste = cells(&h);
+
+            frame(&mut h, Event::ModifiersChanged(Modifiers::NONE));
+            frame(&mut h, Event::Paste(copied));
+            h.run_steps(2);
+            assert!(h.state().message.is_none());
+            let doc = h.state().session.active().unwrap();
+            let sheet = doc.wb.active().unwrap();
+            if source == "C3" {
+                for cell in ["D5", "F7"] {
+                    assert_eq!(sheet.value(CellRef::parse(cell).unwrap()), gridcraft_engine::core::Value::number(123.0));
+                }
+                assert_eq!(doc.selection.a1(), "D5,F7");
+            } else {
+                for (destination, input) in [
+                    ("D5", "sentinel"),
+                    ("E5", "2"),
+                    ("D6", "3"),
+                    ("E6", "untouched"),
+                    ("F7", "sentinel"),
+                    ("G7", "2"),
+                    ("F8", "3"),
+                    ("G8", "untouched"),
+                ] {
+                    assert_eq!(sheet.cell(CellRef::parse(destination).unwrap()).unwrap().input_text(), input);
+                }
+                assert_eq!(doc.selection.a1(), "D5:E6,F7:G8");
+            }
+            assert_eq!(doc.selection.active, CellRef::parse("F7").unwrap());
+            assert_eq!(h.state().session.clipboard.as_ref().unwrap().range, source_range, "the source copy marquee survives pasting");
+            h.state_mut().run("edit.undo", json!({})).unwrap();
+            h.run_steps(2);
+            assert_eq!(cells(&h), before_paste, "one Undo restores both destinations");
+            assert_eq!(h.state().session.active().unwrap().selection.a1(), "D5,F7");
+        }
+    }
+}
+
+#[test]
+fn mac_control_click_opens_the_menu_without_adding_to_a_copied_multi_selection() {
+    for (button, modifiers) in [
+        // eframe's web mouse mapping reports Ctrl as command, even on macOS.
+        (PointerButton::Primary, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }),
+        (PointerButton::Secondary, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }),
+        (PointerButton::Secondary, Modifiers::CTRL),
+    ] {
+        let mut h = harness_with_os("C3", OperatingSystem::Mac);
+        frame(&mut h, Event::Copy);
+        h.state_mut().session.execute("selection.set", json!({"range": "A1:B2,D5"})).unwrap();
+        h.run_steps(2);
+        let before_selection = h.state().session.active().unwrap().selection.clone();
+        let before_cells = cells(&h);
+        click_button_with_modifiers(&mut h, "A2", button, modifiers);
+        assert_eq!(h.state().session.active().unwrap().selection, before_selection);
+        assert!(h.state().grid.context_menu.is_some(), "Control-click opens the same menu as a secondary click");
+        assert!(h.state().editor.is_none());
+        assert_eq!(h.state().session.clipboard.as_ref().unwrap().range, RangeRef::parse("C3").unwrap());
+        assert_eq!(cells(&h), before_cells);
+    }
+}
+
+#[test]
+fn mac_control_click_outside_the_selection_selects_only_its_context_menu_target() {
+    let mut h = harness_with_os("C3", OperatingSystem::Mac);
+    let before = cells(&h);
+    click_button_with_modifiers(&mut h, "F7", PointerButton::Primary, Modifiers { ctrl: true, command: true, ..Modifiers::NONE });
+    assert_eq!(h.state().session.active().unwrap().selection.a1(), "F7");
+    assert!(h.state().grid.context_menu.is_some());
+    assert!(h.state().editor.is_none());
+    assert_eq!(cells(&h), before);
+}
+
+#[test]
+fn additive_click_removes_a_cell_from_inside_a_rectangle_without_overlaps() {
+    for (os, modifiers) in [
+        (OperatingSystem::Mac, Modifiers { mac_cmd: true, command: true, ..Modifiers::NONE }),
+        (OperatingSystem::Windows, Modifiers { ctrl: true, command: true, ..Modifiers::NONE }),
+    ] {
+        let mut h = harness_with_os("A1", os);
+        h.state_mut().session.execute("selection.set", json!({"range": "A1:C3"})).unwrap();
+        h.run_steps(2);
+        let before = cells(&h);
+        click_with_modifiers(&mut h, "B2", modifiers);
+        let selection = &h.state().session.active().unwrap().selection;
+        assert!(!selection.contains(CellRef::parse("B2").unwrap()));
+        assert_eq!(selection.ranges.iter().map(RangeRef::count).sum::<u64>(), 8);
+        for (index, area) in selection.ranges.iter().enumerate() {
+            assert!(selection.ranges.iter().skip(index + 1).all(|other| !area.intersects(other)));
+        }
+        assert!(selection.current().contains(selection.active));
+        assert_eq!(cells(&h), before);
+    }
+}
+
+#[test]
+fn removing_the_active_cell_moves_it_into_a_surviving_selected_area() {
+    let mut h = harness("A1");
+    h.state_mut().session.execute("selection.set", json!({"range": "A1:C3", "active": "B2"})).unwrap();
+    h.run_steps(2);
+    click_with_modifiers(&mut h, "B2", Modifiers { ctrl: true, command: true, ..Modifiers::NONE });
+    let selection = &h.state().session.active().unwrap().selection;
+    assert!(!selection.contains(CellRef::parse("B2").unwrap()));
+    assert!(selection.contains(selection.active));
+    assert!(selection.current().contains(selection.active));
+}
+
+#[test]
+fn backspace_edits_only_the_active_cell_and_escape_restores_its_original_value() {
+    let mut h = harness("A1");
+    h.state_mut().session.execute("selection.set", json!({"range": "D4,A1:B2", "active": "B2"})).unwrap();
+    h.run_steps(2);
+    let before = cells(&h);
+    let selection = h.state().session.active().unwrap().selection.clone();
+    let undo = h.state().session.active().unwrap().undo.len();
+    h.key_press(egui::Key::Backspace);
+    h.run_steps(2);
+    assert_eq!(h.state().editor.as_ref().unwrap().text, "");
+    assert_eq!(h.state().session.active().unwrap().selection, selection);
+    assert_eq!(cells(&h), before, "Backspace leaves workbook data untouched until editing is committed");
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    assert!(h.state().editor.is_none());
+    assert_eq!(cells(&h), before);
+    assert_eq!(h.state().session.active().unwrap().undo.len(), undo);
+}
+
+#[test]
+fn backspace_then_enter_replaces_only_the_active_cell_but_delete_clears_all_areas() {
+    for backspace in [true, false] {
+        let mut h = harness("A1");
+        h.state_mut().session.execute("selection.set", json!({"range": "D4,A1:B2", "active": "B2"})).unwrap();
+        h.run_steps(2);
+        h.key_press(if backspace { egui::Key::Backspace } else { egui::Key::Delete });
+        h.run_steps(2);
+        if backspace {
+            frame(&mut h, Event::Text("replacement".into()));
+            h.key_press(egui::Key::Enter);
+            h.run_steps(2);
+        }
+        let sheet = h.state().session.active().unwrap().wb.active().unwrap();
+        assert_eq!(
+            sheet.value(CellRef::parse("B2").unwrap()),
+            if backspace { gridcraft_engine::core::Value::text("replacement") } else { gridcraft_engine::core::Value::Empty }
+        );
+        assert_eq!(
+            sheet.value(CellRef::parse("A1").unwrap()),
+            if backspace { gridcraft_engine::core::Value::text("sentinel") } else { gridcraft_engine::core::Value::Empty }
+        );
+        assert_eq!(
+            sheet.value(CellRef::parse("B1").unwrap()),
+            if backspace { gridcraft_engine::core::Value::number(2.0) } else { gridcraft_engine::core::Value::Empty }
+        );
+        assert!(h.state().editor.is_none());
+    }
 }
 
 #[test]
@@ -302,4 +489,35 @@ fn formula_arrow_pointing_restarts_from_the_edited_cell_after_typing() {
     h.key_press(egui::Key::ArrowUp);
     h.run_steps(1);
     assert_eq!(h.state().editor.as_ref().unwrap().text, "=B2+B3");
+}
+
+#[test]
+fn control_or_command_enter_in_the_grid_keeps_selection_without_starting_an_edit() {
+    for modifiers in [Modifiers::CTRL, Modifiers::COMMAND] {
+        let mut h = harness("B2");
+        h.state_mut().run("selection.set", json!({"range": "D4,A1:B2", "active": "B2"})).unwrap();
+        let selection = h.state().session.doc().unwrap().selection.clone();
+        let before = cells(&h);
+        let undo = h.state().session.doc().unwrap().undo.len();
+        frame(&mut h, Event::ModifiersChanged(modifiers));
+        frame(&mut h, Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers });
+        h.run_steps(2);
+        assert!(h.state().editor.is_none());
+        assert_eq!(h.state().session.doc().unwrap().selection, selection);
+        assert_eq!(cells(&h), before);
+        assert_eq!(h.state().session.doc().unwrap().undo.len(), undo);
+    }
+}
+
+#[test]
+fn enter_paste_failure_keeps_the_copied_source_available() {
+    let mut h = harness("A1");
+    h.state_mut().session.execute("review.protectSheet", json!({})).unwrap();
+    h.state_mut().run("edit.copy", json!({"range": "C3"})).unwrap();
+    let before = cells(&h);
+    h.key_press(egui::Key::Enter);
+    h.run_steps(2);
+    assert!(h.state().message.is_some());
+    assert!(h.state().session.clipboard.is_some());
+    assert_eq!(cells(&h), before);
 }

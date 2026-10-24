@@ -117,6 +117,24 @@ pub fn specs() -> Vec<CommandSpec> {
             insert_picture
         ),
         cmd!(
+            "picture.placeInCell",
+            "Place in Cell",
+            ["Picture Format"],
+            None,
+            "{image: id, at?: cell} converts a floating picture without changing its pixels",
+            has_doc,
+            picture_place_in_cell
+        ),
+        cmd!(
+            "picture.placeOverCells",
+            "Place over Cells",
+            ["Picture Format"],
+            None,
+            "{cell?: active, width?, height?} converts a cell picture to a floating picture",
+            has_doc,
+            picture_place_over_cells
+        ),
+        cmd!(
             "insert.shape",
             "Shapes",
             ["Insert", "Illustrations"],
@@ -1040,6 +1058,79 @@ fn insert_picture(s: &mut Session, p: &Json) -> Result<Json> {
     let sheet = d.wb.active_sheet;
     edit(s, |cx| {
         cx.sheet_mut(sheet)?.images.push(img);
+        Ok(json!({"image": id}))
+    })
+}
+
+fn picture_place_in_cell(s: &mut Session, p: &Json) -> Result<Json> {
+    let id = p
+        .get("image")
+        .and_then(Json::as_u64)
+        .and_then(|id| u32::try_from(id).ok())
+        .ok_or_else(|| bad("picture.placeInCell", "missing or invalid `image` id"))?;
+    let d = s.doc()?;
+    let sheet = d.wb.active_sheet;
+    let sh = d.wb.active().ok_or(EngineError::NoDocument)?;
+    let image = sh.images.iter().find(|image| image.id == id).cloned().ok_or_else(|| bad("picture.placeInCell", "no such floating picture"))?;
+    if sh.is_protected() {
+        return Err(EngineError::Other(PROTECTED.into()));
+    }
+    let at = cell_param(s, p, "at")?.unwrap_or(image.anchor.cell);
+    let at = sh.merge_at(at).map(|range| range.start).unwrap_or(at);
+    s.check_cell_editable(sheet, at)?;
+    let mime = validate_cell_picture(image.data.as_slice())?;
+    let picture = std::sync::Arc::new(CellPicture { data: image.data.as_ref().clone(), mime: mime.into(), alt: image.alt });
+    edit(s, |cx| {
+        let sh = cx.sheet_mut(sheet)?;
+        sh.images.retain(|image| image.id != id);
+        sh.set_picture(at, picture);
+        cx.touch(sheet, at);
+        Ok(json!({"cell": at.a1(), "placement": "cell"}))
+    })
+}
+
+fn picture_place_over_cells(s: &mut Session, p: &Json) -> Result<Json> {
+    let d = s.doc()?;
+    let sheet = d.wb.active_sheet;
+    let sh = d.wb.active().ok_or(EngineError::NoDocument)?;
+    let at = cell_param(s, p, "cell")?.unwrap_or(d.selection.active);
+    let at = sh.merge_at(at).map(|range| range.start).unwrap_or(at);
+    let picture = sh.cell_pictures.get(&at).cloned().ok_or_else(|| bad("picture.placeOverCells", "the cell has no picture"))?;
+    if sh.is_protected() {
+        return Err(EngineError::Other(PROTECTED.into()));
+    }
+    s.check_cell_editable(sheet, at)?;
+    let (width, height) = crate::io::image_size(&picture.data).ok_or_else(|| bad("picture.placeOverCells", "invalid image dimensions"))?;
+    let scale = (640.0 / width.max(1) as f32).min(1.0);
+    let dimension = |key, fallback: f32| -> Result<f32> {
+        let value = f64_param(p, key).unwrap_or(f64::from(fallback));
+        if !value.is_finite() || !(1.0..=10_000.0).contains(&value) {
+            return Err(bad("picture.placeOverCells", "picture dimensions must be between 1 and 10000"));
+        }
+        Ok(value as f32)
+    };
+    let id = d.wb.next_object_id();
+    let style = sh.style_id(at);
+    let image = Image {
+        id,
+        anchor: Anchor {
+            cell: at,
+            dx: 0.0,
+            dy: 0.0,
+            width: dimension("width", width as f32 * scale)?,
+            height: dimension("height", height as f32 * scale)?,
+            mode: AnchorMode::MoveOnly,
+        },
+        data: picture.data.clone().into(),
+        mime: picture.mime.clone(),
+        alt: picture.alt.clone(),
+    };
+    edit(s, |cx| {
+        let sh = cx.sheet_mut(sheet)?;
+        // Clearing the picture's fallback value must retain the cell's formatting.
+        sh.set_cell(at, Cell { style, ..Default::default() });
+        sh.images.push(image);
+        cx.touch(sheet, at);
         Ok(json!({"image": id}))
     })
 }

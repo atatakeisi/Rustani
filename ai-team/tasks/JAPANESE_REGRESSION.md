@@ -1,30 +1,28 @@
-# Gemini: 日本語入力の独立検証
+# AntigravityのGemini: 日本語入力の静的レビュー
 
-2026-10-23。ユーザーがCodex主導の実装とGeminiによるテストを承認した。従来の「ビルドを実行しない」は、この具体的な依頼の範囲では以下で置き換える。
+更新日: 2026-10-24（日本時間）。**Codexからこの依頼を指定されたときだけ開始する。** 古いテスト実行許可は終了し、現在はGeminiによるCargo/rustc/Trunk/テスト実行を行わない。検証はCodexが担当する。共通ルールは `ai-team/tasks/README.md` を参照。
 
-Codexが `crates/ui-egui/src/grid.rs`、日本語フォント経路と `tests/ime_input.rs` を変更中。あなたはソースを変更せず独立検証を担当する。
+## 対象
 
-## いま行うレビュー
+- `crates/ui-egui/src/grid.rs`
+- `crates/ui-egui/src/formula_bar.rs`
+- `crates/ui-egui/tests/ime_input.rs`
+- 必要な根拠確認だけ、ローカルのegui/eframe依存ソース
 
-1. `ai-team/reports/20261023_web_japanese_support.md` の誤りを別レポートで訂正する。egui 0.36.2の `ime_composing()` と `Context::set_ime_cursor_rect()` は実在をローカル依存ソースで確認できていない。推測でAPIや「確認済み不具合」を作らない。
-2. `crates/ui-egui/tests/ime_input.rs` と `grid.rs` のIME経路を読む。Preedit→Commit→別フレームのEnter、編集開始前の直接入力、F2後の入力を区別する。eframeがcomposition中のkeydownを抑制する実装も読む。
-3. 不足する境界条件（IMEキャンセル、既存セルの置換、保護セル、同じフレームのイベント順など）を優先度順に3件まで挙げる。
+前回レポート `ai-team/reports/gemini-browser-20261024-064000.md` と、Codexが伝えた修正差分を比較する。リポジトリ全体を調べ直さない。
 
-## Codexがテスト開始を伝えた後
+## 確認すること（指摘は最大3件）
 
-次だけをプロジェクトルートから実行してよい。追加依存や環境変数の変更は不要。
+1. 同一フレームのIMEとEnter/Escape/TabがTextEditへ渡る前に消費されないか。composition中のkeydownを抑制するeframe経路も含め、人工イベント列の試験とOS日本語IMEでの実機再現を区別する。
+2. 編集前の直接IME入力、F2後の入力、既存セル置換、キャンセル、次セルへの移動、保護セルの境界条件。Preedit→Commit→別フレームのEnterを区別する。
+3. 対応する既存テストの期待値が、セル値の消失・二重確定・編集状態や保護違反を検出できるか。
 
-```sh
-cargo test --locked --offline -p gridcraft-ui-egui --test ime_input
-```
-
-使用するCargo出力ディレクトリはCodexと共有するため、Codexが別のCargo処理をしていないと伝えてから実行する。他のビルド/テストを勝手に追加しない。
-
-ブラウザ操作ツールが実際に使える場合だけ、Codexが伝えたlocalhost URLで日本語表示、セル直接入力、F2後入力を確認してよい。ツールがなければ「実ブラウザ未検証」と明記する。実際のOS日本語IMEによる試験と、イベント人工注入/貼付けは区別する。
+旧レポート `20261023_web_japanese_support.md` が提案した `ime_composing()` と `Context::set_ime_cursor_rect()` は、egui 0.36.2で実在を確認できていない。APIは現物を確認し、推測で存在や確認済み不具合を作らない。
 
 ## 成果物・制約
 
-- `ai-team/reports/` に日時付きの新規Markdownを1本作成。既存レポートは上書きしない。
-- 実行したコマンドと結果、未実施の検証、根拠のpath:lineを記す。
-- 書込みは自分の新規レポートのみ。ソース、Cargo.lock、他担当のファイルは変更しない。削除、環境変数変更、パッケージ操作、commit、追加AI起動は行わない。
-- テスト開始の合図を待つ間、実行を要求する承認画面を出し続けない。まずレビュー結果をまとめ、待機する。
+- ソース変更とコマンドによる検証は行わず、Codex向けの最小再現案・テスト案・合格条件を書く。
+- `ai-team/reports/` に日時付き新規Markdown1本を作成。既存レポートを上書きしない。根拠のpath:line、対象commit/作業ツリー、読んだ範囲を記す。
+- **Cargo等の実行検証: 未実施（Codex担当）／実ブラウザ・OS日本語IME検証: 未実施** と記載する。既存のCodexの結果を読んでも、自分が実行した結果として報告しない。
+- 書込みは自分の新規レポートだけ。ソース、Cargo.lock、既存文書、他担当ファイルの編集、削除、環境変数変更、パッケージ操作、commit、別AI・CLI起動を行わない。
+- 完了時は実際の相対パスと要点3件までを伝え、次の指定を待つ。

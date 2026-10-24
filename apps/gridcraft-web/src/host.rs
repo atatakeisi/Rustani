@@ -5,7 +5,7 @@
 //! - `gridcraft:open` (from the parent): `{ name, bytes }`, bytes an `ArrayBuffer` or
 //!   `Uint8Array`. It opens like a workbook picked with File › Open or dropped on the window.
 //! - `gridcraft:save` (to the parent): `{ name, bytes }` (a transferred `ArrayBuffer`) for every
-//!   file GridCraft would otherwise download: Save and Save As (an .xlsx workbook) and Export
+//!   file GridCraft would otherwise download: Save and Save As (an .xlsx/.xlsm workbook) and Export
 //!   as PDF. The parent stores it and reports failures itself.
 //! - `gridcraft:dirty` (to the parent): `{ dirty }` whenever unsaved changes appear or go away.
 //! - `gridcraft:failed` (to the parent): `{ error }` when the app couldn't start.
@@ -21,9 +21,7 @@ use wasm_bindgen::JsCast as _;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::closure::Closure;
 
-/// Saving one of these hands the whole workbook to the parent, which stores it: the workbook
-/// counts as saved under that name, as it would after Save on the desktop.
-const WORKBOOK_EXTS: &[&str] = &["xlsx"];
+use crate::host_file::is_workbook;
 
 /// The longest user name taken from `?author=`.
 const MAX_AUTHOR_CHARS: usize = 200;
@@ -135,10 +133,6 @@ impl Bridge {
     fn send(&self, fields: &[(&str, JsValue)]) -> bool {
         message(fields).is_some_and(|m| self.parent.post_message(&m, &self.origin).is_ok())
     }
-}
-
-fn is_workbook(name: &str) -> bool {
-    name.rsplit_once('.').is_some_and(|(_, ext)| WORKBOOK_EXTS.iter().any(|e| ext.eq_ignore_ascii_case(e)))
 }
 
 fn message(fields: &[(&str, JsValue)]) -> Option<js_sys::Object> {

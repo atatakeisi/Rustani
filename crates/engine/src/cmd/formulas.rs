@@ -81,17 +81,51 @@ pub fn specs() -> Vec<CommandSpec> {
 
 fn auto_sum(s: &mut Session, p: &Json) -> Result<Json> {
     let func = str_param(p, "function").unwrap_or("SUM").to_ascii_uppercase();
+    if !matches!(func.as_str(), "SUM" | "AVERAGE" | "COUNT" | "MAX" | "MIN") {
+        return Err(bad("formulas.autoSum", "unsupported aggregate function"));
+    }
+    let ranges = target_ranges(s, p)?;
     let d = s.doc()?;
+    let sheet = d.wb.active_sheet;
     let sh = d.wb.active().ok_or(EngineError::NoDocument)?;
-    let sel = match str_param(p, "range") {
-        Some(_) => target_range(s, p)?,
-        None => d.selection.current(),
-    };
+    let mut writes = std::collections::BTreeMap::new();
+    for range in &ranges {
+        for (at, formula) in auto_sum_writes(sh, *range, &func)? {
+            if writes.len() >= 4_000_000 {
+                return Err(bad("formulas.autoSum", "selection is too large"));
+            }
+            if let Some(previous) = writes.insert(at, formula.clone())
+                && previous != formula
+            {
+                return Err(EngineError::Other("That command cannot be used on overlapping selections.".into()));
+            }
+        }
+    }
+    if ranges.len() == 1 && ranges[0].is_single() && (writes.is_empty() || p.get("enter").and_then(Json::as_bool) == Some(false)) {
+        let text = writes.values().next().cloned().unwrap_or_else(|| format!("={func}()"));
+        s.ui_requests.push(crate::UiRequest::EditCell(Some(text.clone())));
+        return Ok(json!({"formula":text}));
+    }
+    if writes.is_empty() {
+        return ok();
+    }
+    edit(s, |cx| {
+        for (at, formula) in &writes {
+            let cell = super::edit::input_to_cell(formula, sheet, *at, &mut cx.wb)?.unwrap_or_default();
+            cx.sheet_mut(sheet)?.set_cell(*at, cell);
+            cx.touch(sheet, *at);
+        }
+        Ok(())
+    })?;
+    Ok(json!({"formulas":writes.len(), "formula":writes.values().next()}))
+}
+
+fn auto_sum_writes(sh: &gridcraft_model::Sheet, sel: RangeRef, func: &str) -> Result<Vec<(CellRef, String)>> {
     if !sel.is_single() {
         // A block: totals below each column (and to the right when a blank column is included).
         // Columns past the sheet's data get no total (a whole-row selection doesn't write 16,384
         // formulas), and all totals are one edit (one undo step).
-        let Some(last_col) = sh.cells.used_range().map(|u| u.end.col.min(sel.end.col)) else { return ok() };
+        let Some(last_col) = sh.cells.used_range().map(|u| u.end.col.min(sel.end.col)) else { return Ok(Vec::new()) };
         let last_row_blank = (sel.start.col..=last_col).all(|c| sh.value(CellRef::new(sel.end.row, c)).is_empty());
         let (data_end_row, out_row) = if last_row_blank { (sel.end.row.saturating_sub(1), sel.end.row) } else { (sel.end.row, sel.end.row + 1) };
         if out_row >= gridcraft_core::MAX_ROWS {
@@ -102,16 +136,7 @@ fn auto_sum(s: &mut Session, p: &Json) -> Result<Json> {
                 (CellRef::new(out_row, c), format!("={func}({})", RangeRef::new(CellRef::new(sel.start.row, c), CellRef::new(data_end_row, c)).a1()))
             })
             .collect();
-        let sheet = d.wb.active_sheet;
-        edit(s, |cx| {
-            for (c, f) in &writes {
-                let cell = super::edit::input_to_cell(f, sheet, *c, &mut cx.wb)?.unwrap_or_default();
-                cx.sheet_mut(sheet)?.set_cell(*c, cell);
-                cx.touch(sheet, *c);
-            }
-            Ok(())
-        })?;
-        return ok();
+        return Ok(writes);
     }
     // Single cell: guess the range above, else to the left.
     let at = sel.start;
@@ -136,19 +161,7 @@ fn auto_sum(s: &mut Session, p: &Json) -> Result<Json> {
         }
         range = Some(RangeRef::new(CellRef::new(at.row, left), CellRef::new(at.row, at.col - 1)));
     }
-    let text = match range {
-        Some(r) => format!("={func}({})", r.a1()),
-        None => {
-            s.ui_requests.push(crate::UiRequest::EditCell(Some(format!("={func}()"))));
-            return ok();
-        }
-    };
-    if p.get("enter").and_then(Json::as_bool) == Some(false) {
-        s.ui_requests.push(crate::UiRequest::EditCell(Some(text.clone())));
-        return Ok(json!({"formula": text}));
-    }
-    s.execute("cell.set", json!({"cell": at.a1(), "input": text}))?;
-    Ok(json!({"formula": text}))
+    Ok(range.map(|r| vec![(at, format!("={func}({})", r.a1()))]).unwrap_or_default())
 }
 
 fn insert_function(s: &mut Session, p: &Json) -> Result<Json> {
@@ -285,10 +298,16 @@ fn define_name(s: &mut Session, p: &Json) -> Result<Json> {
         },
         None => {
             let sh = d.wb.active().ok_or(EngineError::NoDocument)?;
-            let r = d.selection.current();
             let abs = |c: CellRef| format!("${}${}", gridcraft_core::col_to_letters(c.col), c.row + 1);
-            let body = if r.is_single() { abs(r.start) } else { format!("{}:{}", abs(r.start), abs(r.end)) };
-            format!("{}!{}", gridcraft_formula::quote_sheet(&sh.name), body)
+            d.selection
+                .ranges
+                .iter()
+                .map(|r| {
+                    let body = if r.is_single() { abs(r.start) } else { format!("{}:{}", abs(r.start), abs(r.end)) };
+                    format!("{}!{}", gridcraft_formula::quote_sheet(&sh.name), body)
+                })
+                .collect::<Vec<_>>()
+                .join(",")
         }
     };
     if gridcraft_formula::parse_name(&refers).is_err() {

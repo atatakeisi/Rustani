@@ -753,6 +753,25 @@ impl ExcelHost {
                 no_args(args, &format!("{name}.Count"))?;
                 Ok(Value::Number(f64::from(count)))
             }
+            "insert" | "delete" => {
+                no_args(args, &format!("{name}.{key}"))?;
+                if u64::from(count) > MAX_CELLS {
+                    return Err(err(format!("{name}.{key} exceeds 10,000 lines per operation")));
+                }
+                self.operations = self.operations.saturating_add(u64::from(count));
+                if self.operations > MAX_OPERATIONS {
+                    return Err(err("macro changed too many rows or columns"));
+                }
+                let (id, parameter, range) = if rows {
+                    (if key == "insert" { "home.insertRows" } else { "home.deleteRows" }, "rows", RangeRef::rows(r.start.row, r.end.row))
+                } else {
+                    (if key == "insert" { "home.insertColumns" } else { "home.deleteColumns" }, "cols", RangeRef::cols(r.start.col, r.end.col))
+                };
+                let mut params = json!({"sheet": si});
+                params[parameter] = json!(range.a1());
+                self.command(id, params)?;
+                Ok(Value::Empty)
+            }
             "autofit" => {
                 no_args(args, &format!("{name}.AutoFit"))?;
                 if u64::from(count) > MAX_CELLS {
@@ -863,6 +882,8 @@ impl ExcelHost {
                     | "numberformat"
                     | "parent"
                     | "worksheet"
+                    | "entirerow"
+                    | "entirecolumn"
             )
         {
             return Err(err(format!("Range.{key} arguments are not implemented")));
@@ -888,6 +909,8 @@ impl ExcelHost {
                 let b = format!("${}${}", gridcraft_core::col_to_letters(r.end.col), r.end.row + 1);
                 Ok(Value::Text(if r.is_single() { a } else { format!("{a}:{b}") }))
             }
+            "entirerow" => self.wrap(Object::Rows(si, RangeRef::rows(r.start.row, r.end.row))),
+            "entirecolumn" => self.wrap(Object::Columns(si, RangeRef::cols(r.start.col, r.end.col))),
             "font" => self.wrap(Object::Font(si, r)),
             "interior" => self.wrap(Object::Interior(si, r)),
             "rows" => {

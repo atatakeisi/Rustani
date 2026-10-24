@@ -150,7 +150,7 @@ fn read_clipboard<T>(
 fn services() -> Services {
     // Keep the owner alive: X11/Wayland serve clipboard data from this handle.
     let clipboard: Rc<RefCell<Option<arboard::Clipboard>>> = Rc::default();
-    let (html_clipboard, text_clipboard) = (clipboard.clone(), clipboard.clone());
+    let (html_clipboard, text_clipboard, image_clipboard) = (clipboard.clone(), clipboard.clone(), clipboard.clone());
     Services {
         copy_html: Some(Box::new(move |html, text| {
             let mut clipboard = clipboard.borrow_mut();
@@ -161,6 +161,17 @@ fn services() -> Services {
         })),
         paste_html: Some(Box::new(move || read_clipboard(&html_clipboard, |clipboard| clipboard.get().html()))),
         paste_text: Some(Box::new(move || read_clipboard(&text_clipboard, |clipboard| clipboard.get_text()))),
+        paste_image: Some(Box::new(move || {
+            use image::ImageEncoder as _;
+            let image = read_clipboard(&image_clipboard, |clipboard| clipboard.get_image())?;
+            if image.width.checked_mul(image.height)?.checked_mul(4)? > 64 * 1024 * 1024 {
+                return None;
+            }
+            let (width, height) = (u32::try_from(image.width).ok()?, u32::try_from(image.height).ok()?);
+            let mut bytes = Vec::new();
+            image::codecs::png::PngEncoder::new(&mut bytes).write_image(&image.bytes, width, height, image::ExtendedColorType::Rgba8).ok()?;
+            Some(bytes)
+        })),
         pick_open: Some(Box::new(|| {
             rfd::FileDialog::new()
                 .add_filter("Spreadsheets", &["xlsx", "xlsm", "xls", "xlsb", "ods", "csv", "tsv", "txt", "json"])

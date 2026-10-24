@@ -387,14 +387,16 @@ impl VbaEditor {
             egui::ScrollArea::both().id_salt("vba_source_scroll").max_height(height).show(ui, |ui| {
                 ui.horizontal_top(|ui| {
                     ui.add(egui::Label::new(RichText::new(numbers).monospace().color(tokens.text_dim)).selectable(false));
-                    ui.add(
-                        TextEdit::multiline(&mut self.source)
-                            .id_salt("vba_source")
-                            .code_editor()
-                            .desired_width((ui.available_width() - 8.0).max(240.0))
-                            .desired_rows(10)
-                            .char_limit(SOURCE_LIMIT),
-                    );
+                    let id = ui.make_persistent_id("vba_source");
+                    crate::text_menu::before_show(ui.ctx(), id);
+                    let output = TextEdit::multiline(&mut self.source)
+                        .id(id)
+                        .code_editor()
+                        .desired_width((ui.available_width() - 8.0).max(240.0))
+                        .desired_rows(10)
+                        .char_limit(SOURCE_LIMIT)
+                        .show(ui);
+                    crate::text_menu::show(app, ui, &output.response, self.source.chars().count());
                 });
             });
         });

@@ -12,13 +12,17 @@ use serde_json::json;
 type Harness = egui_kittest::Harness<'static, SheetApp>;
 
 fn harness() -> Harness {
+    harness_at_step(0.25)
+}
+
+fn harness_at_step(step: f32) -> Harness {
     let mut session = Session::new();
     session.new_workbook();
     session.execute("range.setValues", json!({"range": "A1", "values": [["source"]]})).unwrap();
     session.execute("home.bold", json!({"range": "A1", "on": true})).unwrap();
     session.execute("home.fillColor", json!({"range": "A1", "color": "#FFFF00"})).unwrap();
     session.execute("selection.set", json!({"cell": "A1"})).unwrap();
-    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+    let mut h = Harness::builder().with_step_dt(step).with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
         |ui, app: &mut SheetApp| {
             let ctx = ui.ctx().clone();
             app.logic(&ctx);
@@ -193,4 +197,27 @@ fn a_two_cell_source_on_a_column_header_paints_a_column_format() {
     assert_eq!(style(&h, "C7"), source, "row 7's own format must not hide the painted column");
     // Only C7 is stored on top of A1:A2: not a million cells, one per pattern repeat.
     assert_eq!(stored_cells(&h), 3);
+}
+
+#[test]
+fn real_double_click_keeps_the_painter_armed_across_two_destinations() {
+    let mut h = harness_at_step(1.0 / 60.0);
+    let source = style(&h, "A1");
+    let pos = h.get_by_label("Format Painter").rect().center();
+    for _ in 0..2 {
+        for pressed in [true, false] {
+            h.input_mut().events.extend([
+                Event::PointerMoved(pos),
+                Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE },
+            ]);
+            h.run_steps(1);
+        }
+        h.run_steps(1);
+    }
+    assert!(h.state().session.format_painter.as_ref().is_some_and(|painter| painter.3));
+    click_cell(&mut h, "C3");
+    click_cell(&mut h, "E5");
+    assert_eq!(style(&h, "C3"), source);
+    assert_eq!(style(&h, "E5"), source);
+    assert!(h.state().session.format_painter.as_ref().is_some_and(|painter| painter.3));
 }

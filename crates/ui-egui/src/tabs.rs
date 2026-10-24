@@ -25,13 +25,44 @@ fn navigator_items(sheets: &[Arc<Sheet>]) -> Vec<(String, String)> {
 /// Switch to sheet `i` from the tab strip or the navigator. In point mode the formula being typed keeps going on the
 /// other sheet; otherwise the edit is committed first.
 fn activate_sheet(app: &mut SheetApp, i: usize) {
+    activate_sheet_mode(app, i, "select");
+}
+
+fn activate_sheet_mode(app: &mut SheetApp, i: usize, mode: &str) {
     if app.editor.as_ref().is_some_and(|e| e.can_point()) {
         let _ = app.session.run("sheet.activate", json!({"sheet": i}));
     } else {
         if app.editor.is_some() && !app.commit_edit(0, 0, false, false) {
             return;
         }
-        app.run_or_alert("sheet.activate", json!({"sheet": i}));
+        app.run_or_alert("sheet.activate", json!({"sheet": i, "mode": mode}));
+    }
+}
+
+fn tab_click(app: &mut SheetApp, ctx: &egui::Context, i: usize, modifiers: egui::Modifiers) {
+    if let Some(editor) = app.editor.as_ref().filter(|editor| editor.can_point()) {
+        let span = if modifiers.shift {
+            app.session.active().and_then(|d| Some((d.wb.sheet(editor.sheet)?.name.clone(), d.wb.sheet(i)?.name.clone())))
+        } else {
+            None
+        };
+        ctx.data_mut(|data| {
+            let key = egui::Id::new("gridcraft.formula_sheet_span");
+            data.remove::<(String, String)>(key);
+            if let Some(span) = span {
+                data.insert_temp(key, span);
+            }
+        });
+        activate_sheet(app, i);
+    } else {
+        let mode = if modifiers.shift {
+            "extend"
+        } else if modifiers.command {
+            "toggle"
+        } else {
+            "select"
+        };
+        activate_sheet_mode(app, i, mode);
     }
 }
 
@@ -81,12 +112,14 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
             }
             ui.add_space(8.0);
             let Some(d) = app.session.active() else { return };
-            let sheets: Vec<(usize, String, Option<[u8; 3]>, bool)> =
+            let sheets: Vec<(usize, String, Option<[u8; 3]>, bool, bool)> =
                 d.wb.sheets
                     .iter()
                     .enumerate()
                     .filter(|(_, s)| s.visibility == Visibility::Visible)
-                    .map(|(i, s)| (i, s.name.clone(), s.tab_color.and_then(|c| c.resolve(&d.wb.theme)), i == d.wb.active_sheet))
+                    .map(|(i, s)| {
+                        (i, s.name.clone(), s.tab_color.and_then(|c| c.resolve(&d.wb.theme)), i == d.wb.active_sheet, d.selected_sheets.contains(&i))
+                    })
                     .collect();
             // Keep worksheet tabs in their own horizontally scrollable viewport. As in Excel, the
             // tabs get up to 60% of the bar and the grid's horizontal scrollbar the rest; a strip
@@ -123,9 +156,9 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                         }
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 0.0;
-                            for (i, name, color, active) in sheets {
+                            for (i, name, color, active, grouped) in sheets {
                                 let renaming = app.grid.renaming_tab == Some(i);
-                                let font = if active { theme::ui_bold(13.0) } else { theme::ui_font(13.0) };
+                                let font = if grouped { theme::ui_bold(13.0) } else { theme::ui_font(13.0) };
                                 let tw = ui.painter().layout_no_wrap(name.clone(), font.clone(), t.text).size().x;
                                 let w = (tw + 32.0).max(72.0);
                                 let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), Sense::click_and_drag());
@@ -133,7 +166,7 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                                     resp.scroll_to_me(None);
                                 }
                                 let r = r.shrink2(vec2(0.0, 1.0));
-                                if active {
+                                if grouped {
                                     ui.painter().rect_filled(Rect::from_min_max(pos2(r.left(), r.top() - 2.0), r.max), 4.0, t.tab_active);
                                     ui.painter().rect_stroke(
                                         Rect::from_min_max(pos2(r.left(), r.top() - 2.0), r.max),
@@ -147,7 +180,7 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                                 if let Some(c) = color {
                                     let band = Rect::from_min_size(pos2(r.left() + 6.0, r.bottom() - 4.0), vec2(r.width() - 12.0, 3.0));
                                     ui.painter().rect_filled(band, 1.0, theme::color32(c));
-                                } else if active {
+                                } else if grouped {
                                     let band = Rect::from_center_size(pos2(r.center().x, r.bottom() - 3.0), vec2(tw.min(48.0), 2.5));
                                     ui.painter().rect_filled(band, 1.0, t.accent);
                                 }
@@ -167,14 +200,17 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                                         app.grid.renaming_tab = None;
                                     }
                                 } else {
-                                    ui.painter().text(r.center(), Align2::CENTER_CENTER, &name, font, if active { t.accent } else { t.text });
+                                    ui.painter().text(r.center(), Align2::CENTER_CENTER, &name, font, if grouped { t.accent } else { t.text });
                                 }
-                                // A right-click activates the tab too, as in Excel, so the menu's sheet commands (Protect
-                                // Sheet, Select All Sheets) act on the sheet that was clicked rather than the one that was active.
-                                if resp.clicked() || (resp.secondary_clicked() && !active) {
+                                resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), grouped, &name));
+                                let modifiers = ui.input(|input| input.modifiers);
+                                let control_click = ui.ctx().os().is_mac() && modifiers.ctrl && !modifiers.mac_cmd;
+                                if resp.clicked() && !control_click {
+                                    tab_click(app, ui.ctx(), i, modifiers);
+                                } else if (resp.secondary_clicked() || (resp.clicked() && control_click)) && !grouped {
                                     activate_sheet(app, i);
                                 }
-                                if resp.double_clicked() {
+                                if resp.double_clicked() && !control_click {
                                     app.grid.renaming_tab = Some(i);
                                     app.grid.rename_text = name.clone();
                                 }
@@ -192,7 +228,14 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                                         app.run_or_alert("sheet.move", params);
                                     }
                                 }
-                                resp.context_menu(|ui| {
+                                let popup_open = if resp.secondary_clicked() || (resp.clicked() && control_click) {
+                                    Some(egui::SetOpenCommand::Bool(true))
+                                } else if resp.clicked() {
+                                    Some(egui::SetOpenCommand::Bool(false))
+                                } else {
+                                    None
+                                };
+                                egui::Popup::context_menu(&resp).open_memory(popup_open).show(|ui| {
                                     ui.set_min_width(180.0);
                                     if ui.button(app.ui.language.tr("Insert Sheet")).clicked() {
                                         app.run_or_alert("home.insertSheet", json!({"before": i}));
@@ -237,6 +280,13 @@ pub fn sheet_tabs(app: &mut SheetApp, ui: &mut Ui) {
                                         app.open_dialog("protectSheet", json!({}));
                                     }
                                     if ui.button(app.ui.language.tr("Select All Sheets")).clicked() {
+                                        app.run_or_alert("sheet.activate", json!({"mode": "all"}));
+                                        ui.close();
+                                    }
+                                    if app.session.active().is_some_and(|d| d.selected_sheets.len() > 1)
+                                        && ui.button(app.ui.language.tr("Ungroup Sheets")).clicked()
+                                    {
+                                        app.run_or_alert("sheet.activate", json!({"sheet": i, "mode": "ungroup"}));
                                         ui.close();
                                     }
                                 });
@@ -263,6 +313,11 @@ pub fn status_bar(app: &mut SheetApp, ui: &mut Ui) {
         ui,
         |ui| {
             ui.horizontal_centered(|ui| {
+                let macros = crate::widgets::icon_button(ui, Icon::Script, t.text_dim, "Macros (Alt+F8)", vec2(22.0, 22.0));
+                macros.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("Macros")));
+                if macros.clicked() {
+                    app.run_or_alert("view.macros", json!({}));
+                }
                 let mode = match app.session.mode {
                     gridcraft_engine::Mode::Ready => "Ready",
                     gridcraft_engine::Mode::Enter => "Enter",
@@ -270,6 +325,7 @@ pub fn status_bar(app: &mut SheetApp, ui: &mut Ui) {
                     gridcraft_engine::Mode::Point => "Point",
                 };
                 ui.label(egui::RichText::new(app.ui.language.tr(mode)).font(theme::ui_font(12.5)).color(t.text_dim));
+                crate::ribbon::record_macro(app, ui);
                 if let Some(d) = app.session.active() {
                     if d.wb.vba_project.is_some() {
                         ui.add_space(12.0);

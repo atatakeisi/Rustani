@@ -302,6 +302,172 @@ fn saved_sources_survive_xlsx_roundtrip_and_require_new_session_trust() {
     assert_eq!(cell(&reopened, 0, "A1"), Value::text("日本語"));
 }
 
+/// Original synthetic MS-OVBA records inside the shared test CFB writer; no external workbook.
+/// Project order deliberately differs from lexical order, and each module kind is represented.
+fn imported_project() -> Vec<u8> {
+    fn record(bytes: &mut Vec<u8>, id: u16, value: &[u8]) {
+        bytes.extend(id.to_le_bytes());
+        bytes.extend((value.len() as u32).to_le_bytes());
+        bytes.extend(value);
+    }
+    fn wide(value: &str) -> Vec<u8> {
+        value.encode_utf16().flat_map(u16::to_le_bytes).collect()
+    }
+    fn literal(bytes: &[u8]) -> Vec<u8> {
+        assert!(!bytes.is_empty() && bytes.len() <= 3600);
+        let mut encoded = Vec::new();
+        for group in bytes.chunks(8) {
+            encoded.push(0);
+            encoded.extend(group);
+        }
+        let mut result = vec![1];
+        result.extend((0xB000u16 | (encoded.len() as u16 - 1)).to_le_bytes());
+        result.extend(encoded);
+        result
+    }
+    let modules = [("Zeta", true), ("ThisWorkbook", false), ("Worker", false), ("EntryForm", false), ("Opaque", false)];
+    let mut dir = Vec::new();
+    for (id, value) in [(1, 1u32), (2, 0x409), (0x14, 0x409)] {
+        record(&mut dir, id, &value.to_le_bytes());
+    }
+    record(&mut dir, 3, &1252u16.to_le_bytes());
+    record(&mut dir, 4, b"SyntheticProject");
+    for id in [5, 0x40, 6, 0x3D] {
+        record(&mut dir, id, &[]);
+    }
+    record(&mut dir, 7, &0u32.to_le_bytes());
+    record(&mut dir, 8, &0u32.to_le_bytes());
+    record(&mut dir, 9, &1u32.to_le_bytes());
+    dir.extend(0u16.to_le_bytes()); // PROJECTVERSION MinorVersion is outside its reserved size.
+    record(&mut dir, 0xF, &(modules.len() as u16).to_le_bytes());
+    record(&mut dir, 0x13, &0xFFFFu16.to_le_bytes());
+    for (name, standard) in modules {
+        record(&mut dir, 0x19, name.as_bytes());
+        record(&mut dir, 0x47, &wide(name));
+        record(&mut dir, 0x1A, name.as_bytes());
+        record(&mut dir, 0x32, &wide(name));
+        record(&mut dir, 0x1C, &[]);
+        record(&mut dir, 0x48, &[]);
+        record(&mut dir, 0x31, &0u32.to_le_bytes());
+        record(&mut dir, 0x1E, &0u32.to_le_bytes());
+        record(&mut dir, 0x2C, &0xFFFFu16.to_le_bytes());
+        record(&mut dir, if standard { 0x21 } else { 0x22 }, &[]);
+        record(&mut dir, 0x2B, &[]);
+    }
+    record(&mut dir, 0x10, &[]);
+    let dir = literal(&dir);
+    let source = literal(b"Sub Main()\r\nEnd Sub\r\n");
+    let manifest = b"Module=Zeta\r\nDocument=ThisWorkbook/&H00000000\r\nClass=Worker\r\nBaseClass=EntryForm\r\n";
+    let mut streams = vec![("VBA", &[][..]), ("dir", dir.as_slice())];
+    streams.extend(modules.iter().map(|(name, _)| (*name, source.as_slice())));
+    streams.push(("PROJECT", manifest.as_slice()));
+    let mut file = gridcraft_xlsx::testing::compound_file(&streams);
+    let directory = (u32::from_le_bytes(file[48..52].try_into().unwrap()) as usize + 1) * 512;
+    file[directory + 128 + 66] = 1; // VBA storage, rather than a stream.
+    file[directory + 128 + 72..directory + 128 + 76].copy_from_slice(&(modules.len() as u32 + 3).to_le_bytes()); // PROJECT under root.
+    file[directory + 128 + 76..directory + 128 + 80].copy_from_slice(&2u32.to_le_bytes()); // dir child.
+    let last_child = directory + (modules.len() + 2) * 128;
+    file[last_child + 72..last_child + 76].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+    file
+}
+
+#[test]
+fn edited_imported_modules_keep_kind_canonical_name_order_and_original_project_after_reload() {
+    let project = Arc::new(imported_project());
+    let mut workbook = Workbook::new();
+    workbook.vba_project = Some(Arc::clone(&project));
+    let mut session = Session::new();
+    session.add_document(DocState::new(workbook, None, "Imported modules".into()));
+    let expected = [("Zeta", "standard"), ("ThisWorkbook", "document"), ("Worker", "class"), ("EntryForm", "form"), ("Opaque", "object")];
+    let original = session.execute("automate.vbaModules", json!({})).unwrap();
+    assert!(original["importError"].is_null(), "{original}");
+    for (module, (name, kind)) in original["modules"].as_array().unwrap().iter().zip(expected) {
+        assert_eq!(module["name"], name);
+        assert_eq!(module["kind"], kind);
+        assert_eq!(module["origin"], "project");
+    }
+    assert_eq!(original["modules"].as_array().unwrap().len(), expected.len());
+    let edited = "Sub Edited()\nEnd Sub";
+    for (name, kind) in expected {
+        let result = session.execute("automate.saveVbaModule", json!({"name":name.to_ascii_lowercase(),"source":edited})).unwrap();
+        assert_eq!(result["name"], name, "saving must return the imported spelling");
+        assert_eq!(result["kind"], kind);
+        assert_eq!(result["source"], edited);
+        assert_eq!(result["origin"], "gridcraft");
+        assert!(Arc::ptr_eq(session.doc().unwrap().wb.vba_project.as_ref().unwrap(), &project));
+    }
+    let created = session.execute("automate.saveVbaModule", json!({"name":"Aardvark","source":edited})).unwrap();
+    assert_eq!(created["kind"], "standard");
+    let listed = session.execute("automate.vbaModules", json!({})).unwrap();
+    assert_eq!(listed["modules"].as_array().unwrap().len(), expected.len() + 1);
+    for (module, (name, kind)) in listed["modules"].as_array().unwrap().iter().zip(expected) {
+        assert_eq!(module["name"], name, "editing must retain project order");
+        assert_eq!(module["kind"], kind);
+        assert_eq!(module["source"], edited);
+        assert_eq!(module["origin"], "gridcraft");
+    }
+    assert_eq!(listed["modules"][expected.len()]["name"], "Aardvark", "new standalone modules follow the imported project");
+    let saved_sources = super::sources(&session.doc().unwrap().wb).unwrap();
+    assert_eq!(saved_sources.len(), expected.len() + 1);
+    for (name, _) in expected {
+        assert_eq!(saved_sources.get(name).map(String::as_str), Some(edited));
+    }
+    let bytes = gridcraft_xlsx::write_xlsx(&session.doc().unwrap().wb).unwrap();
+    let (workbook, _) = gridcraft_xlsx::read_xlsx(&bytes).unwrap();
+    assert_eq!(workbook.vba_project.as_deref(), Some(project.as_ref()), "saving only overlays source metadata, preserving vbaProject.bin bytes");
+    let mut reopened = Session::new();
+    reopened.add_document(DocState::new(workbook, None, "Reopened modules".into()));
+    let reloaded = reopened.execute("automate.vbaModules", json!({})).unwrap();
+    assert_eq!(reloaded["modules"], listed["modules"]);
+    assert_eq!(reloaded["trusted"], false);
+    assert_eq!(reloaded["preservedVba"], true);
+    assert!(reloaded["importError"].is_null());
+}
+
+#[test]
+fn legacy_source_aliases_use_imported_identity_and_are_canonicalized_when_saved() {
+    let project = Arc::new(imported_project());
+    let mut workbook = Workbook::new();
+    workbook.vba_project = Some(Arc::clone(&project));
+    workbook.names.push(DefinedName {
+        name: super::SOURCES.into(),
+        scope: None,
+        formula: metadata_formula(&json!({"thisworkbook":"Sub Legacy()\nEnd Sub"}).to_string()),
+        comment: String::new(),
+        hidden: true,
+    });
+    let mut session = Session::new();
+    session.add_document(DocState::new(workbook, None, "Legacy module alias".into()));
+    let listed = session.execute("automate.vbaModules", json!({})).unwrap();
+    assert_eq!(listed["modules"][1]["name"], "ThisWorkbook");
+    assert_eq!(listed["modules"][1]["kind"], "document");
+    assert_eq!(listed["modules"][1]["source"], "Sub Legacy()\nEnd Sub");
+    assert_eq!(listed["modules"][1]["origin"], "gridcraft");
+    let source = "Sub Current()\nEnd Sub";
+    let saved = session.execute("automate.saveVbaModule", json!({"name":"THISWORKBOOK","source":source})).unwrap();
+    assert_eq!(saved["name"], "ThisWorkbook");
+    assert_eq!(saved["kind"], "document");
+    assert_eq!(super::sources(&session.doc().unwrap().wb).unwrap(), std::collections::BTreeMap::from([("ThisWorkbook".into(), source.into())]));
+    assert!(Arc::ptr_eq(session.doc().unwrap().wb.vba_project.as_ref().unwrap(), &project));
+}
+
+#[test]
+fn unreadable_original_project_keeps_saved_sources_available_and_preserves_its_bytes() {
+    let project = Arc::new(b"synthetic invalid project".to_vec());
+    let mut workbook = Workbook::new();
+    workbook.vba_project = Some(Arc::clone(&project));
+    let mut session = Session::new();
+    session.add_document(DocState::new(workbook, None, "Unreadable project".into()));
+    let source = "Sub Main()\nEnd Sub";
+    let saved = session.execute("automate.saveVbaModule", json!({"name":"Saved","source":source})).unwrap();
+    assert_eq!(saved["name"], "Saved");
+    assert_eq!(saved["kind"], "standard");
+    let listed = session.execute("automate.vbaModules", json!({})).unwrap();
+    assert!(listed["importError"].is_string());
+    assert_eq!(listed["modules"], json!([saved]));
+    assert!(Arc::ptr_eq(session.doc().unwrap().wb.vba_project.as_ref().unwrap(), &project));
+}
+
 #[test]
 fn shell_createobject_and_unknown_members_fail_without_committing_prior_edits() {
     for unsupported in [

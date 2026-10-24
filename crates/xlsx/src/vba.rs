@@ -59,7 +59,7 @@ pub fn read_modules(project: &[u8]) -> Result<Vec<SourceModule>, String> {
         stream_budget = stream_budget.saturating_sub(stream.len());
         let bytes = stream.get(info.offset..).ok_or_else(|| format!("VBA module {} has an out-of-range source offset", info.name))?;
         let remaining = MAX_TOTAL_SOURCE.saturating_sub(total);
-        let source = decode(&decompress(bytes, MAX_MODULE.min(remaining))?, code_page)?;
+        let source = decode(&decompress_container(bytes, MAX_MODULE.min(remaining), true)?, code_page)?;
         if source.len() > MAX_MODULE || source.len() > remaining {
             return Err("decoded VBA source exceeds the 1 MiB module or 8 MiB project limit".into());
         }
@@ -95,6 +95,10 @@ fn module_kind(manifest: Option<&str>, info: &ModuleInfo) -> &'static str {
 /// MS-OVBA compressed containers: chunks reset their copy dictionary every 4096 bytes.
 /// Copying byte-by-byte intentionally supports overlapping backreferences.
 fn decompress(bytes: &[u8], limit: usize) -> Result<Vec<u8>, String> {
+    decompress_container(bytes, limit, false)
+}
+
+fn decompress_container(bytes: &[u8], limit: usize, module_source: bool) -> Result<Vec<u8>, String> {
     if bytes.first() != Some(&1) {
         return Err("invalid VBA compressed container signature".into());
     }
@@ -112,7 +116,16 @@ fn decompress(bytes: &[u8], limit: usize) -> Result<Vec<u8>, String> {
             if size != 4096 {
                 return Err("a raw VBA chunk must contain 4096 bytes".into());
             }
-            if size > limit.saturating_sub(out.len()) {
+            // MS-OVBA 2.4.1.3.10 pads a short final RawChunk with zero bytes.
+            // Only module text may discard that suffix: directory records are binary,
+            // and an interior zero (including in an earlier chunk) remains invalid text.
+            let chunk = if module_source && cursor.is_empty() {
+                let len = chunk.iter().rposition(|&byte| byte != 0).map_or(0, |at| at + 1);
+                &chunk[..len]
+            } else {
+                chunk
+            };
+            if chunk.len() > limit.saturating_sub(out.len()) {
                 return Err("VBA decompression limit exceeded".into());
             }
             out.extend_from_slice(chunk);
@@ -265,6 +278,11 @@ fn read_directory(bytes: &[u8]) -> Result<(u16, Vec<ModuleInfo>), String> {
 }
 
 fn read_control_reference(c: &mut Cursor<'_>) -> Result<(), String> {
+    // Accept a named control reference after REFERENCEORIGINAL as well as a bare
+    // REFERENCECONTROL. Consume complete records, never scan for an identifier.
+    if c.peek_u16()? == 0x0016 {
+        c.pair(0x0016, 0x003E)?;
+    }
     c.id(0x002F)?;
     c.u32()?; // SizeTwiddled
     c.sized()?;
@@ -467,6 +485,14 @@ mod tests {
         out
     }
 
+    fn raw_container(bytes: &[u8]) -> Vec<u8> {
+        assert!(bytes.len() <= 4096);
+        let mut out = vec![1, 0xFF, 0x3F];
+        out.extend(bytes);
+        out.resize(4099, 0);
+        out
+    }
+
     /// Start with the original test CFB writer, then make entry 1 a VBA storage with
     /// dir and CodeStream children. The PROJECT manifest remains under the root.
     fn project(dir: &[u8], module: &[u8], manifest: &[u8]) -> Vec<u8> {
@@ -599,6 +625,59 @@ mod tests {
         for bad in [&[][..], &[0], &[1, 0], &[1, 0, 0], &[1, 0, 0x30, 0], &[1, 2, 0xB0, 1, 0, 0]] {
             assert!(decompress(bad, MAX_MODULE).is_err());
         }
+    }
+
+    #[test]
+    fn imports_final_raw_chunk_padding_without_accepting_embedded_nulls() {
+        let source = b"Attribute VB_Name = \"Example\"\r\nSub Run()\r\nEnd Sub\r\n";
+        let raw = raw_container(source);
+        let dir = directory(1, 1252, 0, true);
+        let modules = read_modules(&project(&dir, &raw, b"")).unwrap();
+        assert_eq!(modules[0].source.as_bytes(), source);
+        assert_eq!(decompress_container(&raw, source.len(), true).unwrap(), source);
+        assert!(decompress_container(&raw, source.len() - 1, true).is_err());
+        // The generic decompressor still returns every byte of binary records.
+        assert_eq!(decompress(&raw, 4096).unwrap().len(), 4096);
+        for bad in [raw_container(b"Sub Run()\0\r\nEnd Sub\r\n"), literal_container(b"Sub Run()\r\nEnd Sub\0")] {
+            assert!(read_modules(&project(&dir, &bad, b"")).unwrap_err().contains("null character"));
+        }
+        // Padding in an earlier chunk is not a trailing source suffix.
+        let mut interior = raw;
+        interior.extend_from_slice(&literal_container(b"Sub More()\r\nEnd Sub\r\n")[1..]);
+        assert!(read_modules(&project(&dir, &interior, b"")).unwrap_err().contains("null character"));
+    }
+
+    #[test]
+    fn named_control_after_original_reference_is_bounded_and_structural() {
+        let mut reference = Vec::new();
+        record(&mut reference, 0x16, b"SyntheticControl");
+        record(&mut reference, 0x3E, &wide("SyntheticControl"));
+        reference.extend(0x2Fu16.to_le_bytes());
+        reference.extend(0u32.to_le_bytes());
+        reference.extend(2u32.to_le_bytes());
+        reference.extend(b"tw");
+        reference.extend([0; 6]);
+        record(&mut reference, 0x16, b"ExtendedControl");
+        record(&mut reference, 0x3E, &wide("ExtendedControl"));
+        reference.extend(0x30u16.to_le_bytes());
+        reference.extend(0u32.to_le_bytes());
+        reference.extend(2u32.to_le_bytes());
+        reference.extend(b"ex");
+        reference.extend([0; 26]);
+        let mut refs = Vec::new();
+        record(&mut refs, 0x33, b"OriginalLibrary");
+        refs.extend_from_slice(&reference);
+        let mut dir = directory(1, 1252, 0, true);
+        let marker = [0x0F, 0, 2, 0, 0, 0, 1, 0];
+        let at = dir.windows(marker.len()).position(|v| v == marker).unwrap();
+        dir.splice(at..at, refs);
+        let modules = read_modules(&project(&dir, &literal_container(b"Sub Run()\r\nEnd Sub"), b"")).unwrap();
+        assert_eq!(modules.len(), 1);
+        for cut in 0..reference.len() {
+            assert!(read_control_reference(&mut Cursor::new(&reference[..cut])).is_err(), "cut {cut}");
+        }
+        reference[2..6].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(read_control_reference(&mut Cursor::new(&reference)).is_err());
     }
 
     #[test]

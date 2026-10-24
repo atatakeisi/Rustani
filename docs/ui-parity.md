@@ -1,39 +1,38 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-21 · **Change:** minor (Esc and Enter close a data validation alert over the cell editor; Ctrl+Enter fill gives each cell the automatic number format typing gives it; keytip letters typed with Alt held, #1846; Number Stored as Text indicator and Convert to Number) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (consolidated current inventory; features distinguished from missing shortcuts) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
-**UI/UX fidelity: ~55% ready, 50–80 h** (estimated). Ribbon command coverage is measured
-separately in [parity-checklist.md](parity-checklist.md) (274 / 290).
+The earlier **UI/UX fidelity estimate of ~55% and 50–80 h of work** has not been reassessed.
+Ribbon command coverage is measured separately in [parity-checklist.md](parity-checklist.md)
+(275 / 291 registered IDs). Registration does not establish UI availability or operational
+compatibility. Current behavior and regression evidence are in
+[operational-parity.md](operational-parity.md) and [PROJECT_STATUS.md §13](../PROJECT_STATUS.md).
+Safari and real OS IME behavior still require live verification.
 
 Sources: `crates/ui-egui/src` (ribbon, grid, editor, formula bar, dialogs, panes),
 `crates/engine/src/cmd` (shortcuts in command specs), the owner's black-box notes
-(`plan/excel/observed-ui.md`, local only) and user issues.
+(`plan/excel/observed-ui.md`, local only) and user issues. Dated issue references below are
+context, not evidence that every original platform-specific report has been retested.
 
 ## Window and chrome
 
-| Element | Excel | GridCraft | Status |
+| Element | Excel | GridCraft | Status / remaining scope |
 |---|---|---|---|
-| 2026-10-14 | minor | Dialogs (Find and Replace, Go To, Format Cells, Sort and the rest) move by their title bar instead of staying pinned to the centre (#1250) |
-| Title bar, Quick Access Toolbar, AutoSave toggle | yes | yes | done; macOS window controls misaligned (#170), Dock icon size (#169) |
-| Ribbon: tabs, groups, split buttons, galleries, contextual tabs | yes | yes (Table Design, Chart Design, Format, PivotTable, Header & Footer tabs); Fill Color, Font Color and the Format Cells colour pickers end with Recent Colors and More Colors… (#928) | done; missing contextual tabs for pictures, shapes, sparklines, slicers |
-| Ribbon collapse, simplified ribbon, customize ribbon/QAT | yes | partial | customization missing (File ▸ Options is the one missing File command) |
-| Ribbon: tabs, groups, split buttons, galleries, contextual tabs | yes | yes (Table Design, Chart Design, Format, PivotTable tabs) | done; missing contextual tabs for pictures, shapes, sparklines, header/footer, slicers |
-| Ribbon collapse, simplified ribbon, customize ribbon/QAT | yes | partial | customization missing |
-| Key tips (Alt / F10 then letters) | yes, every ribbon control | **initial** (#43, 10-10): Alt or F10 shows key tips on Home for alignment, Paste Special and AutoFit plus legacy Alt sequences; other tabs and controls not yet (#33, #49) | 3–5 h |
-| Formula bar with Name Box, expand, function hints | yes | yes | done |
-| Sheet tabs: rename, reorder, colour, hide, scroll | yes | yes | Ctrl-drag (Cmd or Option on macOS) drops a copy (#971); active tab revealed on navigation and resize (#681); manual wheel/trackpad browsing preserved; rename focus bug on macOS (#145) |
-| Formula bar with Name Box, expand, function hints | yes | yes | done; dynamic-array spill children show the source formula muted and read-only, using current spill ownership |
-| Sheet tabs: rename, reorder, colour, hide, scroll | yes | yes | active tab revealed on navigation and resize (#681); manual wheel/trackpad browsing preserved; rename focus bug on macOS (#145) |
-| Sheet tabs: rename, reorder, colour, hide, scroll | yes | yes | active tab revealed on navigation and resize (#681); New sheet (+) right after the last tab, the strip capped at 60% of the bar (#943); manual wheel/trackpad browsing preserved; next/previous skips Hidden and VeryHidden sheets and retains the current sheet and selection when no visible destination exists; rename focus bug on macOS (#145) |
-| Status bar: Sum/Count/Average and more, view buttons, zoom | yes | yes | customizable statistics partial |
-| Task panes (Format Chart, Comments, Watch, Selection, PivotTable fields) | yes | yes; PivotTable source-field list scrollbar sits at the right edge of its pane | element-level Format pane for shapes and pictures missing |
-| Backstage (File) view: Info, New with templates, Open recent, Export, Options | yes | partial | Options dialog and template gallery missing |
-| Dark mode, system appearance | yes | yes | done (10-09); follows the system on first run, title-bar switch and File › Display theme (#194, #239) |
-| Backstage (File) view: Info, New with templates, Open recent, Export, Options | yes | yes (#174, 10-11): the File tab opens a full-window view (Esc or the back arrow return) with Home, New (blank + the three samples), Open (recent + Browse; the recent list tells when each workbook was last changed, 10-12), Info (location, properties, Protect Workbook), Save, Save As, Print (page preview, active sheet or workbook, fit to page, Page Setup), Export (PDF, CSV, web page), Close and Options (`file.options`: theme, language, formula bar, AutoSave, calculation) | no Account, Share or template gallery beyond the samples; Options applies at once (no OK/Cancel dialog) and holds only the settings GridCraft has |
-| Dark mode, system appearance | yes | yes | done (10-09) |
-| Page Layout view (paper view with rulers and header editing) | yes | yes (#329, 10-11): per-sheet view saved in XLSX, pages with margins and gaps on the print pagination, "Click to add data" pages, rulers (inches or centimetres), headers and footers drawn and edited in place with a Header & Footer tab | margins drag on the rulers (#792, with header and footer margins); header/footer pictures, Different First Page / Odd & Even missing (1–3 h) |
-| Multiple windows per workbook | yes | no (#162) | see [hardware-parity.md](hardware-parity.md) |
+| Title bar, Quick Access Toolbar, AutoSave toggle | yes | yes | Earlier macOS window-control alignment (#170) and Dock icon-size (#169) reports have not been rechecked in this audit |
+| Ribbon: tabs, groups, split buttons, galleries, contextual tabs | yes | yes; contextual Table Design, Chart Design and Header & Footer tabs; colour pickers include Recent Colors and More Colors… (#928) | Dedicated contextual tabs for pictures, shapes, sparklines and slicers are missing; no contextual Format or PivotTable tab is currently added by `contextual_tabs` |
+| Ribbon collapse, simplified ribbon, customize ribbon/QAT | yes | partial | Collapse exists; full ribbon/QAT customization is missing |
+| Key tips (Alt / F10 then letters) | yes, every ribbon control | 364-sequence table across the ribbon tabs, with control badges, prefix waiting and dropdown editing; left-Alt-held sequences work | Some bindings are pending their commands; complete QAT/Backstage coverage is missing |
+| Formula bar with Name Box, expand, function hints | yes | yes | Dynamic-array spill children show the source formula muted and read-only using current spill ownership; expansion exists, but Ctrl+Shift+U is unbound |
+| Sheet tabs: rename, reorder, colour, hide, scroll | yes | yes | Ctrl-drag (Cmd or Option on macOS) copies (#971); active tabs are revealed on navigation/resize; manual wheel/trackpad browsing is preserved; New sheet (+) follows the last tab within the 60% strip cap. Navigation skips Hidden/VeryHidden sheets and retains the selection if no visible destination exists. Earlier macOS rename-focus report (#145) remains unverified |
+| Sheet groups | yes | yes | Shift and Cmd/Ctrl tab selection, group highlighting, [Group] title, Select All Sheets and Ungroup; supported edits apply atomically to the selected sheets with Undo. Ctrl+Shift+Page Up/Down is not bound to grouping |
+| Macros and Record/Stop | yes | both controls in QAT, View, Automate and status bar | Stopping commits a pending cell edit, appends valid VBA to a safe standard module and opens the VBA editor. Alt+F8 opens Macros; WMR starts/stops recording. Recording/replay and unsupported-command limits are documented in [operational-parity.md](operational-parity.md) and [vba-compatibility.md](vba-compatibility.md) |
+| Status bar: statistics, view buttons, zoom, macro controls | yes | yes | Customizable statistics remain partial; Macros and Record/Stop are available at the left |
+| Task panes (Format Chart, Comments, Watch, Selection, PivotTable fields) | yes | yes; the PivotTable source-field scrollbar sits at the right edge | Element-level Format pane for shapes and pictures is missing |
+| Backstage (File): Info, New, Open recent, Save, Print, Export, Options | yes | yes; includes blank/sample workbooks, file properties/protection, page preview and existing application settings | No Account, Share or template gallery beyond the samples; Options applies immediately without OK/Cancel and exposes only GridCraft's settings, not the full Excel Options dialog |
+| Dark mode, system appearance | yes | yes | Follows the system on first run; title-bar switch and File › Display theme (#194, #239) |
+| Page Layout view (paper view with rulers and header editing) | yes | yes; per-sheet view saved in XLSX, print pagination, rulers and in-place header/footer editing | Ruler margins can be dragged (#792); header/footer pictures and Different First Page / Odd & Even remain missing |
+| Multiple windows per workbook | yes | partial | `view.newWindow` is a linked document copy, not simultaneous views of one shared workbook; see [hardware-parity.md](hardware-parity.md) |
 
 ## Grid interaction
 
@@ -45,101 +44,102 @@ uses that allowance in its grid units; its existing approximate font measurement
 Header text aligns and clips before the button. Command and header-double-click paths share
 this logic, with one undo step.
 
-| Behaviour | Status |
+| Behaviour | Current status / remaining scope |
 |---|---|
-| Click/drag/Shift/Ctrl selection, multi-area selection | rectangular drag works in one direction only in some cases (#28) |
-| Cursor while dragging cells, headers, freeze handles and objects | stable for the active drag (#936); Draw tools keep their crosshair; header arrows and a custom cell cursor remain unimplemented |
-| Selection outline glides to a new selection (Excel: "Provide feedback with animation") | done (10-11): 0.12 s, decelerating, with the fill and fill handle; View ▸ Animations (`view.animations`) turns it off. The timing is an estimate, not yet measured against Excel; the system's reduced-motion setting isn't followed yet |
-| Fill handle: drag to fill series, double-click to fill down, right-drag menu | fill done (Ctrl+drag swaps copy and series); right-drag menu partial: Copy Cells, Fill Series, Fill Formatting Only, Fill Without Formatting, Series…; Fill Days/Weekdays/Months/Years, Linear/Growth Trend and Flash Fill missing |
-| Fill handle: drag to fill series, double-click to fill down, right-drag menu | fill done (Ctrl+drag swaps copy and series); month patterns use the workbook's 1900 or 1904 date system; right-drag menu missing |
-| Drag-move and drag-copy cells (border drag, Ctrl/Option, Shift to insert) | done (M3) |
-| In-cell editing, Enter/Tab movement, Alt/Option+Enter line breaks | done |
-| Point mode (click/drag/arrow references), reference colouring, F4 | done; Command/Ctrl-click adds separate arguments with the edit's locale separator, and Shift-click extends the current reference from a fixed anchor on the same sheet. Pointer-event regressions cover repeated/reversed selections, manual separators, sheet switches and keyboard continuation. |
+| Click/drag/Shift/Ctrl selection, multi-area selection | Pointer regressions cover both drag directions and release endpoints. Cmd-click adds/removes areas on Mac; Ctrl-click does so on Windows/Linux, subtracting selected cells without overlapping rectangles. Mac Ctrl-click opens the context menu. Synthetic coverage does not establish every browser gesture |
+| Paste into multiple selected areas | Internal copy/Paste Special and external TSV/HTML target every area in one undoable edit; output areas remain selected. Cut moves reject multiple destinations; overlapping output blocks and invalid footprints are rejected atomically. Bounds and verification: PROJECT_STATUS.md §12 |
+| Web clipboard paste | Ribbon/menu paste requests the system clipboard asynchronously from the user gesture, with an internal-copy fallback and a stale-destination guard; PNG paste inserts and selects a floating picture. Permissions and browser clipboard formats still require platform verification |
+| Multi-area edits | Fill, supported row/column insert/delete, row/column selection, Replace All, AutoSum and defined names handle all selected areas; supported grouped-sheet edits are atomic. See [operational-parity.md](operational-parity.md) for each tested contract |
+| Cursor while dragging cells, headers, freeze handles and objects | Stable for the active drag (#936); Draw tools keep their crosshair; header arrows and a custom cell cursor remain unimplemented |
+| Selection outline animation | 0.12 s deceleration for keyboard selection, fill and fill handle; pointer selection draws immediately. View ▸ Animations turns it off. Timing is estimated against Excel; system reduced-motion preference is not followed |
+| Fill handle: drag, double-click fill down, right-drag menu | Ctrl+drag swaps copy/series; month patterns retain the workbook's 1900/1904 date system. Right-drag offers Copy Cells, Fill Series, Fill Formatting Only, Fill Without Formatting and Series…; date-specific menu choices, Linear/Growth Trend and Flash Fill are missing |
+| Drag-move and drag-copy cells (border drag, Ctrl/Option, Shift to insert) | Implemented (M3) |
+| In-cell editing, Enter/Tab movement, Alt/Option+Enter line breaks | Implemented; Mac Control+Enter and Command+Enter fill all selected areas. Backspace starts an empty active-cell edit; Delete clears the full selection. IME boundary keys and protected edit entry have synthetic regressions; real OS IME remains unverified |
+| Point mode, reference colouring, F4 | Cell/header/drag/arrow references; Cmd/Ctrl-click adds locale-separated arguments, Shift-click extends from an anchor. Shift-clicking sheet tabs supports 3D references; plain tab selection clears the explicit span |
 | Number-format colors (`[Green]`, `[Color1]`–`[Color56]`) | Rendered in grid and PDF from shared RGB mappings (#1452) |
-| Point mode (click/drag/arrow references), reference colouring, F4 | done |
-| AutoComplete in columns, function autocomplete and argument tips | done; cell helpers clip to the worksheet and hide when the editor scrolls out (#200) |
-| Header resize and double-click AutoFit | done (#42, #88 for header dividers) |
-| Data › Advanced Filter | dialog offers in-place or copy-to filtering, list and optional criteria ranges, and unique records; Alt+A,Q opens it (#1622). The engine's copy-to path clears only the result footprint and rejects worksheet overflow (#1031). |
-| Outline symbols for grouped rows / columns (band beside the headers, brackets, − / +, level buttons 1…n+1) | done (#373): clicks run `data.hideDetail` / `data.showDetail` / `data.showLevels`, frozen panes and right-to-left sheets included; summary rows/columns are always below/right (the "Summary rows below detail" setting isn't modelled), no "Show outline symbols" option yet, and a block of cells still groups rows without the Rows / Columns dialog |
-| Reorder selected whole columns by dragging their headers | done (10-11) |
-| Freeze panes, split panes | freeze done; split to verify |
-| A Table's header names and filter buttons in the column headings once its header row scrolls away | done (#1423): with the active cell in the Table, as in Excel; the button opens the column's filter menu, the rest of the heading still selects the column. Plain AutoFilter ranges keep their letters (Excel does the same) |
-| Copy as HTML table for other apps | done (#36, 10-10) |
-| Context menu on cells | 16 items (Cut, Copy, Paste, Paste Special, Insert, Delete, Clear Contents, Filter by value, Sort, New Comment, New Note, Format Cells, Pick From Drop-down List, Define Name, Link). Insert Copied Cells (Insert Cut Cells for whole rows/columns) while the clipboard holds a copy (#21). Missing: Insert Cut Cells for a cell block, paste-option icons, Quick Analysis, Get Data from Table, Show Changes, Smart Lookup |
-| Move and resize charts, pictures and shapes | charts can't be resized (#190) |
-| Context menus on row/column headers, sheet tabs, charts, shapes | headers and tabs done; objects partial |
-| Quick Analysis (Ctrl+Q) | missing |
-| Smooth scrolling, scrollbars | done; vertical scrollbar added 10-09 (#73); horizontal scrollbar in the tab bar (60/40 split, drag, track click pages) 10-13 (#176, #840); the tabs/scrollbar split can't be dragged yet |
-| Text overflow into empty neighbours, wrap, rotation, shrink to fit | done |
+| AutoComplete, function autocomplete and argument tips | Implemented; helpers clip to the worksheet and hide when the editor scrolls out (#200) |
+| Header resize and double-click AutoFit | Implemented (#42, #88) |
+| Data › Advanced Filter | In-place/copy-to, list/optional criteria and unique records; Alt+A,Q opens the dialog (#1622). Copy-to clears only the result footprint and rejects overflow (#1031) |
+| Outline symbols for grouped rows / columns | Brackets, − / + and level buttons run hide/show/levels commands, including frozen panes and RTL (#373). Summary position is fixed below/right; no Show outline symbols option or Rows / Columns choice dialog for cell-block grouping. Ctrl+8 is unbound |
+| Reorder selected whole columns by dragging headers | Implemented |
+| Freeze panes, split panes | Freeze implemented; full split-pane interaction remains to verify |
+| Scrolled Table headers in column headings | With the active cell in a Table, names and filter buttons replace letters when its header scrolls away (#1423); the rest of the heading selects the column. Plain AutoFilter ranges retain letters |
+| Copy as HTML table | Implemented (#36) |
+| Cell context menu | Includes clipboard, insert/delete, clear, filter/sort, comments/notes, formatting, drop-down list, names and links; Insert Copied Cells and whole-row/column Insert Cut Cells are available. Cell-block Insert Cut Cells, paste-option icons, Quick Analysis, Get Data from Table, Show Changes and Smart Lookup remain missing |
+| Move and resize charts, pictures and shapes | All eight resize handles, with opposite-edge anchoring and one Undo; LTR/RTL regressions. Floating/in-cell pictures can be converted through context menus; picture insertion offers over-cells before in-cell placement |
+| Row/column, tab and object context menus | Headers/tabs and picture placement controls exist; full Excel object menu coverage remains partial |
+| Editor text context menus | Formula/cell/VBA editors offer Cut, Copy, Paste and Select All; reopening preserves selected Unicode text and TextEdit Undo. Actual selection/copy/cut/paste behavior is regression-tested |
+| Format Painter | Single application and double-click sticky behavior are covered by real double-click event regressions; sticky mode survives repeated applications |
+| Quick Analysis (Ctrl+Q) | Missing |
+| Smooth scrolling, scrollbars | Vertical and horizontal scrollbars implemented; horizontal bar supports dragging and page clicks. The tab/scrollbar split cannot be dragged |
+| Text overflow, wrap, rotation, shrink to fit | Implemented |
 
 ## Keyboard
 
 | Area | Excel | GridCraft |
 |---|---|---|
-| Shortcuts bound to commands | 200+ documented shortcuts per platform | 59 command shortcuts plus grid and editor keys (55 distinct keys handled in `ui-egui`) |
-| Ctrl+arrow, Ctrl+Shift+arrow, Ctrl+Home/End, Page Up/Down, Alt+Page | yes | done |
-| Ctrl+1, Ctrl+; and Ctrl+Shift+; , Ctrl+D/R, Ctrl+E, Ctrl+T, Ctrl+K, Ctrl+Shift+L | yes | most done; audit pending |
-| F2, F4, F5, F9 family, Shift+F3, F11 | yes | most; F11 chart sheet missing (no chart sheets) |
-| Mac-specific (Cmd variants, Fn keys) | yes | Cmd mapping done |
-| Delete selected charts, pictures and shapes | yes | done (#213) |
-| Shortcuts bound to commands | 200+ documented shortcuts per platform | audited below (#110): shortcuts whose feature exists are bound, with the exceptions listed; the rest wait for their features |
-| Ctrl+arrow, Ctrl+Shift+arrow, Ctrl+Home/End, Ctrl+Shift+Home/End, Page Up/Down, Alt+Page | yes | done |
-| Ctrl+1, Ctrl+; and Ctrl+Shift+; , Ctrl+D/R, Ctrl+E, Ctrl+T/L, Ctrl+K, Ctrl+Shift+L, Ctrl+Shift+~!@#$%^&_ | yes | done |
-| F2, F4, F5, F7, F9 family, Shift+F2/F3/F10/F11, F12 | yes | done; F11 chart sheet, F8 extend mode, F3 Paste Name, F4 Repeat missing |
-| Mac-specific (Cmd variants, Control variants, Fn keys) | yes | done where a feature exists (`keymap.rs` picks the Mac variant) |
-| Sequential Alt access keys (Alt, H, N, …) on every ribbon tab | yes | 364-sequence keytip table for all tabs: per-control badges, prefix waiting, dropdowns open for editing (type/arrows/Enter), pending bindings for not-yet-built commands; letters also work with left Alt held (Alt+H, O, A), as in Excel; QAT/Backstage excluded |
-| Requests | — | #110 (more shortcuts and hot keys), #33 (sequential Alt; initial support landed in #43) |
+| Shortcuts bound to commands | 200+ documented shortcuts per platform | Command, grid and editor bindings are audited below; implemented features and unbound shortcuts are listed separately |
+| Ctrl+arrow, Ctrl+Shift+arrow, Ctrl+Home/End, Ctrl+Shift+Home/End, Page Up/Down, Alt+Page | yes | implemented |
+| Ctrl+1, Ctrl+; / Ctrl+Shift+;, Ctrl+D/R/E, Ctrl+T/L/K, Ctrl+Shift+L and format keys | yes | implemented, with platform-specific mappings below |
+| Function keys | yes | Editing F4, F2/F5/F7/F9, Shift+F2/F3/F10/F11 and F12 exist; F4 Repeat, F8 extend mode, F3 Paste Name and F11 chart sheet remain missing |
+| Mac variants | yes | Cmd/Control/Option mappings in `keymap.rs`; remaining exceptions below |
+| Sequential Alt access keys | every ribbon tab | 364-sequence table across tabs; pending entries are not implemented commands, and complete QAT/Backstage coverage remains missing |
+| Requests | — | #110 (shortcuts), #33 (sequential Alt); initial support #43 is historical, not the present coverage limit |
 
 ### Shortcut audit (#110)
 
-Checked against Microsoft's published "Keyboard shortcuts in Excel" (Windows and Mac tables,
-2026-10-11). Alt key-tip sequences are tracked separately (#33). Bindings live in
-`crates/ui-egui/src/grid.rs` (navigation, editing keys), `ribbon::shortcut` (Ctrl/Cmd letters),
-`keymap.rs` (everything added in #110, with a `lookup` table that tests cover) and
-`formula_bar.rs` (keys while editing). "Ctrl" means Cmd on a Mac unless the Mac column says
-otherwise. Number-format and border keys match the physical key (Ctrl+Shift+4, wherever `$` is).
+The original comparison used Microsoft's published Windows and Mac shortcut tables on
+2026-10-11; current GridCraft statuses were checked against local source on 2026-10-24.
+Alt key-tip sequences are tracked separately (#33). Bindings live in `grid.rs` (navigation and
+editing), `ribbon::shortcut` (Ctrl/Cmd letters), `keymap.rs` and `formula_bar.rs` (editing).
+“Ctrl” means Cmd on Mac unless the Mac column says otherwise. Format/border combinations
+match physical keys (e.g. Ctrl+Shift+4 regardless of the character printed on that layout).
 
-| Shortcut (Windows) | Mac | Action | Status |
+| Shortcut (Windows) | Mac | Action | Current status |
 |---|---|---|---|
 | Ctrl+C / X / V, Ctrl+Z / Y, Ctrl+A, Ctrl+B / I / U | same with Cmd | clipboard, undo/redo, select all, bold/italic/underline | present |
 | Ctrl+S, Ctrl+Shift+S, Ctrl+O, Ctrl+N, Ctrl+W | Cmd | save, save as, open, new, close | present |
 | Ctrl+F, Ctrl+H, Ctrl+G, Ctrl+K, Ctrl+T | Cmd (Ctrl+H) | find, replace, go to, hyperlink, table | present |
-| Ctrl+D, Ctrl+R, Ctrl+E, Ctrl+1, Ctrl+9 / 0, Ctrl+Shift+9 / 0 | Cmd (Ctrl+E on Mac: see below) | fill down/right, Flash Fill, Format Cells, hide/unhide | present |
-| Ctrl+- , Ctrl+Shift+= | Cmd | Delete / Insert cells dialog | present |
-| Ctrl+; , Ctrl+` | Control+; | current date, show formulas | present (Mac Control+; added) |
-| Arrows, Shift / Ctrl / Ctrl+Shift+arrows, Home, Ctrl+Home / End, Page Up / Down, Ctrl+Page Up / Down | Cmd+arrows | navigation and extension | present |
-| Tab, Shift+Tab, Enter, Shift+Enter, Ctrl+Space, Shift+Space, Delete, Esc | same | entry and selection | present |
-| F2, F9, F10 (key tips), F4 / Alt+Enter / Ctrl+Enter / Ctrl+Shift+Enter while editing | same | edit, calculate, references, new line, fill, array | present |
-| Ctrl+Shift+~ ! @ # $ % ^ | Control+Shift | General, Number, Time, Date, Currency, Percent, Scientific | **added** |
-| Ctrl+Shift+& / Ctrl+Shift+_ | Cmd+Option+0 / Cmd+Option+- (and Cmd+Option+arrows for one side) | outline border / remove borders | **added** |
-| Ctrl+2 / 3 / 4 / 5 | — | bold / italic / underline / strikethrough | **added** |
-| Ctrl+6 | Control+6 | hide / show objects (charts, pictures, shapes, slicers), saved as `workbookPr showObjects` | **added** |
-| Ctrl+Shift+: | Cmd+; | current time | **added** |
-| Ctrl+' / Ctrl+Shift+" | Control | formula / value from the cell above | **added** |
-| Ctrl+L | Cmd+L is Align Left, Cmd+E Center, Control+E Flash Fill | create table | **added** |
-| Ctrl+Shift+L | Cmd+Shift+F (present) / Control+Shift+L | filter | **added** |
-| Ctrl+Shift+F, Ctrl+Shift+G | — | Format Cells Font tab, Workbook Statistics | **added** |
-| — | Cmd+Shift+H, Cmd+Shift+R, Cmd+Shift+K / J, Control+L, Control+U | replace, sort, group / ungroup, Define Name, edit cell | **added** |
-| Alt+Shift+Right / Left | Option+Right / Left is next/previous sheet | group / ungroup | **added** |
-| Ctrl+Shift+* (Ctrl+Shift+8), Ctrl+Shift+Space | Cmd+Shift+Space | current region, select all | **added** |
-| Ctrl+Shift+Home / End, Shift+Home | same | extend to A1 / last used cell / row start | **added** |
-| Ctrl+P | Cmd+P | print | **added** |
-| Ctrl+Shift+> / < | Cmd+Shift+> / < | font size | **added** |
-| Ctrl+Alt+V | Cmd+Control+V, Cmd+Option+V | Paste Special | **added** |
-| Ctrl+Alt+= / Ctrl+Alt+- | — | zoom in / out (10% steps) | **added** |
-| Alt+=, Alt+Down, Alt+Page Down / Up | Option+Down, Option+Page Down / Up | AutoSum, drop-down list, one screen right / left | **added** |
-| Alt+Down on a filter header | Option+Down | Open the existing AutoFilter popup; validation dropdowns keep priority | **added** (AutoFilter portion of #441; Ribbon dropdowns and column value picker are separate work) |
-| Alt+F1, Alt+Shift+F1, Shift+F11 | Shift+F11 | embedded chart, new sheet | **added** |
-| Shift+F2, Ctrl+Shift+F2 | Shift+F2, Cmd+Shift+F2 | note, threaded comment | **added** |
-| Shift+F3, Ctrl+F3, Ctrl+Shift+F3 | Shift+F3, Cmd+F3 (Define Name), Cmd+Shift+F3 | Insert Function, Name Manager, Create from Selection | **added** |
-| F5, Shift+F5 (Mac), F7, Shift+F9, Ctrl+Alt+F9, F12, Ctrl+F4 | same | Go To, Find, Spelling, calculate sheet / all, Save As, close | **added** |
-| Shift+F10, Alt+Shift+F10, Ctrl+F1 | Shift+F10, Cmd+Option+R | context menu, Error Checking, ribbon | **added** |
-| F1, F3, F4 (repeat), F6 / Shift+F6, F8 / Shift+F8, F11, End mode | same | help, Paste Name, Repeat, pane cycling, extend/add mode, chart sheet | missing (no such feature yet) |
-| Ctrl+8, Ctrl+Q, Ctrl+Shift+A, Ctrl+A after a function name, Ctrl+Shift+U, Ctrl+Alt+P | same | outline symbols, Quick Analysis, argument names, Function Arguments, formula bar height, tooltips | missing |
-| Ctrl+Shift+A after a function name | Control+Shift+A | argument names: `=SUMIF(` becomes `=SUMIF(range,criteria,sum_range)`, the `(` added when missing; one Undo takes them back | **added** |
-| Ctrl+6, Ctrl+8, Ctrl+Q, Ctrl+A after a function name, Ctrl+Shift+U, Ctrl+Alt+P | same | objects, outline symbols, Quick Analysis, Function Arguments, formula bar height, tooltips | missing |
-| Ctrl+Shift+Page Up / Down, Ctrl+Alt+5, Ctrl+Shift+F1, Ctrl+F5–F10, Alt+F8 / F11 / F12 | same | group sheets, shape cycling, full screen, window keys, macros, VBA, Power Query | missing |
-| — | Cmd+= (calculate), Cmd+T (references while editing; F4 works), Shift+F7, Cmd+Shift+L | Mac-only extras | missing (Cmd+= is egui's zoom key; no thesaurus or Modify Cell Style) |
+| Ctrl+D / R / E, Ctrl+1, Ctrl+9 / 0, Ctrl+Shift+9 / 0 | Cmd (Ctrl+E exception below) | fill down/right, Flash Fill, Format Cells, hide/unhide | present |
+| Ctrl+- / Ctrl+Shift+= | Cmd | Delete / Insert cells dialog | present |
+| Ctrl+; / Ctrl+` | Control+; for date | current date, show formulas | present |
+| Arrows, Shift / Ctrl / Ctrl+Shift+arrows, Home, Ctrl+Home / End, Page Up / Down, Ctrl+Page Up / Down | Cmd+arrows; Option+Left / Right for sheet navigation | navigation and selection extension | present; Ctrl+Shift+Page Up/Down grouping is a separate missing binding |
+| Tab, Shift+Tab, Enter, Shift+Enter, Ctrl+Space, Shift+Space, Delete, Esc | Control+Space for columns; otherwise same | entry and selection | present; Delete clears selection, Backspace edits active cell |
+| F2, F9, F10 (key tips), F4 / Alt+Enter / Ctrl+Enter / Ctrl+Shift+Enter while editing | F4, Option+Enter; both Control+Enter and Command+Enter fill | edit, calculate, references, new line, fill, array | present |
+| Ctrl+Shift+~ ! @ # $ % ^ | Control+Shift | General, Number, Time, Date, Currency, Percent, Scientific | present |
+| Ctrl+Shift+& / Ctrl+Shift+_ | Cmd+Option+0 / Cmd+Option+-; Cmd+Option+arrows for one side | outline border / remove borders | present |
+| Ctrl+2 / 3 / 4 / 5 | — | bold / italic / underline / strikethrough | present |
+| Ctrl+6 | Control+6 | hide/show charts, pictures, shapes and slicers; saved as `workbookPr showObjects` | present |
+| Ctrl+Shift+: | Cmd+; | current time | present |
+| Ctrl+' / Ctrl+Shift+" | Control | formula / value from cell above | present |
+| Ctrl+L | Cmd+L Align Left, Cmd+E Center, Control+E Flash Fill | create table | present |
+| Ctrl+Shift+L | Cmd+Shift+F / Control+Shift+L | filter | present |
+| Ctrl+Shift+F / Ctrl+Shift+G | — | Format Cells Font tab / Workbook Statistics | present |
+| — | Cmd+Shift+H / R / K / J, Control+L / U | replace, sort, row/column outline group/ungroup, Define Name, edit cell | present |
+| Alt+Shift+Right / Left | Option+Right / Left navigates sheets | row/column outline group / ungroup | present; distinct from worksheet tab groups |
+| Ctrl+Shift+* (Ctrl+Shift+8), Ctrl+Shift+Space | Cmd+Shift+Space | current region, select all | present |
+| Ctrl+Shift+Home / End, Shift+Home | same | extend to A1 / last used cell / row start | present |
+| Ctrl+P | Cmd+P | print | present |
+| Ctrl+Shift+> / < | Cmd+Shift+> / < | font size | present |
+| Ctrl+Alt+V | Cmd+Control+V / Cmd+Option+V | Paste Special | present |
+| Ctrl+Alt+= / Ctrl+Alt+- | — | zoom in / out (10% steps) | present |
+| Alt+=, Alt+Down, Alt+Page Down / Up | Option+Down, Option+Page Down / Up | AutoSum, dropdown, one screen right / left | present |
+| Alt+Down on filter header | Option+Down | existing AutoFilter popup; validation has priority | present; broader ribbon dropdown/column value-picker work is separate (#441) |
+| Alt+F1, Alt+Shift+F1, Shift+F11 | Shift+F11 | embedded chart, new sheet | present |
+| Shift+F2, Ctrl+Shift+F2 | Shift+F2, Cmd+Shift+F2 | note, threaded comment | present |
+| Shift+F3, Ctrl+F3, Ctrl+Shift+F3 | Shift+F3, Cmd+F3 (Define Name), Cmd+Shift+F3 | Insert Function, Name Manager, Create from Selection | present |
+| F5, Shift+F5, F7, Shift+F9, Ctrl+Alt+F9, F12, Ctrl+F4 | corresponding Mac mappings | Go To, Find, Spelling, calculate sheet/all, Save As, close | present |
+| Shift+F10, Alt+Shift+F10, Ctrl+F1 | Shift+F10, Cmd+Option+R for ribbon | context menu, Error Checking, ribbon collapse | present |
+| Alt+F8 | same key event | Macros dialog | present; QAT/View/Automate/status controls also exist |
+| Ctrl+Shift+A after function name | Control+Shift+A | insert argument names and closing parenthesis; add `(` if absent | present, one editor Undo |
+| Ctrl+8 | same | toggle outline symbols | shortcut missing; row/column outline UI exists |
+| Ctrl+Shift+U | same | expand/collapse formula bar | shortcut missing; formula-bar expansion control exists |
+| Ctrl+A after function name | same | Function Arguments | shortcut missing; Insert Function dialog exists |
+| Ctrl+Shift+Page Up / Down | platform-specific worksheet-selection keys not bound | group sheets | shortcut missing; modifier-click tab grouping and grouped edits exist |
+| Alt+F11 | — | VBA editor | shortcut missing; editor, macro dialog and recorded-script deletion exist |
+| F1, F3, F4 Repeat, F6 / Shift+F6, F8 / Shift+F8, F11, End mode | corresponding Mac keys | Help, Paste Name, Repeat, pane cycling, extend/add mode, chart sheet | missing features/bindings; editing F4 is implemented |
+| Ctrl+Q, Ctrl+Alt+P, Ctrl+Alt+5, Ctrl+Shift+F1, Ctrl+F5–F10, Alt+F12 | platform equivalents not bound | Quick Analysis, tooltip toggle, object cycling, full screen, window keys, Power Query | missing; no Quick Analysis or Power Query editor |
+| — | Cmd+=, Cmd+T while editing, Shift+F7, Cmd+Shift+L | calculate, reference anchoring, thesaurus, Modify Cell Style | missing Mac extras; Cmd+= is egui zoom, F4 anchors references |
 
 On Windows, AltGr arrives as Ctrl+Alt: a Ctrl+Alt key that also types a character is treated as
 text, so AltGr symbols (e.g. `~` on a German layout) and user-defined Ctrl+Alt+letter hotkeys that type
@@ -149,16 +149,20 @@ a character (e.g. Ctrl+Alt+A for `ä`) never trigger a shortcut, Ctrl+letter one
 
 Format Cells, Insert Function/Formula Builder, Find and Replace, Go To and Go To Special, Sort,
 Name Manager, Data Validation, Paste Special, Conditional Formatting manager, Page Setup, Goal
-Seek, Scenario Manager, Data Analysis, Forecast Sheet and others exist. Missing or partial: Options,
-Solver, Power Query editor, Insert Object, Equation editor, Protect/Allow Edit Ranges,
-Workbook Links, Accessibility checker. Like Excel's, every dialog opens centred and moves by its
-title bar, keeping its place while it is open (#1250).
+Seek, Scenario Manager, Data Analysis, Forecast Sheet, Solver, Protect Sheet and Allow Edit
+Ranges exist. Macros and the VBA editor are available; recorded JSON scripts can be deleted.
+Options is a Backstage page with immediate application of existing settings, rather than the
+full Excel Options dialog. Power Query, Insert Object, Equation editor, full Workbook Links
+management and Accessibility checker remain missing. Dialogs open centred and move by their
+title bar, retaining their position while open (#1250).
 
 ## Accessibility
 
-AccessKit is enabled, but the grid, ribbon and dialogs are not exposed as an accessible tree with
-cell addresses and values, so screen readers can't navigate a sheet; there is no high-contrast
-theme or accessibility checker. Excel is strong here. 12–18 h.
+AccessKit is enabled, and numerous controls, tabs, inputs and dialogs expose labels/states;
+macro-control placement and text-menu actions have UI regressions. A complete accessible
+worksheet tree with cell addresses/values and screen-reader sheet navigation is still missing,
+as are a high-contrast theme and Accessibility checker. No complete accessibility conformance
+is claimed; the older 12–18 h estimate has not been reassessed.
 
 ## Feel
 
@@ -166,16 +170,25 @@ Pixel comparison against Excel screenshots hasn't been run since M1; fonts depen
 (no Calibri; Carlito would match metrics, #29, #4, #168 for weights); icons are GridCraft's own
 by rule and will never match Office's, by design.
 
-## Work (50–80 h)
+## Remaining work and historical estimate
 
-Key tips 3–5 · remaining shortcuts with their features 2–4 · context menus and Quick Analysis 5–8 · Page Layout view
-8–12 · Options dialog and ribbon/QAT customization 6–10 · accessibility 12–18 · selection and
-scrollbar bugs 2–4 · pixel/feel pass against observed Excel 7–12.
+The earlier 50–80 h estimate included work now implemented, including key tips, Page Layout,
+Options and clipboard controls; it is retained as historical context, not a current work budget.
+Remaining areas include the missing shortcuts/features above, complete contextual panes and
+menus, ribbon/QAT customization, accessibility, platform gesture/IME checks and a fresh visual
+comparison. A new effort estimate requires reviewing those remaining items individually.
 
 ## Revision history
 
+These entries describe changes on their stated dates. Older limitations may be superseded by
+the current inventory above.
+
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Consolidate duplicate current-state rows; distinguish implemented macros, VBA editor, sheet groups, outline controls and formula-bar expansion from unbound shortcuts; document all eight object resize handles and asynchronous Web paste. Preserve historical estimates and dated change records |
+| 2026-10-24 | major | Operational audit: macro entry points/recorded VBA, multi-area fill/structural edits/selection/replace/AutoSum/names, Japanese formula diagnostics, text context menus, async clipboard, 8-handle pictures and placement conversions, grouped sheets and 3D formula pointing. Behavior evidence: operational-parity.md and PROJECT_STATUS.md §13; no new compatibility percentage inferred |
+| 2026-10-24 | minor | Multi-area paste across internal copy/Paste Special and external TSV/HTML; retain all destination areas and one Undo; preflight cut/overlap/size limits. Mac Ctrl-primary click routes to context menus while Cmd additive selection stays. Regression evidence: PROJECT_STATUS.md §12; scores unchanged |
+| 2026-10-24 | minor | IME boundary keys handled before cell actions and TextEdit; direct input preserves focus filtering; protected-cell edit startup uses engine rules including Allow Edit Ranges. Synthetic regression evidence in PROJECT_STATUS.md §11; OS IME and Safari/Chrome comparison unverified; scores unchanged |
 | 2026-10-21 | minor | Background error checking, first part (#1994): a constant whose text would be a number if typed (signs, thousands, currency, percent, exponent, parenthesised negative) gets Excel's green corner triangle; the active cell then shows a warning button whose menu names the problem and offers Convert to Number for the selection (`formulas.convertToNumber`). Dates, times and fractions kept as text and formula results are not flagged, as in Excel |
 | 2026-10-21 | minor | Paste Special laid out as Excel's: Paste and Operation options each in two columns inside a frame, Skip blanks and Transpose side by side, Paste Link as a button that pastes references at once; labels translated (the generic form didn't translate them) and the window no longer runs past the screen |
 | 2026-10-21 | minor | Form dialogs (conditional-format quick rules, New Name, Remove Duplicates, Text to Columns and every other `Dialog::form`) fit their content: OK and Cancel sit in a row under the last field instead of a right-to-left layout that took the screen's whole height and left the buttons floating halfway down |
@@ -194,6 +207,7 @@ scrollbar bugs 2–4 · pixel/feel pass against observed Excel 7–12.
 | 2026-10-16 | minor | The shared UI clock delegates to the core Unix-millisecond clock, which reads Date.now() on wasm, instead of returning zero there (#1026). Native clock contract tested; browser timing remains unverified |
 | 2026-10-16 | trivial | Web: preferences (theme, interface size, language, editing options…) are kept in the browser's `localStorage` between visits, as the desktop app keeps `ui.json` and `prefs.json`; before, a reload brought back light mode and the defaults (#1562) |
 | 2026-10-15 | minor | Number-format named colors use their RGB values; indexed `[Color1]`–`[Color56]` resolve through the shared legacy palette in grid and PDF (#1452) |
+| 2026-10-14 | minor | Dialogs (Find and Replace, Go To, Format Cells, Sort and the rest) move by their title bar instead of staying pinned to the centre (#1250) |
 | 2026-10-14 | minor | Spill-child formula bar uses the anchor formula with disabled theme text and blocks formula-bar edit entry; selection and recalculation restore ordinary behavior |
 | 2026-10-14 | minor | PivotTable source-field list fills the pane width so its scrollbar stays at the list's right edge |
 | 2026-10-13 | minor | Dragging a sheet tab with Ctrl held (Cmd or Option on macOS) drops a copy of the sheet where the tab is released, with the copy cursor (#971) |

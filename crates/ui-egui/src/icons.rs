@@ -106,6 +106,8 @@ pub enum Icon {
     Paper,
     PrintArea,
     Script,
+    RecordMacro,
+    StopRecording,
     Pen,
     Share,
     Search,
@@ -621,6 +623,8 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, c: Color32) {
             g.line(&[(4.5, 6.0), (7.0, 8.0), (4.5, 10.0)], GREEN, 1.3);
             g.stroke(&[(8.0, 10.5), (11.5, 10.5)], c);
         }
+        Icon::RecordMacro => g.circle(8.0, 8.0, 4.5, Some(RED), None),
+        Icon::StopRecording => g.rect(3.5, 3.5, 9.0, 9.0, Some(RED), None),
         Icon::Pen => {
             g.poly(&[(3.0, 13.0), (4.0, 10.0), (11.0, 3.0), (13.0, 5.0), (6.0, 12.0)], BLUE);
             g.stroke(&[(3.0, 13.0), (4.0, 10.0)], c);

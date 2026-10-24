@@ -98,7 +98,8 @@ pub enum Drag {
         id: u32,
         start: Pos2,
         orig: (CellRef, f32, f32, f32, f32),
-        resize: bool,
+        resize: Option<crate::chartview::ResizeHandle>,
+        undo_len: usize,
     },
 }
 
@@ -1747,7 +1748,11 @@ pub(crate) fn paint_selection(
     {
         let origin = app.session.active().and_then(|d| d.wb.sheet(ed.sheet)).map_or(sh.name.as_str(), |o| o.name.as_str());
         for (_, _, r, sheet, idx) in crate::editor::formula_refs(&ed.text) {
-            if !crate::editor::ref_is_on_sheet(sheet.as_deref(), origin, &sh.name) {
+            let on_sheet = app.session.active().map_or_else(
+                || crate::editor::ref_is_on_sheet(sheet.as_deref(), origin, &sh.name),
+                |doc| crate::editor::ref_is_on_sheet_in_workbook(sheet.as_deref(), origin, &sh.name, &doc.wb),
+            );
+            if !on_sheet {
                 continue;
             }
             if !range_in_pane(r, rows, cols) {
@@ -1933,9 +1938,6 @@ fn hidden_around(i: u32, size: impl Fn(u32) -> f32) -> (bool, bool) {
 
 // ------------------------------------------------------------------ interaction
 
-/// How close (in points) a press must be to an object's bottom-right corner to resize it instead of moving it.
-const OBJECT_RESIZE_RADIUS: f32 = 10.0;
-
 /// Decide after interaction so drag start and release use the new state in the same frame.
 fn update_cursor(app: &mut SheetApp, ui: &egui::Ui, resp: &egui::Response, geo: &Geo, sh: &Sheet) {
     if app.text_box_editor.is_some() || app.grid.hf_edit.is_some() {
@@ -1968,11 +1970,11 @@ fn update_cursor(app: &mut SheetApp, ui: &egui::Ui, resp: &egui::Response, geo: 
             Drag::Select => Some(CursorIcon::Cell),
             Drag::Rows(_) | Drag::Cols(_) => Some(CursorIcon::Default),
             Drag::Fill { .. } => Some(CursorIcon::Crosshair),
-            Drag::Move { .. } | Drag::MoveCols { .. } | Drag::Object { resize: false, .. } => Some(CursorIcon::Move),
+            Drag::Move { .. } | Drag::MoveCols { .. } | Drag::Object { resize: None, .. } => Some(CursorIcon::Move),
             Drag::ResizeCol { .. } => Some(CursorIcon::ResizeColumn),
             Drag::ResizeRow { .. } => Some(CursorIcon::ResizeRow),
             Drag::Freeze { cols, .. } => Some(if cols { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical }),
-            Drag::Object { resize: true, .. } => Some(CursorIcon::ResizeNwSe),
+            Drag::Object { resize: Some(handle), .. } => Some(handle.cursor(geo.rtl)),
         };
         if let Some(cursor) = cursor {
             ctx.set_cursor_icon(cursor);
@@ -2002,9 +2004,11 @@ fn update_cursor(app: &mut SheetApp, ui: &egui::Ui, resp: &egui::Response, geo: 
     let on_handle = handle.contains(p) && handle_panes.iter().any(|r| r.contains(p));
     let on_cur_border = on_border(cur_rect, p) && border_panes.iter().any(|r| r.contains(p));
     let selected_object = crate::chartview::hit(app, geo, sh, p).filter(|&(_, id, _)| app.selected_chart == Some(id));
-    let near_corner = selected_object.is_some_and(|(_, _, rect)| (p - rect.right_bottom()).length() < OBJECT_RESIZE_RADIUS);
-    if app.grid.drag == Drag::None && near_corner {
-        ctx.set_cursor_icon(CursorIcon::ResizeNwSe);
+    let handle = selected_object.and_then(|(_, _, rect)| crate::chartview::resize_handle(rect, p));
+    if app.grid.drag == Drag::None
+        && let Some(handle) = handle
+    {
+        ctx.set_cursor_icon(handle.cursor(geo.rtl));
     } else if (in_col_header && col_edge(geo, sh, p.x).is_some()) || (in_row_header && row_edge(geo, sh, p.y).is_some()) {
         let near_col_edge = in_col_header && col_edge(geo, sh, p.x).is_some();
         // Just past a hidden column or row, Excel shows a split cursor: dragging or
@@ -2038,9 +2042,15 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
     }
     let ctx = ui.ctx().clone();
     // Enter/Space synthesize egui clicks; only real pointer clicks use sheet coordinates.
-    let primary_clicked = resp.clicked_by(egui::PointerButton::Primary);
     let pointer = ctx.input(|i| i.pointer.clone());
     let mods = ctx.input(|i| i.modifiers);
+    // The web backend reports command = Ctrl || Meta, even on macOS, and can deliver a
+    // Control-click as the primary button. It opens the same menu as a secondary click;
+    // Command-click keeps the normal additive-selection behavior.
+    let control_click = ctx.os().is_mac() && mods.ctrl && !mods.mac_cmd;
+    let raw_primary_clicked = resp.clicked_by(egui::PointerButton::Primary);
+    let primary_clicked = raw_primary_clicked && !control_click;
+    let secondary_clicked = resp.secondary_clicked() || (control_click && raw_primary_clicked);
     // Hit-testing works in logical coordinates (see `Geo::rtl`).
     let pos = pointer.interact_pos().or(pointer.hover_pos()).map(|p| geo.mirror_pos(p));
     let in_cells = pos.is_some_and(|p| geo.in_cells(p));
@@ -2123,10 +2133,10 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
     }
     // Objects (charts, pictures, shapes, slicers) take clicks first. Only the primary button moves
     // them: a right-click that wobbles into a drag still opens the object's menu (#2067).
-    let primary_drag = resp.drag_started_by(egui::PointerButton::Primary);
+    let primary_drag = resp.drag_started_by(egui::PointerButton::Primary) && !control_click;
     if primary_drag || primary_clicked {
         // A drag is recognised only after the pointer has moved, so grab the object where the press began.
-        let at = if primary_drag { pointer.press_origin().or(pos) } else { pos };
+        let at = if primary_drag { pointer.press_origin().map(|point| geo.mirror_pos(point)).or(pos) } else { pos };
         if let Some(p) = at
             && let Some((kind, id, rect)) = crate::chartview::hit(app, geo, sh, p)
         {
@@ -2143,9 +2153,10 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
             }
             if primary_drag {
                 let a = object_anchor(sh, kind, id);
-                let resize = (p - rect.right_bottom()).length() < OBJECT_RESIZE_RADIUS;
+                let resize = crate::chartview::resize_handle(rect, p);
                 if let Some(a) = a {
-                    app.grid.drag = Drag::Object { kind, id, start: p, orig: (a.cell, a.dx, a.dy, a.width, a.height), resize };
+                    let undo_len = app.session.active().map_or(0, |doc| doc.undo.len());
+                    app.grid.drag = Drag::Object { kind, id, start: p, orig: (a.cell, a.dx, a.dy, a.width, a.height), resize, undo_len };
                 }
             }
             return;
@@ -2156,7 +2167,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
     // A right-click on a chart, picture, shape or slicer opens the object's menu, not the cell's
     // under it; a right press that wobbles into a drag counts too (#2067).
     let secondary_drag = resp.drag_started_by(egui::PointerButton::Secondary);
-    if (resp.secondary_clicked() || secondary_drag)
+    if (secondary_clicked || secondary_drag)
         && let Some(p) = if secondary_drag { pointer.press_origin().map(|p| geo.mirror_pos(p)).or(pos) } else { pos }
         && let Some((kind, id, _)) = crate::chartview::hit(app, geo, sh, p)
     {
@@ -2167,6 +2178,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
 
     // A double-click is also a click: handle header AutoFit before resize setup returns.
     if resp.double_clicked()
+        && !control_click
         && let Some(p) = pos
     {
         let unhide = if in_col_header {
@@ -2202,6 +2214,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
 
     // Double-click the fill handle: a double-click is also a click, so run it before the handle press returns.
     if resp.double_clicked()
+        && !control_click
         && let Some(p) = pos
         && on_handle(p)
     {
@@ -2221,7 +2234,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
     }
 
     // Press: decide the drag mode.
-    if resp.drag_started() || (primary_clicked && app.grid.drag == Drag::None) {
+    if (resp.drag_started() && !control_click) || (primary_clicked && app.grid.drag == Drag::None) {
         // Where the press began (a drag is only recognised after the pointer has moved).
         let Some(p) = pointer.press_origin().map(|p| geo.mirror_pos(p)).or(pos) else { return };
         // The outline band's − / + and level buttons act on release, like buttons.
@@ -2252,7 +2265,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
                 app.grid.filter_menu = Some((c, h.header_row, geo.mirror_pos(p)));
                 return;
             }
-            if point_header(app, wb, sh, RangeRef::cols(c, c), mods.shift, mods.command) {
+            if point_header(app, &ctx, wb, RangeRef::cols(c, c), mods.shift, mods.command) {
                 return;
             }
             // An armed Format Painter paints the columns dragged over instead of moving them.
@@ -2277,7 +2290,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
                 return;
             }
             let r = geo.row_at(sh, p.y);
-            if point_header(app, wb, sh, RangeRef::rows(r, r), mods.shift, mods.command) {
+            if point_header(app, &ctx, wb, RangeRef::rows(r, r), mods.shift, mods.command) {
                 return;
             }
             let range = if mods.shift { RangeRef::rows(sel.anchor.row.min(r), sel.anchor.row.max(r)) } else { RangeRef::rows(r, r) };
@@ -2312,11 +2325,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
             };
             let range = RangeRef::new(anchor, c);
             let text = if range.is_single() { c.a1() } else { range.a1() };
-            let sheet_name = (ed.sheet != wb.active_sheet).then(|| sh.name.clone());
-            let r = match sheet_name {
-                Some(n) => format!("{}!{text}", gridcraft_engine::formula::quote_sheet(&n)),
-                None => text,
-            };
+            let r = point_reference(&ctx, wb, ed, &text);
             if mods.command && !mods.shift {
                 ed.append_ref(&r);
             } else {
@@ -2330,7 +2339,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
             if resp.drag_started()
                 && let Some(p) = pos
             {
-                select_to_pointer(app, geo, sh, wb, p);
+                select_to_pointer(app, &ctx, geo, sh, wb, p);
             }
             return;
         }
@@ -2387,7 +2396,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
             && let Some(p) = pos
         {
             // The first recognised drag already includes movement away from the press.
-            select_to_pointer(app, geo, sh, wb, p);
+            select_to_pointer(app, &ctx, geo, sh, wb, p);
         }
         return;
     }
@@ -2417,7 +2426,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
         );
         match app.grid.drag.clone() {
             Drag::Select => {
-                select_to_pointer(app, geo, sh, wb, p);
+                select_to_pointer(app, &ctx, geo, sh, wb, p);
                 scroll_by(app, auto);
             }
             Drag::Rows(anchor) => {
@@ -2486,11 +2495,15 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
                 app.grid.drag = Drag::Move { grab, to: Some(src.start.offset_clamped(dr, dc)) };
                 scroll_by(app, auto);
             }
-            Drag::Object { kind, id, start, orig, resize } => {
+            Drag::Object { kind, id, start, orig, resize, undo_len } => {
                 let d = (p - start) / geo.z;
                 let (cell, dx, dy, w, h) = orig;
-                let params = if resize {
-                    json!({"kind": kind, "id": id, "width": (w + d.x).max(20.0), "height": (h + d.y).max(20.0)})
+                let params = if let Some(handle) = resize {
+                    let original = Rect::from_min_size(pos2(sh.col_left(cell.col) as f32 + dx, sh.row_top(cell.row) as f32 + dy), vec2(w, h));
+                    let resized = handle.resized(original, d);
+                    let at = CellRef::new(sh.row_at(resized.top() as f64), sh.col_at(resized.left() as f64));
+                    json!({"kind": kind, "id": id, "at": at.a1(), "dx": resized.left() - sh.col_left(at.col) as f32,
+                        "dy": resized.top() - sh.row_top(at.row) as f32, "width": resized.width(), "height": resized.height()})
                 } else {
                     // Re-anchor at the cell under the new top-left.
                     let x0 = sh.col_left(cell.col) as f32 + dx + d.x;
@@ -2499,7 +2512,9 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
                     json!({"kind": kind, "id": id, "at": nc.a1(), "dx": x0.max(0.0) - sh.col_left(nc.col) as f32, "dy": y0.max(0.0) - sh.row_top(nc.row) as f32})
                 };
                 let _ = app.session.run("object.move", params);
-                coalesce_last_undo(app);
+                if app.session.active().is_some_and(|doc| doc.undo.len() > undo_len.saturating_add(1)) {
+                    coalesce_last_undo(app);
+                }
             }
             Drag::None => {}
         }
@@ -2512,7 +2527,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
                 if resp.drag_stopped()
                     && let Some(p) = pos
                 {
-                    select_to_pointer(app, geo, sh, wb, p);
+                    select_to_pointer(app, &ctx, geo, sh, wb, p);
                 }
                 format_painter_apply(app);
             }
@@ -2564,9 +2579,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
     }
 
     // Right-click: context menu.
-    if resp.secondary_clicked()
-        && let Some(p) = pos
-    {
+    if secondary_clicked && let Some(p) = pos {
         if in_cells && !sel.contains(geo.cell_at(sh, p)) {
             let _ = app.session.run("selection.set", json!({"cell": geo.cell_at(sh, p).a1()}));
         }
@@ -2590,7 +2603,7 @@ fn interact(app: &mut SheetApp, ui: &mut egui::Ui, resp: &egui::Response, geo: &
         }
     }
 
-    if primary_clicked || resp.drag_started() {
+    if primary_clicked || (resp.drag_started() && !control_click) {
         resp.request_focus();
     }
     keyboard(app, &ctx, resp, geo, sh);
@@ -2609,17 +2622,33 @@ fn format_painter_apply(app: &mut SheetApp) {
     }
 }
 
+/// A tab Shift-click explicitly chooses a sheet span while the editor remains on its origin
+/// sheet. Ordinary grouped sheet selections never turn a reference into a 3D reference.
+fn point_sheet_name(ctx: &egui::Context, wb: &Workbook, ed: &EditState) -> Option<String> {
+    let span = ctx.data(|data| data.get_temp::<(String, String)>(egui::Id::new("gridcraft.formula_sheet_span")));
+    if let Some((first, last)) = span
+        && first != last
+        && wb.sheet(ed.sheet).is_some_and(|sheet| sheet.name == first)
+        && wb.active().is_some_and(|sheet| sheet.name == last)
+    {
+        return Some(format!("{first}:{last}"));
+    }
+    (ed.sheet != wb.active_sheet).then(|| wb.active().map(|sheet| sheet.name.clone())).flatten()
+}
+
+fn point_reference(ctx: &egui::Context, wb: &Workbook, ed: &EditState, address: &str) -> String {
+    point_sheet_name(ctx, wb, ed).map_or_else(|| address.to_string(), |sheet| format!("{}!{address}", gridcraft_engine::formula::quote_sheet(&sheet)))
+}
+
 /// Point mode on a header: inserts a whole-row or whole-column reference instead of selecting.
-fn point_header(app: &mut SheetApp, wb: &Workbook, sh: &Sheet, range: RangeRef, extend: bool, add: bool) -> bool {
+fn point_header(app: &mut SheetApp, ctx: &egui::Context, wb: &Workbook, range: RangeRef, extend: bool, add: bool) -> bool {
     let Some(ed) = app.editor.as_mut().filter(|ed| ed.can_point()) else { return false };
-    let edit_sheet = ed.sheet;
-    let active_sheet = wb.active_sheet;
+    let expected_sheet = point_sheet_name(ctx, wb, ed);
     let range = if extend {
         ed.point
             .and_then(|point| crate::editor::formula_refs(&ed.text).into_iter().find(|(start, end, ..)| (*start, *end) == point))
             .and_then(|(_, _, previous, previous_sheet, _)| {
-                let previous_sheet = previous_sheet.as_deref().map(|name| wb.sheet_index(name)).unwrap_or(Some(edit_sheet));
-                if previous_sheet != Some(active_sheet) {
+                if previous_sheet != expected_sheet {
                     return None;
                 }
                 if range.is_full_cols() && previous.is_full_cols() {
@@ -2634,8 +2663,7 @@ fn point_header(app: &mut SheetApp, wb: &Workbook, sh: &Sheet, range: RangeRef, 
     } else {
         range
     };
-    let reference = range.a1();
-    let reference = if ed.sheet != wb.active_sheet { format!("{}!{reference}", gridcraft_engine::formula::quote_sheet(&sh.name)) } else { reference };
+    let reference = point_reference(ctx, wb, ed, &range.a1());
     if add {
         ed.append_ref(&reference);
     } else {
@@ -2647,7 +2675,7 @@ fn point_header(app: &mut SheetApp, wb: &Workbook, sh: &Sheet, range: RangeRef, 
     true
 }
 
-fn select_to_pointer(app: &mut SheetApp, geo: &Geo, sh: &Sheet, wb: &Workbook, p: Pos2) {
+fn select_to_pointer(app: &mut SheetApp, ctx: &egui::Context, geo: &Geo, sh: &Sheet, wb: &Workbook, p: Pos2) {
     let cell = CellRef::new(
         geo.row_at(sh, p.y.clamp(geo.cells.top() + 1.0, geo.cells.bottom() - 1.0)),
         geo.col_at(sh, p.x.clamp(geo.cells.left() + 1.0, geo.cells.right() - 1.0)),
@@ -2658,7 +2686,7 @@ fn select_to_pointer(app: &mut SheetApp, geo: &Geo, sh: &Sheet, wb: &Workbook, p
         if let Some(start) = ed.point_anchor.filter(|(sheet, _)| *sheet == wb.active_sheet).map(|(_, cell)| cell).or(ed.point_cell) {
             let range = RangeRef::new(start, cell);
             let text = if range.is_single() { range.start.a1() } else { range.a1() };
-            let text = if ed.sheet != wb.active_sheet { format!("{}!{text}", gridcraft_engine::formula::quote_sheet(&sh.name)) } else { text };
+            let text = point_reference(ctx, wb, ed, &text);
             ed.insert_ref(&text);
             ed.point_cell = Some(cell);
             ed.point_anchor = Some((wb.active_sheet, start));
@@ -2877,28 +2905,63 @@ pub fn follow_link(app: &mut SheetApp, target: &str) {
     }
 }
 
-/// The areas after a click: with `add` (Ctrl) the clicked area is added, or removed when it is already
-/// selected (unless it is the only one, so the selection never ends up empty).
-fn toggled_ranges(mut ranges: Vec<String>, clicked: String, add: bool) -> Vec<String> {
+/// Subtract a rectangle without enumerating its cells (whole-row/column selections stay bounded).
+fn subtract_range(range: RangeRef, cut: RangeRef) -> Vec<RangeRef> {
+    let Some(overlap) = range.intersection(&cut) else { return vec![range] };
+    let mut pieces = Vec::with_capacity(4);
+    if range.start.row < overlap.start.row {
+        pieces.push(RangeRef::new(range.start, CellRef::new(overlap.start.row - 1, range.end.col)));
+    }
+    if overlap.end.row < range.end.row {
+        pieces.push(RangeRef::new(CellRef::new(overlap.end.row + 1, range.start.col), range.end));
+    }
+    if range.start.col < overlap.start.col {
+        pieces.push(RangeRef::new(CellRef::new(overlap.start.row, range.start.col), CellRef::new(overlap.end.row, overlap.start.col - 1)));
+    }
+    if overlap.end.col < range.end.col {
+        pieces.push(RangeRef::new(CellRef::new(overlap.start.row, overlap.end.col + 1), CellRef::new(overlap.end.row, range.end.col)));
+    }
+    pieces
+}
+
+/// Ctrl/Cmd-click removes an intersecting area, including a cell inside a rectangle. Never leave
+/// overlapping areas, or remove the very last selectable cell.
+fn toggled_ranges(ranges: Vec<String>, clicked: String, add: bool) -> Vec<String> {
     if !add {
         return vec![clicked];
     }
-    if ranges.len() > 1 && ranges.contains(&clicked) {
-        ranges.retain(|x| *x != clicked);
-    } else if !ranges.contains(&clicked) {
-        ranges.push(clicked);
+    let Some(cut) = RangeRef::parse(&clicked) else { return ranges };
+    let mut areas: Vec<_> = ranges.iter().filter_map(|range| RangeRef::parse(range)).collect();
+    if areas.iter().any(|area| area.intersects(&cut)) {
+        areas = areas.into_iter().flat_map(|area| subtract_range(area, cut)).collect();
+        if areas.is_empty() {
+            areas.push(cut);
+        }
+    } else {
+        areas.push(cut);
     }
-    ranges
+    areas.into_iter().map(|area| area.a1()).collect()
 }
 
 fn select_ranges(app: &mut SheetApp, r: RangeRef, add: bool, active: CellRef) {
     let current: Vec<String> =
         if add { app.session.active().map(|d| d.selection.ranges.iter().map(|x| x.a1()).collect()).unwrap_or_default() } else { vec![] };
-    let clicked = r.a1();
-    let ranges = toggled_ranges(current, clicked.clone(), add);
-    // A removed area takes the active cell with it; `selection.set` then puts it at the start of the last area.
-    let params =
-        if ranges.contains(&clicked) { json!({"range": ranges.join(","), "active": active.a1()}) } else { json!({"range": ranges.join(",")}) };
+    let clicked =
+        if r.is_single() { app.session.active().and_then(|d| d.wb.active()).and_then(|sheet| sheet.merge_at(r.start)).unwrap_or(r) } else { r };
+    let mut ranges = toggled_ranges(current, clicked.a1(), add);
+    let contains = |range: &str, cell| RangeRef::parse(range).is_some_and(|range| range.contains(cell));
+    let previous = app.session.active().map(|d| d.selection.active).unwrap_or(active);
+    let active = if ranges.iter().any(|range| contains(range, active)) { active } else { previous };
+    if let Some(index) = ranges.iter().position(|range| contains(range, active)) {
+        // Selection::current is the last area, which must contain its active cell.
+        let current = ranges.remove(index);
+        ranges.push(current);
+    }
+    let params = if ranges.iter().any(|range| contains(range, active)) {
+        json!({"range": ranges.join(","), "active": active.a1()})
+    } else {
+        json!({"range": ranges.join(",")})
+    };
     let _ = app.session.run("selection.set", params);
 }
 
@@ -2943,6 +3006,7 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
             should_interrupt_composition: false,
         });
     });
+    crate::formula_bar::consume_ime_boundary_keys(ctx, resp.id);
     let events = ctx.input(|i| i.events.clone());
     // A shortcut key that also types a character (Shift+Space sends Text(" ")) must not start an edit.
     let shortcut_pressed = events.iter().any(|e| {
@@ -2953,6 +3017,7 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
     // Alt shortcuts type their character too on Windows and Linux (Alt+= sends Text("=")): once
     // a shortcut ran, that text must not start an edit over what it just did.
     let mut shortcut_ran = false;
+    let mut pasted_picture = false;
     for ev in events {
         match ev {
             egui::Event::Copy => {
@@ -2961,7 +3026,14 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
             egui::Event::Cut => {
                 app.copy_to_clipboard(ctx, "edit.cut");
             }
-            egui::Event::Paste(text) => app.paste_external(text),
+            egui::Event::Paste(text) => {
+                if !pasted_picture {
+                    pasted_picture = app.try_paste_picture();
+                    if !pasted_picture {
+                        app.paste_external(text);
+                    }
+                }
+            }
             // IMEs send Preedit/Commit instead of Text. Open the editor before it is drawn below,
             // and give it focus so egui can consume the original composition event exactly once.
             egui::Event::Ime(egui::ImeEvent::Preedit { ref text, .. } | egui::ImeEvent::Commit(ref text))
@@ -2970,6 +3042,9 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
                 app.begin_edit(Some(String::new()), false);
                 if app.editor.is_some() {
                     crate::formula_bar::focus_direct_ime(ctx);
+                } else {
+                    // A protected cell must not leave an unowned browser composition running.
+                    ctx.memory_mut(|memory| memory.interrupt_ime());
                 }
                 return;
             }
@@ -2985,6 +3060,13 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
             }
             egui::Event::Key { key, physical_key, pressed: true, modifiers: m, .. } => {
                 use egui::Key;
+                // Native screenshot clipboards may have no text and therefore no Paste event.
+                // Key and Paste can also share a frame, so insert an image at most once.
+                if key == Key::V && m.command && !m.alt && !m.shift && (pasted_picture || app.try_paste_picture()) {
+                    pasted_picture = true;
+                    shortcut_ran = true;
+                    continue;
+                }
                 if crate::keymap::dispatch(app, ctx, key, physical_key, m, geo, sh) {
                     shortcut_ran = true;
                     continue;
@@ -3024,14 +3106,25 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
                     }
                     // Excel: Enter while a copied range is marked pastes it and ends copy mode.
                     Key::Enter if !m.alt && !m.ctrl && !shift && !cmd && app.session.clipboard.is_some() => {
-                        app.run_or_alert("edit.paste", json!({}));
-                        app.session.clipboard = None;
-                        app.grid.ensure_visible = true;
+                        match app.run("edit.paste", json!({})) {
+                            Ok(_) => {
+                                app.session.clipboard = None;
+                                app.grid.ensure_visible = true;
+                            }
+                            Err(error) => {
+                                // The Enter that attempted Paste must not immediately accept
+                                // the error dialog drawn later in this same frame.
+                                ctx.input_mut(|input| {
+                                    input.consume_key(egui::Modifiers::NONE, Key::Enter);
+                                });
+                                app.message = Some(("GridCraft".into(), crate::clean_error(&error)));
+                            }
+                        }
                     }
                     Key::Enter => {
-                        if m.alt || m.ctrl {
+                        if m.alt {
                             app.begin_edit(None, false);
-                        } else {
+                        } else if !m.ctrl && !cmd {
                             app.move_after_enter(if shift { -1 } else { 1 }, 0);
                         }
                     }
@@ -3041,11 +3134,8 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
                     Key::Delete => app.run_or_alert("edit.clearContents", json!({})),
                     Key::Backspace if delete_selected_object(app, sh) => {}
                     Key::Backspace => {
-                        // Excel for Mac: Delete clears the cell and starts editing it.
-                        app.run_or_alert("edit.clearContents", json!({}));
-                        if app.session.active().is_some_and(|d| d.selection.is_single_cell()) {
-                            app.begin_edit(Some(String::new()), false);
-                        }
+                        // Backspace edits only the active cell; Delete clears the whole selection.
+                        app.begin_edit(Some(String::new()), false);
                     }
                     Key::Escape => {
                         app.session.clipboard = None;
@@ -3286,6 +3376,13 @@ fn context_menu(app: &mut SheetApp, ui: &mut egui::Ui) {
             if let Some(item) = insert_copied {
                 items.insert(6, item);
             }
+            let cell_picture = app.session.active().and_then(|doc| {
+                let cell = doc.selection.active;
+                doc.wb.active().filter(|sheet| sheet.cell_pictures.contains_key(&cell)).map(|_| cell)
+            });
+            if cell_picture.is_some() {
+                items.extend([("-", ""), ("Place over Cells", "picture.placeOverCells")]);
+            }
             let lang = crate::i18n::current(ui.ctx());
             for (label, id) in items {
                 if label == "-" {
@@ -3320,6 +3417,11 @@ fn context_menu(app: &mut SheetApp, ui: &mut egui::Ui) {
                             app.copy_to_clipboard(ui.ctx(), id);
                         }
                         "edit.paste" => app.paste_from_clipboard(),
+                        "picture.placeOverCells" => {
+                            if let Some(cell) = cell_picture {
+                                app.run_or_alert(id, json!({"cell": cell.a1()}));
+                            }
+                        }
                         other => app.run_or_alert(other, json!({})),
                     }
                 }
@@ -3391,6 +3493,8 @@ fn object_menu(app: &mut SheetApp, ui: &mut egui::Ui) {
             let mut items = vec![("Delete", "object.delete")];
             if kind == "chart" {
                 items.extend([("-", ""), ("Select Data…", "ui:selectData"), ("Format Chart Area…", "ui:formatChart")]);
+            } else if kind == "image" {
+                items.extend([("-", ""), ("Place in Cell", "picture.placeInCell")]);
             }
             let lang = crate::i18n::current(ui.ctx());
             for (label, action) in items {
@@ -3403,6 +3507,7 @@ fn object_menu(app: &mut SheetApp, ui: &mut egui::Ui) {
                     match action {
                         "ui:selectData" => app.open_dialog("selectData", json!({"chart": id})),
                         "ui:formatChart" => app.grid.pane = Some("formatChart".into()),
+                        "picture.placeInCell" => app.run_or_alert(action, json!({"image": id})),
                         _ => {
                             app.run_or_alert("object.delete", json!({"kind": kind, "id": id}));
                             app.selected_chart = None;
@@ -3468,14 +3573,17 @@ fn error_check_tag(app: &mut SheetApp, ui: &mut egui::Ui, geo: &Geo, sh: &Sheet)
 }
 
 /// Used by `EditState` users to keep the active cell visible while pointing.
-pub fn point_move(app: &mut SheetApp, ed: &mut EditState, dr: i64, dc: i64, extend: bool) {
+pub fn point_move(app: &mut SheetApp, ctx: &egui::Context, ed: &mut EditState, dr: i64, dc: i64, extend: bool) {
     let Some(d) = app.session.active() else { return };
     let from = ed.point_cell.unwrap_or(ed.cell);
     let to = from.offset_clamped(dr, dc);
     let anchor = if extend {
         // The anchor is the corner opposite the moving end: the written range is normalized, so
         // after extending up or left its first cell is the moving end, not the anchor.
-        let pointed = ed.point.and_then(|(s, e)| ed.text.get(s..e)).and_then(RangeRef::parse);
+        let pointed = ed
+            .point
+            .and_then(|(s, e)| ed.text.get(s..e))
+            .and_then(|text| RangeRef::parse(text.rsplit_once('!').map_or(text, |(_, address)| address)));
         let inferred_anchor = pointed
             .map(|r| {
                 CellRef::new(
@@ -3490,6 +3598,7 @@ pub fn point_move(app: &mut SheetApp, ed: &mut EditState, dr: i64, dc: i64, exte
     };
     let text = if extend { RangeRef::new(anchor, to).a1() } else { to.a1() };
     let sheet = d.wb.active_sheet;
+    let text = point_reference(ctx, &d.wb, ed, &text);
     ed.insert_ref(&text);
     ed.point_cell = Some(to);
     ed.point_anchor = Some((sheet, anchor));
@@ -4232,6 +4341,19 @@ mod pane_tests {
         assert_eq!(toggled_ranges(s(&["A:A"]), "A:A".into(), true), s(&["A:A"]));
         assert_eq!(toggled_ranges(s(&["A1", "B2", "3:3"]), "B2".into(), true), s(&["A1", "3:3"]));
         assert_eq!(toggled_ranges(s(&["A:A", "C:C"]), "C:C".into(), false), s(&["C:C"]));
+    }
+
+    #[test]
+    fn deselecting_inside_full_columns_uses_a_bounded_disjoint_rectangle_split() {
+        let selected = RangeRef::cols(0, gridcraft_engine::core::MAX_COLS - 1);
+        let removed = RangeRef::parse("B2:D5").unwrap();
+        let pieces = subtract_range(selected, removed);
+        assert_eq!(pieces.len(), 4);
+        assert_eq!(pieces.iter().map(RangeRef::count).sum::<u64>(), selected.count() - removed.count());
+        for (i, area) in pieces.iter().enumerate() {
+            assert!(!area.intersects(&removed));
+            assert!(pieces.iter().skip(i + 1).all(|other| !area.intersects(other)));
+        }
     }
 
     #[test]

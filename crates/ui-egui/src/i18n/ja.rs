@@ -983,7 +983,7 @@ pub(super) const DIALOGS: &[(&str, &str)] = &[
 
 /// Editor and macro strings beyond the shared reference catalog. Source identifiers and user
 /// program output are intentionally absent: translations apply only to interface text.
-const VBA: &[(&str, &str)] = &[
+pub(super) const VBA: &[(&str, &str)] = &[
     (
         "This workbook contains VBA macros. The original project is preserved when saved as .xlsm. Inspect source in Macros; Excel VBA compatibility is still incomplete.",
         "このブックには VBA マクロが含まれています。.xlsm 形式で保存すると、元のプロジェクトを保持します。コードは「マクロ」で確認できます。Excel VBA との完全互換は、まだ実現していません。",
@@ -1065,8 +1065,42 @@ const VBA: &[(&str, &str)] = &[
 
 /// Translates an interface label; `None` for a label the catalog does not know, so `i18n.rs` can
 /// fall back to English. The shared reference lists keep their original coverage contract.
+pub(super) const ERRORS: &[(&str, &str)] = &[
+    ("Record Macro", "マクロの記録"),
+    ("Stop Recording", "記録終了"),
+    ("Open the VBA Editor", "VBA エディターを開く"),
+    ("Macros (Alt+F8)", "マクロ (Alt+F8)"),
+    ("[Group]", "[グループ]"),
+    ("Ungroup Sheets", "シートのグループ解除"),
+    ("The picture fits the cell and scales with its row and column.", "画像はセルに収まり、行や列のサイズに合わせて拡大縮小します。"),
+    ("The picture floats over cells and has resize handles.", "画像はセルの上に配置され、ハンドルでサイズを変更できます。"),
+    ("There's a problem with this formula.", "この数式には問題があります。"),
+    ("unexpected end of formula", "数式が途中で終わっています"),
+    ("unterminated text", "文字列が閉じられていません"),
+    ("unterminated sheet name", "シート名の引用符が閉じられていません"),
+    ("expected ! after sheet name", "シート名の後に ! が必要です"),
+    ("unknown error literal", "認識できないエラー値です"),
+    ("unbalanced [", "角かっこ [ が閉じられていません"),
+    ("formula is nested too deeply", "数式の入れ子が深すぎます"),
+    ("too many arguments", "引数が多すぎます"),
+    ("invalid 3-D reference", "3D 参照が正しくありません"),
+    ("array rows must have the same length", "配列の各行の要素数をそろえてください"),
+    ("You can't change part of an array.", "配列の一部を変更することはできません。"),
+    ("You can't do that to a merged cell.", "結合したセルに対してこの操作は行えません。"),
+    ("That command cannot be used on multiple selections.", "複数の選択範囲に対してこの操作は行えません。"),
+    ("That command cannot be used on overlapping selections.", "重なった選択範囲に対してこの操作は行えません。"),
+    ("The cell you're trying to change is on a protected sheet.", "変更しようとしているセルは保護されたシート上にあります。"),
+    ("The value you entered is not valid.", "入力した値は正しくありません。"),
+    (
+        "This value doesn't match the data validation restrictions defined for this cell.",
+        "この値は、このセルに設定されたデータの入力規則を満たしていません。",
+    ),
+    ("Clipboard image is larger than 64 MB.", "クリップボードの画像が 64 MB を超えています。"),
+    ("Clipboard content is larger than 64 MB.", "クリップボードの内容が 64 MB を超えています。"),
+];
+
 pub(super) fn translate(text: &str) -> Option<&'static str> {
-    DIALOGS.iter().chain(CORE).chain(VBA).find(|(english, _)| *english == text).map(|(_, translated)| *translated)
+    DIALOGS.iter().chain(CORE).chain(VBA).chain(ERRORS).find(|(english, _)| *english == text).map(|(_, translated)| *translated)
 }
 
 #[cfg(test)]
