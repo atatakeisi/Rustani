@@ -1,6 +1,8 @@
 # Rustani 現状共有シート
 
-更新日: 2026-10-25（日本時間）。最新作業は「19」の **Item 22: RustaniへのリブランディングとGitHub Pages設定**（比較基点 `a7feefae`）。内部のCargo名・ディレクトリ・保存キーは引き継ぎ、表示名・README・著作権告知を更新した。検証とコミット状態は「19」と `git log -1 --oneline` / `git status -sb` で確認する。
+更新日: 2026-10-25（日本時間）。最新修正は「20」のKeyTips生成と `cargo fmt` の設定統一（比較基点 `3776e11a`）。生成時にworkspaceの `rustfmt.toml` を明示し、生成コード2件を更新した。検証結果は「20」、確定したコミットと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
+
+直前の作業は「19」の **Item 22: RustaniへのリブランディングとGitHub Pages設定**（比較基点 `a7feefae`）。内部のCargo名・ディレクトリ・保存キーは引き継ぎ、表示名・README・著作権告知を更新した。検証とコミット状態は「19」と `git log -1 --oneline` / `git status -sb` で確認する。
 
 GitHubのリポジトリは非公開。Pages有効化要求は現行プラン制限でHTTP 422となり、**Web公開は未完了**。リポジトリの公開範囲や契約は変更していない。条件を満たした後にSettings → Pages → Source: GitHub Actionsを選び、Rustani Pagesを実行する。予定URLは `https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja`、将来 `rustani` へ改名した場合は `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja`。
 
@@ -395,3 +397,11 @@ GitHub実設定の確認:
 - 現リポジトリ名の予定URL: `https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja`。将来リポジトリ名を `rustani` へ変更した場合のURL: `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja`。今回repo名・remoteは変更しない。
 
 検証結果とローカル8784番のRustani出力は、実行後にここへ記録する。Safari実機・実OS IME候補変換、Windows Chrome、Excel実行可能VBAプロジェクトの生成/書換えと引数付きVBAの拡張は引き続き未完了であり、この名称変更で解決済みとは扱わない。
+
+## 20. KeyTips生成のrustfmt設定とCI整合（2026-10-25）
+
+GitHub Actionsの `cargo xtask ci` が `fmt` で停止する原因として、stdinから起動するKeyTipsジェネレーターのrustfmtへworkspace設定が渡っていないことを確認した。`xtask/src/keytips.rs` の `rustfmt(src, root)` にrootを渡し、`--config-path` に `root.join("rustfmt.toml")` を明示する。PathBufをそのまま引数に渡すため、パスの文字列変換やunwrapを追加しない。table/test両方の生成経路で共用する。
+
+`cargo run -p xtask -- keytips` → `cargo fmt --all` の順で更新し、生成ファイル2件のSHA-256が全体整形の前後で一致することを確認した。`max_width = 150` / `use_small_heuristics = "Max"` を共有し、生成と整形の往復で差分を作らない。KeyTipsの入力JSONと操作仕様は変更していない。 プロジェクト外の親ディレクトリから `./gridcraft/target/debug/xtask keytips --check` も成功した（`../outputs/Rustani-Keytips-Other-Cwd-20261025.log`）。
+
+`cargo xtask ci` の全8項目が成功した（fmt、Clippy、test、assets、layers、Wasm、parity、keytips）。161 suite・2,367件成功・0失敗・既存ignore 1件。`fmt --check` と生成コードの `keytips --check` が両方通過し、生成と整形の不一致を解消した。生成ログ: `../outputs/Rustani-Keytips-Generate-20261025.log`、整形ログ: `../outputs/Rustani-Keytips-Format-20261025.log`、CIログ: `../outputs/Rustani-Keytips-CI-20261025.log`。GitHub Pages未有効化の問題は「19」に記録した別の制約である。

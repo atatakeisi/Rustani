@@ -22,13 +22,14 @@ const ENV_SENSITIVE: &[&str] = &["review.spelling"];
 /// command itself errors without them). Never probed; their tests assert the dialog opens.
 const UI_DIALOG_COMMANDS: &[(&str, &str)] = &[("insert.recommendedCharts", "recommendedCharts")];
 
-/// Format generated source through `rustfmt` so the checked-in file matches
-/// the emitter byte-for-byte.
-fn rustfmt(src: &str) -> Result<String, String> {
+/// Use the workspace's explicit config for stdin, so generation agrees with `cargo fmt`.
+fn rustfmt(src: &str, root: &Path) -> Result<String, String> {
     use std::io::Write;
     use std::process::{Command, Stdio};
     let mut child = Command::new("rustfmt")
-        .args(["--edition", "2024", "--emit", "stdout"])
+        .args(["--edition", "2024", "--config-path"])
+        .arg(root.join("rustfmt.toml"))
+        .args(["--emit", "stdout"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -95,8 +96,10 @@ pub fn run(root: &Path, rest: &[&str]) -> Result<(), String> {
         let tests_path = root.join("crates/ui-egui/tests/keytips_generated.rs");
         let source = fs::read_to_string(&json_path).map_err(|e| format!("read {}: {e}", json_path.display()))?;
         let (entries, probe) = parse_and_probe(&source)?;
-        let generated =
-            [(table_path.as_path(), rustfmt(&render_table(&entries))?), (tests_path.as_path(), rustfmt(&render_tests(&entries, &probe))?)];
+        let generated = [
+            (table_path.as_path(), rustfmt(&render_table(&entries), root)?),
+            (tests_path.as_path(), rustfmt(&render_tests(&entries, &probe), root)?),
+        ];
         if rest.contains(&"--check") {
             for (path, expected) in &generated {
                 let on_disk = fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
