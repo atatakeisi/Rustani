@@ -111,7 +111,7 @@ pub fn start() {
             match result {
                 Ok(()) => el.remove(),
                 Err(e) => {
-                    el.set_text_content(Some(&format!("GridCraftを起動できませんでした: {e:?}\nWebGPUまたはWebGL2に対応したブラウザが必要です。")))
+                    el.set_text_content(Some(&format!("Rustaniを起動できませんでした: {e:?}\nWebGPUまたはWebGL2に対応したブラウザが必要です。")))
                 }
             }
         }

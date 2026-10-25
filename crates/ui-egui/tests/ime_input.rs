@@ -357,7 +357,7 @@ fn the_ime_boundary_guard_does_not_take_keys_from_another_focused_widget() {
 fn opening_a_message_suspends_the_editors_ime_boundary_guard() {
     let (ctx, mut app) = blank();
     frame(&ctx, &mut app, vec![preedit("にほん")]);
-    app.message = Some(("GridCraft".into(), "A modal message owns Enter.".into()));
+    app.message = Some(("Rustani".into(), "A modal message owns Enter.".into()));
     frame(&ctx, &mut app, vec![]);
     let mut output = ctx.run_ui(
         RawInput {

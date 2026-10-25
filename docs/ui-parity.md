@@ -3,6 +3,7 @@
 > **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** minor (item 21 Web Save As verified; CI passed 2,363 tests; Web refreshed and Chrome dialog checked; items 17–20 evidence retained) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
+The application display name is now **Rustani** (item 22); internal crate and file names retain `gridcraft`. The Account/About page credits the upstream GridCraft project in plain text. Build and Pages publication status are recorded in [PROJECT_STATUS.md §19](../PROJECT_STATUS.md).
 The earlier **UI/UX fidelity estimate of ~55% and 50–80 h of work** has not been reassessed.
 Ribbon command coverage is measured separately in [parity-checklist.md](parity-checklist.md)
 (275 / 291 registered IDs). Registration does not establish UI availability or operational
@@ -17,7 +18,7 @@ context, not evidence that every original platform-specific report has been rete
 
 ## Window and chrome
 
-| Element | Excel | GridCraft | Status / remaining scope |
+| Element | Excel | Rustani | Status / remaining scope |
 |---|---|---|---|
 | Title bar, Quick Access Toolbar, AutoSave toggle | yes | yes | Earlier macOS window-control alignment (#170) and Dock icon-size (#169) reports have not been rechecked in this audit |
 | Ribbon: tabs, groups, split buttons, galleries, contextual tabs | yes | yes; contextual Table Design, Chart Design and Header & Footer tabs; colour pickers include Recent Colors and More Colors… (#928) | Dedicated contextual tabs for pictures, shapes, sparklines and slicers are missing; no contextual Format or PivotTable tab is currently added by `contextual_tabs` |
@@ -29,7 +30,7 @@ context, not evidence that every original platform-specific report has been rete
 | Macros and Record/Stop | yes | both controls in QAT, View, Automate and status bar | Stopping commits a pending cell edit, appends valid VBA to a safe standard module and opens the VBA editor. Alt+F8 opens Macros; WMR starts/stops recording. Recording/replay and unsupported-command limits are documented in [operational-parity.md](operational-parity.md) and [vba-compatibility.md](vba-compatibility.md) |
 | Status bar: statistics, view buttons, zoom, macro controls | yes | yes | Customizable statistics remain partial; Macros and Record/Stop are available at the left |
 | Task panes (Format Chart, Comments, Watch, Selection, PivotTable fields) | yes | yes; the PivotTable source-field scrollbar sits at the right edge | Element-level Format pane for shapes and pictures is missing |
-| Backstage (File): Info, New, Open recent, Save, Print, Export, Options | yes | yes; includes blank/sample workbooks, file properties/protection, page preview and existing application settings | No Account, Share or template gallery beyond the samples; Options applies immediately without OK/Cancel and exposes only GridCraft's settings, not the full Excel Options dialog |
+| Backstage (File): Info, New, Open recent, Save, Print, Export, Options | yes | yes; includes blank/sample workbooks, file properties/protection, page preview and existing application settings | Account shows Rustani, version, license and About; Share and a template gallery beyond the samples remain missing. Options applies immediately without OK/Cancel and exposes only the app's settings, not the full Excel Options dialog |
 | Dark mode, system appearance | yes | yes | Follows the system on first run; title-bar switch and File › Display theme (#194, #239) |
 | Page Layout view (paper view with rulers and header editing) | yes | yes; per-sheet view saved in XLSX, print pagination, rulers and in-place header/footer editing | Ruler margins can be dragged (#792); header/footer pictures and Different First Page / Odd & Even remain missing |
 | Multiple windows per workbook | yes | partial | `view.newWindow` is a linked document copy, not simultaneous views of one shared workbook; see [hardware-parity.md](hardware-parity.md) |

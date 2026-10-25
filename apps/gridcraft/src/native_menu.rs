@@ -174,8 +174,7 @@ fn tree() -> Vec<(&'static str, Vec<Entry>)> {
             vec![
                 ("Agent Control (MCP)…", "dialog:agents", None),
                 ("Contributors…", "dialog:about:Contributors", None),
-                ("GridCraft on getartcraft.com", "url:https://getartcraft.com/apps/gridcraft", None),
-                ("Join the ArtCraft Discord…", "url:https://discord.gg/artcraft", None),
+                ("Rustani on GitHub", "url:https://github.com/atatakeisi/gridcraft", None),
             ],
         ),
     ]
@@ -201,8 +200,8 @@ fn select_theme(app: &mut SheetApp, id: &str) -> bool {
 impl NativeMenu {
     pub fn install(ctx: &egui::Context) -> NativeMenu {
         let menu = Menu::new();
-        let app_menu = Submenu::new("GridCraft", true);
-        let about = MenuItem::with_id("dialog:about", "About GridCraft", true, None);
+        let app_menu = Submenu::new("Rustani", true);
+        let about = MenuItem::with_id("dialog:about", "About Rustani", true, None);
         let _ = app_menu.append_items(&[
             &about,
             &PredefinedMenuItem::separator(),
@@ -335,6 +334,15 @@ mod tests {
         let item = file.iter().find(|e| e.0 == "Export as PDF…").expect("Export as PDF… in the File menu");
         assert_eq!(item.1, "file.exportPdf");
         assert!(gridcraft_engine::find_command("file.exportPdf").is_some());
+    }
+
+    #[test]
+    fn help_links_point_to_the_fork_without_upstream_promotions() {
+        let entries = tree();
+        let help = &entries.iter().find(|(title, _)| *title == "Help").unwrap().1;
+        let links: Vec<_> = help.iter().filter(|(_, command, _)| command.starts_with("url:")).map(|(label, command, _)| (*label, *command)).collect();
+        assert_eq!(links, [("Rustani on GitHub", "url:https://github.com/atatakeisi/gridcraft")]);
+        assert!(help.iter().all(|(label, _, _)| !label.contains("ArtCraft") && !label.contains("GridCraft")));
     }
 
     #[test]

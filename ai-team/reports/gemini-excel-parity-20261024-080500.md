@@ -358,3 +358,45 @@ Investigating the architecture across `crates/engine` and `crates/ui-egui` revea
        - ドキュメントのアクティブタイトル（`d.title` や表示名）を入力された名称に更新する。
   2. **回帰テスト**:
      - Web環境（`download` サービスモック）において、「名前を付けて保存」をトリガーした際にダイアログが開き、任意のファイル名を入力して確定すると、そのカスタムファイル名でダウンロードペイロードが発行されることを検証するユニット/UIテストを追加する。
+
+### 22. [HIGH] 新名称「Rustani」へのリブランディング、README・ライセンス表記の刷新、およびGitHub Pages公開設定 (`apps/gridcraft-web/`, `crates/ui-egui/`, `README.md`, `NOTICE`, `.github/workflows/pages.yml`)
+- **Location**:
+  - `apps/gridcraft-web/index.html` (`<title>`, `#gridcraft_loading` 表示テキスト)
+  - `apps/gridcraft-web/src/web.rs:114` (起動エラー表示テキスト)
+  - `apps/gridcraft/src/main.rs` (ネイティブ版ウィンドウタイトル等)
+  - `crates/ui-egui/src/backstage.rs:1033, 1046, 1052` (ファイル ▸ アカウント画面の製品名・ボタン表示)
+  - `crates/ui-egui/src/dialogs.rs:1890-1896` (About ダイアログの見出し・説明文・リンク)
+  - `crates/ui-egui/src/i18n/ja.rs` (および必要に応じて他カタログ・UIメッセージタイトル)
+  - `README.md`, `NOTICE`, `LICENSE-MIT`, `packaging/web/README.md`
+  - `.github/workflows/pages.yml` (新規追加：GitHub Pages 自動ビルド・デプロイワークフロー)
+- **What the User Requested**:
+  - アプリケーションの表示名称を **`GridCraft`** から新名称 **`Rustani`** に変更したい。
+  - MIT / Apache-2.0 ライセンスおよび `docs/brand/LICENSE-brand.txt`（改変版を公開・配布する際は ArtCraft の商標ロゴ・マーク表示を除去し、ArtCraft 製品として表示せず、プレーンテキストで元プロジェクトが ArtCraft Team による GridCraft である旨を記載する規約）を厳守した上で、`README.md` を自分専用の **Rustani** 案内ページへと刷新したい。
+  - 友人や別PC（Windows Chrome等）からURLを開くだけで使えるよう、**GitHub Pages** でWeb版（WASM）を公開できる状態まで一気に整備したい。
+- **Important Constraints**:
+  - **内部のCargoパッケージ名・クレート名（`gridcraft-core`, `gridcraft-engine`, `gridcraft-ui-egui`, `gridcraft-web` 等）やディレクトリ名、既存ファイルの削除は行わないこと**（`cargo xtask ci` の `layers` / `assets` / `wasm` ゲートを壊さず、かつ環境ルール「無断でのファイル削除禁止」を守るため）。
+  - `crates/ui-egui/src/i18n/ja.rs` の `CORE` / `DIALOGS` の英語キー集合は `pt.rs` と同期テスト（`covers_every_key_the_portuguese_catalog_translates`）があるため、英語キーを変更する場合は整合性を保つか、`VBA` スライスまたは翻訳後の値・表示ラベル側で調整すること。
+- **Implementation Steps**:
+  1. **UI・Webシェルの表示名を「Rustani」へ変更**:
+     - `apps/gridcraft-web/index.html`:
+       - `<title>Rustani</title>`
+       - `<div id="gridcraft_loading">Rustaniを読み込んでいます&hellip;</div>`
+     - `apps/gridcraft-web/src/web.rs:114`:
+       - 起動失敗メッセージを `"Rustaniを起動できませんでした: ..."` に更新。
+     - `crates/ui-egui/src/backstage.rs:1033-1054` (`account` ページ):
+       - 製品情報見出しを `"Rustani"` に変更。
+       - About ボタン・見出しを `"About Rustani"`（日本語訳：`"Rustani について"` または `"Rustani のバージョン情報"`）に変更。
+     - `crates/ui-egui/src/dialogs.rs:1874-1898` (`about` ダイアログ):
+       - ダイアログタイトル・見出しを `"Rustani"` に変更。
+       - `docs/brand/LICENSE-brand.txt` に従い、ArtCraft 公式サイトや ArtCraft Discord への誘導リンクを外し、代わりにプレーンテキストで「Rust製のオープンソース表計算ソフト（Based on GridCraft by the ArtCraft team and contributors, licensed under MIT / Apache-2.0）」およびリポジトリURL（`https://github.com/atatakeisi/gridcraft` / `rustani`）を表示する。
+     - 関連するUIテスト（`crates/ui-egui/tests/file_menu.rs` の `file_account_shows_the_version_and_opens_about` 等）を新しいラベルに合わせて更新する。
+  2. **ライセンス・著作権表記 (`LICENSE-MIT`, `NOTICE`) と `README.md` の刷新**:
+     - `LICENSE-MIT` および `NOTICE` に元の著作権表示（`Copyright (c) 2026 ArtCraft Team and the GridCraft contributors`）を完全に保持したまま、改変版の著作権表示（`Modifications Copyright (c) 2026 atatakeisi (Rustani)`）を追記する。
+     - `README.md` を **Rustani** 向けに全面刷新する：
+       - `docs/brand/artcraft-*` の画像埋め込みや上流の Discord / SonarCloud / CodeRabbit バッジ・上流アプリ一覧宣伝テーブルを除去（ファイル自体は削除せず残すことで `cargo xtask assets` を通す）。
+       - **Rustani** の概要（ブラウザですぐに使える日本語対応・Excel互換スプレッドシート）、主な機能（400種以上の関数、ピボットテーブル、グラフ、VBAエディタ・マクロ実行、XLSX読み書き、パスワード保護、名前を付けて保存ダイアログ等）、Web版（GitHub Pages）の公開URLと使い方、ローカル起動方法、および「本ソフトウェアは ArtCraft Team および貢献者によるオープンソースの GridCraft をベースにした改変版（MIT / Apache-2.0）であり、ArtCraft Team の公式製品ではありません」という明確な謝辞・由来表記を記載する。
+  3. **GitHub Pages 自動デプロイワークフロー (`.github/workflows/pages.yml`) の作成と確認環境更新**:
+     - `.github/workflows/pages.yml` を新規作成し、`main` ブランチへの push および `workflow_dispatch` 時に GitHub Actions 上で `apps/gridcraft-web` をビルド（`wasm32-unknown-unknown` + `trunk build --release --public-url "./"`）し、`actions/upload-pages-artifact` と `actions/deploy-pages` で GitHub Pages へ自動デプロイする構成を作成する（SPA/WASM 配信用に `.nojekyll` も出力に含める）。
+     - ローカルのWebビルド出力（8784番の配信ディレクトリ）も最新の **Rustani** 表示に更新し、`packaging/web/README.md` と `PROJECT_STATUS.md` に GitHub Pages の有効化手順（GitHub リポジトリの `Settings -> Pages -> Build and deployment -> Source: GitHub Actions` を選ぶだけで公開完了すること、およびリポジトリ名を `rustani` に変更した場合の公開URL `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja`）を明記する。
+  4. **検証と完了条件**:
+     - `cargo xtask ci` の全ゲート（fmt, clippy, test, assets, layers, wasm, parity）がすべてパスすることを確認し、コミット＆ `origin/main` へプッシュする。

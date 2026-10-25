@@ -783,7 +783,7 @@ impl Dialog {
             "commandSearch" => Dialog::custom("commandSearch", "Search Commands", json!({})),
             "agents" => Dialog::custom("agents", "Agent Control", json!({})),
             "about" => {
-                let mut d = Dialog::custom("about", "About GridCraft", json!({}));
+                let mut d = Dialog::custom("about", "About Rustani", json!({}));
                 d.tab = match p("tab").as_str() {
                     Some(t @ ("Contributors" | "Models")) => t.to_string(),
                     _ => "About".into(),
@@ -902,7 +902,7 @@ impl Dialog {
             }
             "saveCopy" => Dialog::custom("saveCopy", "Save a Copy", json!({"format": p("format")})),
             "saveChanges" => Dialog::custom("saveChanges", "Save Changes?", json!({"title": p("title"), "quit": p("quit")})),
-            "start" => Dialog::custom("start", "GridCraft", json!({})),
+            "start" => Dialog::custom("start", "Rustani", json!({})),
             "comments" => {
                 app.grid.pane = None;
                 app.run_or_alert("review.showComments", json!({"on": true}));
@@ -1249,7 +1249,7 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
                 "solverResults" => solver_results(app, ui, &mut d, &mut open),
                 "spelling" => spelling(app, ui, &mut d, &mut open),
                 "agents" => {
-                    ui.label("GridCraft is fully drivable by agents. Every menu item, button and gesture is a command:");
+                    ui.label("Rustani is fully drivable by agents. Every menu item, button and gesture is a command:");
                     ui.add_space(4.0);
                     ui.monospace("gridcraft --control 7979        # JSON-lines control channel\ngridcraft-cli mcp --connect 7979   # MCP bridged to this window\ngridcraft-cli mcp                   # headless MCP server");
                     ui.add_space(4.0);
@@ -1871,7 +1871,7 @@ fn form_fields(ui: &mut egui::Ui, d: &mut Dialog) {
     });
 }
 
-/// Help ▸ About GridCraft: the app, its contributors and the AI models that helped. The credits
+/// Help ▸ About Rustani: the app, its contributors and the AI models that helped. The credits
 /// are compiled in (`crate::credits`, docs/contributors.md).
 fn about(ui: &mut egui::Ui, d: &mut Dialog) {
     let lang = crate::i18n::current(ui.ctx());
@@ -1887,12 +1887,12 @@ fn about(ui: &mut egui::Ui, d: &mut Dialog) {
         "Contributors" => crate::credits::contributors_ui(ui),
         "Models" => crate::credits::models_ui(ui),
         _ => {
-            ui.heading("GridCraft");
+            ui.heading("Rustani");
             ui.label(lang.tr("Version {version}").replace("{version}", env!("CARGO_PKG_VERSION")));
             ui.add_space(4.0);
-            ui.label(lang.tr("A clean-room, open-source, Rust-native spreadsheet. Part of ArtCraft."));
-            ui.hyperlink_to("getartcraft.com/apps/gridcraft", "https://getartcraft.com/apps/gridcraft");
-            ui.hyperlink_to(lang.tr("Join the ArtCraft Discord"), "https://discord.gg/artcraft");
+            ui.label(lang.tr("An open-source spreadsheet built with Rust."));
+            ui.label(lang.tr("Based on GridCraft by the ArtCraft team and contributors, licensed under MIT OR Apache-2.0."));
+            ui.hyperlink_to("github.com/atatakeisi/gridcraft", "https://github.com/atatakeisi/gridcraft");
         }
     }
 }

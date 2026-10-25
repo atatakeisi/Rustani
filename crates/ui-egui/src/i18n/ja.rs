@@ -238,7 +238,7 @@ pub(super) const CORE: &[(&str, &str)] = &[
     ("Command\nPalette", "コマンド パレット"),
     ("Agent\nControl", "エージェント制御"),
     ("Action\nJournal", "操作ジャーナル"),
-    ("About\nGridCraft", "GridCraft について"),
+    ("About\nRustani", "Rustani について"),
     ("Share", "共有"),
     ("Add Chart\nElement", "グラフ要素を追加"),
     ("Change\nChart Type", "グラフの種類の変更"),
@@ -468,7 +468,7 @@ pub(super) const DIALOGS: &[(&str, &str)] = &[
     ("Conditional Formatting Rules Manager", "条件付き書式ルールの管理"),
     ("Search Commands", "コマンドの検索"),
     ("Agent Control", "エージェント制御"),
-    ("About GridCraft", "GridCraft について"),
+    ("About Rustani", "Rustani について"),
     ("Insert Chart", "グラフの挿入"),
     ("Select Data Source", "データ ソースの選択"),
     ("Action Journal", "操作ジャーナル"),
@@ -890,7 +890,7 @@ pub(super) const DIALOGS: &[(&str, &str)] = &[
     ("Hide Sheet", "シートの非表示"),
     ("Hierarchy & more", "階層とその他"),
     ("Highlighter", "蛍光ペン"),
-    ("How agents drive GridCraft (MCP / control channel)", "エージェントによる GridCraft の操作 (MCP / 制御チャネル)"),
+    ("How agents drive Rustani (MCP / control channel)", "エージェントによる Rustani の操作 (MCP / 制御チャネル)"),
     ("Import a text or CSV file", "テキストまたは CSV ファイルのインポート"),
     ("Insert Function", "関数の挿入"),
     ("Insert Function (⇧F3)", "関数の挿入 (⇧F3)"),
@@ -1008,9 +1008,10 @@ pub(super) const VBA: &[(&str, &str)] = &[
         "This workbook's VBA macros could not be loaded and were dropped, so they will not be in the saved file. Keep the original file.",
         "このブックの VBA マクロを読み込めなかったため、マクロは保存先のファイルに含まれません。元のファイルを保管してください。",
     ),
+    ("An open-source spreadsheet built with Rust.", "Rust 製のオープンソース表計算ソフトです。"),
     (
-        "A clean-room, open-source, Rust-native spreadsheet. Part of ArtCraft.",
-        "独立したクリーンルーム実装による、オープンソースの Rust 製表計算ソフトです。ArtCraft の一つです。",
+        "Based on GridCraft by the ArtCraft team and contributors, licensed under MIT OR Apache-2.0.",
+        "ArtCraft チームおよび貢献者による GridCraft を基にした改変版です（MIT OR Apache-2.0）。",
     ),
     ("VBA Editor", "VBA エディター"),
     ("Recorded Scripts", "記録したスクリプト"),
@@ -1043,8 +1044,8 @@ pub(super) const VBA: &[(&str, &str)] = &[
         ".xlsm ファイルには元の VBA プロジェクトを保持します。Excel VBA との互換性には未対応の機能があります。",
     ),
     (
-        "Saving source updates GridCraft's copy; the original Excel macro project is preserved.",
-        "コードを保存すると GridCraft 側のコピーを更新します。元の Excel マクロプロジェクトは変更しません。",
+        "Saving source updates Rustani's copy; the original Excel macro project is preserved.",
+        "コードを保存すると Rustani 側のコピーを更新します。元の Excel マクロプロジェクトは変更しません。",
     ),
     ("VBA source import: {error}", "VBA コードの読み込み: {error}"),
     ("Module error: {error}", "モジュールのエラー: {error}"),
@@ -1272,5 +1273,35 @@ mod tests {
             assert_eq!(crate::i18n::Language::Ja.tr(english), *japanese);
             assert_eq!(crate::i18n::Language::En.tr(english), english.rsplit_once('|').map_or(*english, |(_, text)| text));
         }
+    }
+
+    #[test]
+    fn product_labels_use_rustani_and_about_preserves_plain_text_attribution() {
+        use crate::i18n::Language;
+
+        for language in Language::ALL {
+            for english in [
+                "About\nRustani",
+                "About Rustani",
+                "How agents drive Rustani (MCP / control channel)",
+                "Saving source updates Rustani's copy; the original Excel macro project is preserved.",
+            ] {
+                let translated = language.tr(english);
+                assert!(translated.contains("Rustani"), "{language:?}: {english:?} => {translated:?}");
+                assert!(!translated.contains("GridCraft"), "{language:?}: outdated product name in {translated:?}");
+                assert!(!translated.contains("ArtCraft"), "{language:?}: upstream product claim in {translated:?}");
+            }
+        }
+        for (english, japanese) in [
+            ("An open-source spreadsheet built with Rust.", "Rust 製のオープンソース表計算ソフトです。"),
+            (
+                "Based on GridCraft by the ArtCraft team and contributors, licensed under MIT OR Apache-2.0.",
+                "ArtCraft チームおよび貢献者による GridCraft を基にした改変版です（MIT OR Apache-2.0）。",
+            ),
+        ] {
+            assert_eq!(Language::Ja.tr(english), japanese);
+            assert_eq!(Language::En.tr(english), english);
+        }
+        assert_eq!(translate("A clean-room, open-source, Rust-native spreadsheet. Part of ArtCraft."), None);
     }
 }

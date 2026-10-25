@@ -284,7 +284,7 @@ impl VbaEditor {
             ui.weak(lang.tr("The original VBA project is preserved in .xlsm files. Excel VBA compatibility is still incomplete."));
         }
         if self.modules.iter().any(|module| module.name == self.saved_name && module.imported) {
-            ui.weak(lang.tr("Saving source updates GridCraft's copy; the original Excel macro project is preserved."));
+            ui.weak(lang.tr("Saving source updates Rustani's copy; the original Excel macro project is preserved."));
         }
         if let Some(error) = &self.import_error {
             ui.colored_label(tokens.danger, lang.tr("VBA source import: {error}").replace("{error}", &lang.tr_error(error)));

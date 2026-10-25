@@ -70,7 +70,7 @@ fn image_response_does_not_follow_a_changed_cell_sheet_workbook_or_input_owner()
             }
             3 => h.state_mut().begin_edit(Some("draft".into()), false),
             4 => h.state_mut().open_dialog("find", json!({})),
-            5 => h.state_mut().message = Some(("GridCraft".into(), "A test message".into())),
+            5 => h.state_mut().message = Some(("Rustani".into(), "A test message".into())),
             _ => h.state_mut().name_box = Some("A1".into()),
         }
         h.run_steps(2);

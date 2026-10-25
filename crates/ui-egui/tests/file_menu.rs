@@ -173,9 +173,53 @@ fn file_account_shows_the_version_and_opens_about() {
     // The About dialog also shows the version; it must not be open yet.
     h.get_by_label(env!("CARGO_PKG_VERSION"));
     h.get_by_label(env!("CARGO_PKG_LICENSE"));
-    click(&mut h, "About GridCraft");
+    h.get_by_label("Rustani");
+    click(&mut h, "About Rustani");
     assert_eq!(h.state().dialog.as_ref().map(|d| d.name()), Some("about"));
     assert_eq!(page(&h), Some("account"), "About opens over the File view, like Protect Workbook on Info");
+    assert_eq!(h.state().dialog.as_ref().unwrap().title, "About Rustani");
+    h.get_by_label("An open-source spreadsheet built with Rust.");
+    h.get_by_label("Based on GridCraft by the ArtCraft team and contributors, licensed under MIT OR Apache-2.0.");
+    h.get_by_label("github.com/atatakeisi/gridcraft");
+    assert!(h.query_by_label("About GridCraft").is_none());
+    assert!(h.query_by_label("getartcraft.com/apps/gridcraft").is_none());
+    assert!(h.query_by_label("Join the ArtCraft Discord").is_none());
+}
+
+#[test]
+fn japanese_account_and_about_use_rustani_with_plain_text_upstream_credit() {
+    let mut h = harness(Services::default());
+    h.state_mut().run("app.language.set", serde_json::json!({"language":"ja"})).unwrap();
+    h.state_mut().run("ui.backstage", serde_json::json!({"page":"account"})).unwrap();
+    h.run_steps(3);
+    h.get_by_label("Rustani");
+    click(&mut h, "Rustani について");
+    assert_eq!(h.state().dialog.as_ref().map(|d| d.name()), Some("about"));
+    h.get_by_label("Rust 製のオープンソース表計算ソフトです。");
+    let credit = "ArtCraft チームおよび貢献者による GridCraft を基にした改変版です（MIT OR Apache-2.0）。";
+    h.get_by_label(credit);
+    h.get_by_label("github.com/atatakeisi/gridcraft").click();
+    h.run_steps(1);
+    assert!(
+        h.output()
+            .platform_output
+            .commands
+            .iter()
+            .any(|command| { matches!(command, egui::OutputCommand::OpenUrl(url) if url.url == "https://github.com/atatakeisi/gridcraft") }),
+        "the About hyperlink opens the fork repository"
+    );
+    assert!(h.query_by_label("ArtCraft Discord に参加").is_none());
+    assert!(h.query_by_label("GridCraft について").is_none());
+}
+
+#[test]
+fn live_window_title_keeps_the_document_name_and_rustani_brand() {
+    let mut h = harness(Services::default());
+    h.state_mut().session.active_mut().unwrap().title = "決算".into();
+    h.state_mut().run("cell.set", serde_json::json!({"cell":"A1","input":"42"})).unwrap();
+    h.run_steps(3);
+    assert_eq!(h.state().grid.last_title.as_deref(), Some("決算 — Edited — Rustani"));
+    assert_eq!(h.state().session.active().unwrap().title, "決算", "the product suffix is not part of the workbook name");
 }
 
 #[test]

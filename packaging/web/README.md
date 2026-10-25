@@ -1,12 +1,37 @@
-# GridCraft Web版の起動と配信
+# Rustani Web版の起動と配信
 
-この文書は、非公開の独自開発版 **[atatakeisi/gridcraft](https://github.com/atatakeisi/gridcraft)** のWeb版をローカルで開く方法と、静的サイトとして配信する際の設定を説明します。上流は [storytold/gridcraft](https://github.com/storytold/gridcraft)です。上流のGitHubリリースにあるZIPへ、この改変版の変更が含まれているとは限りません。
+この文書は、Rustani（[atatakeisi/gridcraft](https://github.com/atatakeisi/gridcraft)） のWeb版をローカルで開く方法と、静的サイトとして配信する際の設定を説明します。上流は [storytold/gridcraft](https://github.com/storytold/gridcraft)です。上流のGitHubリリースにあるZIPへ、この改変版の変更が含まれているとは限りません。
 
 **本体はalpha、VBAは部分実装で、Excel VBAの完全互換は未達です。** マクロの「モジュールを保存」はGridCraft独自のmetadataへソースを保存し、Excelの `vbaProject.bin` を書き換えたり生成したりしません。元のprojectは別に保持します。現在の対応範囲は [VBA互換性](../../docs/vba-compatibility.md)、検証結果と使用中の出力先は [PROJECT_STATUS.md](../../PROJECT_STATUS.md)を参照してください。
 
-## Item 21を含む現在のWeb出力（EXCEL.3、2026-10-25）
+## Rustaniへの変更とGitHub Pages（Item 22、2026-10-25）
 
-現在の確認環境（8784番）は `dist/web-save-as-20261025` を配信しています。Webの「名前を付けて保存」は、ファイル名入力画面で「保存」を押してからXLSXを生成します。空の名前を拒否し、必要なら `.xlsx` を補完して表示名も更新します。デスクトップの保存ダイアログは従来どおりです。
+表示名を **Rustani** に変更しました。Cargoのパッケージ名、ディレクトリ、canvas ID、保存済み設定キーは引き継ぎます。元のGridCraftの著作権表示・MIT / Apache-2.0ライセンスは保持し、改変者の表記を追記しています。公開するアプリとREADMEにはArtCraft商標画像や公式コミュニティへの誘導を表示しません。上流ブランドの原本ファイルは履歴・帰属情報とともにリポジトリに保持し、Pages成果物には含めません。
+
+Pagesワークフローは `.github/workflows/pages.yml` です。`main` へのpushまたは手動実行でRustの `wasm32-unknown-unknown` とTrunk 0.22.0を使用し、`trunk build --release --locked --public-url "./"` を実行します。外部の日本語フォントは固定コミットで取得し、SHA-256を確認します。成果物には `.nojekyll`、MIT/Apacheライセンス、NOTICE、ATTRIBUTION、フォントOFLを含めます。`upload-pages-artifact` → `deploy-pages` の順に配信し、デプロイ用権限は `pages: write` と `id-token: write` に限定します。
+
+**現状の公開制約:** 2026-10-25にGitHub APIで確認したリポジトリは非公開で、Pagesは未設定です。有効化の要求は **HTTP 422: Your current plan does not support GitHub Pages for this repository** となりました。ワークフローの追加だけではこの契約制限を解除できません。公開リポジトリへ変更するか、非公開Pagesに対応するプランが必要です。リポジトリの公開範囲や契約は今回変更していません。対応条件は [GitHub公式ガイド](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)を参照してください。
+
+利用条件を満たした後の操作は次のとおりです。
+
+1. [リポジトリのPages設定](https://github.com/atatakeisi/gridcraft/settings/pages)を開きます。
+2. **Build and deployment → Source → GitHub Actions** を選びます。既存のワークフローを使うので、テンプレートの新規作成は不要です。
+3. **Actions → Rustani Pages → Run workflow → main → Run workflow** を実行し、BuildとDeployが成功するまで待ちます。以後は `main` へのpushで自動更新します。
+4. Settings → Pagesに出たURLを開きます。現在のリポジトリ名なら公開予定先は [Rustani Web](https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja)です。未設定・失敗中はこのURLから起動できません。
+
+リポジトリ名を将来 **rustani** へ変更した場合の公開URLは `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja` です。相対アセットURLなので配信先のサブパス変更に対応しますが、Git remoteと案内リンクも更新してください。今回の作業ではリポジトリ名を変更しません。
+
+ローカルで確認する出力は `dist/web-rustani-20261025` です。8784番で使用するコマンドは次のとおりです。旧バンドルは残してあるため、配信先を取り違えないでください。
+
+```sh
+python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-rustani-20261025
+```
+
+`http://127.0.0.1:8784/?sample=sales&lang=ja` を開きます。ビルドと画面確認の結果は [PROJECT_STATUS.md §19](../../PROJECT_STATUS.md)へ記録します。以下のItem 21/17〜20の出力は旧名称の検証履歴です。
+
+## Item 21のWeb出力履歴（EXCEL.3、2026-10-25）
+
+Item 21の検証では `dist/web-save-as-20261025` を8784番で配信しました。Webの「名前を付けて保存」は、ファイル名入力画面で「保存」を押してからXLSXを生成します。空の名前を拒否し、必要なら `.xlsx` を補完して表示名も更新します。デスクトップの保存ダイアログは従来どおりです。
 
 ```sh
 python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-save-as-20261025
@@ -14,7 +39,7 @@ python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-save-as-202
 
 新しい出力はdev（optimized + debuginfo）です。Chromeでは日本語名入力・空名エラー・Esc取消を確認し、ダウンロード名とXLSX内容の一致はモックの回帰テストで検証しました。ブラウザーでの保存完了とSafari実機は未確認です。ダウンロード開始だけでは未保存状態を解除しません。詳細とCI結果は [PROJECT_STATUS.md §18](../../PROJECT_STATUS.md)を参照してください。
 
-以下のEXCEL.2 ZIPはItem 17〜20の配布物で、Item 21を含みません。新しい出力を確認するときは、上記のフォルダを使用してください。
+以下のEXCEL.2 ZIPはItem 17〜20の配布物で、Item 21以降を含みません。現在の出力は冒頭のItem 22を参照してください。
 
 ## Item 17〜20を含む確認用バンドル（EXCEL.2、2026-10-25）
 
@@ -71,7 +96,7 @@ Web版にサーバー側の実行コードはありません。生成された�
 | `_headers`、`.htaccess` | Netlify / Cloudflare Pages、Apache向けのヘッダー設定例 |
 | `OFL-biz-ud-pgothic.txt` | 日本語フォントを埋め込む配布物に必要なライセンス告知 |
 
-既存のパッケージスクリプトは `dist/web` を入力に使うため、今回選んだ別名の出力先とは一致しない場合があります。新しいビルドを配信する際は、どの出力を使うかを確認してください。新たな公開配信はこの文書の編集だけでは行いません。
+既存のパッケージスクリプトは `dist/web` を入力に使うため、今回選んだ別名の出力先とは一致しない場合があります。新しいビルドを配信する際は、どの出力を使うかを確認してください。Pagesの自動ビルドは冒頭のItem 22のワークフローを使用します。プラン制限・Source設定・デプロイ成功は別途確認が必要です。
 
 ## ドメイン直下・サブディレクトリへの配置
 
@@ -104,7 +129,7 @@ location /gridcraft/ {
 ```html
 <iframe
   src="https://example.com/gridcraft/"
-  title="GridCraft 表計算"
+  title="Rustani 表計算"
   style="width: 100%; height: 720px; border: 0;"
   allow="fullscreen; clipboard-read; clipboard-write"
   allowfullscreen>

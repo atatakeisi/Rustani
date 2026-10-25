@@ -1,0 +1,90 @@
+name: Rustani Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Rustani Web
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      # Fail before the release build if Pages has not been enabled in Settings.
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      # Keep the optional font checkout beside the app, as build.rs expects. No
+      # local paths, environment overrides or upstream brand assets are published.
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: gridcraft
+
+      - name: Check out Japanese font source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: storytold/craft-fonts
+          ref: abb83316d96aa59c1cf64784289e378fe9fa5695
+          path: craft-fonts
+
+      - name: Verify Japanese font input
+        run: |
+          echo '258d7156c165f2ff774b6efee637c22c3b950de0d8a10e501137061bc8085d01  craft-fonts/fonts/biz-ud-pgothic/BIZUDPGothic-Regular.ttf' | sha256sum --check
+          test -s craft-fonts/fonts/biz-ud-pgothic/OFL.txt
+
+      - name: Install Rust and Wasm target
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: gridcraft -> target
+
+      - name: Install Trunk
+        run: cargo install trunk --locked --version 0.22.0
+
+      - name: Build Web release with relative asset URLs
+        working-directory: gridcraft/apps/gridcraft-web
+        run: trunk --skip-version-check build --release --locked --public-url "./" --dist ../../dist/pages
+
+      - name: Include notices and disable Jekyll
+        run: |
+          touch gridcraft/dist/pages/.nojekyll
+          cp gridcraft/LICENSE-MIT gridcraft/LICENSE-APACHE gridcraft/NOTICE gridcraft/ATTRIBUTION.md gridcraft/dist/pages/
+          cp craft-fonts/fonts/biz-ud-pgothic/OFL.txt gridcraft/dist/pages/OFL-biz-ud-pgothic.txt
+          test -s gridcraft/dist/pages/index.html
+          test -n "$(find gridcraft/dist/pages -maxdepth 1 -name '*_bg.wasm' -print -quit)"
+
+      - name: Upload Pages site
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: gridcraft/dist/pages
+
+  deploy:
+    name: Deploy Rustani Web
+    runs-on: ubuntu-24.04
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages site
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

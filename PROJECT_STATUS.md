@@ -1,6 +1,10 @@
-# GridCraft 現状共有シート
+# Rustani 現状共有シート
 
-更新日: 2026-10-25（日本時間）。最新の統合単位は「18」の `EXCEL.3: prompt for Web Save As filenames`（Item 21、比較基点 `8bbfe9a9`）。CI全8項目・161 suite・2,363テスト成功、0失敗・既存ignore 1件。新WASMを8784番へ反映し、Chromeで日本語名入力・空名エラー・Esc取消を確認した。Safari実機とブラウザーのOS保存完了は未確認。直前のItem 17〜20は「16」、その配布ZIPは「17」の履歴を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
+更新日: 2026-10-25（日本時間）。最新作業は「19」の **Item 22: RustaniへのリブランディングとGitHub Pages設定**（比較基点 `a7feefae`）。内部のCargo名・ディレクトリ・保存キーは引き継ぎ、表示名・README・著作権告知を更新した。検証とコミット状態は「19」と `git log -1 --oneline` / `git status -sb` で確認する。
+
+GitHubのリポジトリは非公開。Pages有効化要求は現行プラン制限でHTTP 422となり、**Web公開は未完了**。リポジトリの公開範囲や契約は変更していない。条件を満たした後にSettings → Pages → Source: GitHub Actionsを選び、Rustani Pagesを実行する。予定URLは `https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja`、将来 `rustani` へ改名した場合は `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja`。
+
+直前の統合は「18」の `EXCEL.3: prompt for Web Save As filenames`（Item 21、`a7feefae`、比較基点 `8bbfe9a9`）。CI全8項目・161 suite・2,363テスト成功、0失敗・既存ignore 1件。Chromeで日本語名入力・空名エラー・Esc取消を確認した。Safari実機とブラウザーのOS保存完了は未確認。Item 17〜20は「16」、その配布ZIPは「17」の履歴を参照。
 
 前回の統合は「16」の `EXCEL.2: stabilize VBA paste and function-library editing`（Item 17〜20、比較基点 `dc6d1cae`）。CI全8項目・2,349テスト成功。新WASMを8784番へ反映し、Chromeで関数メニュー・途中挿入・Undo/Redoを確認済み。配布用ZIPとビルド情報は「17」を参照。Safari実機の再検証は画面取得エラーで未完了。Item 17のSafari VBA右クリック貼付け対策は「15」を参照。直前の `EXCEL.1` は `dc6d1cae` として `origin/main` へ送信済み。飛び地貼り付けは「12」、IME/VBAレビューは「11」、Excel操作差異の統合は「13」〜「14」を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
 
@@ -322,7 +326,7 @@ Git送信記録: `dc6d1caee303259378b714285c61f52013cf8568` / `EXCEL.1: integrat
 
 - `cargo xtask ci` 全8項目成功。158 suite、**2,328成功・0失敗・既存ignore 1件**。下書き間Undo分離を含めた最終ソースの結果。ログ: `../outputs/GridCraft-Safari-VbaPaste-Final-CI-20261025.log`。
 - Trunk 0.22.0で新規出力 `dist/web-safari-vba-paste-20261025-v2` を生成。WASMは `gridcraft-web-efc436f7b1532fd_bg.wasm`。ログ: `../outputs/GridCraft-Safari-VbaPaste-Final-Web-20261025.log`。旧出力は削除・上書きせず保持。
-- Item 17単独の検証時点では8784番をこの出力へ切り替えた。現在の配信と再開コマンドは「16」を参照する。
+- Item 17単独の検証時点では8784番をこの出力へ切り替えた。現在の配信と再開コマンドは「19」を参照する。
 - Chromeで最終版の「表示→マクロ→VBAエディター→右クリック→貼り付け」により日本語の `Sub PasteCheck()` を入力し、1回のCmd+Zで空の元ソースに戻ることを確認。確認時のerrorログ0件。証跡: `../outputs/GridCraft-Safari-VbaPaste-Chrome-Final-20261025.jpg`。
 
 Safari操作は画面取得失敗により再検証未完了。上記はSafari実機成功や実OS IME候補変換成功を意味しない。この節の修正は「16」の `EXCEL.2` に含む。
@@ -374,3 +378,20 @@ Item 21のWebビルド・画面確認:
 - Trunk 0.22.0のbuild成功。新規出力は `dist/web-save-as-20261025`、dev（optimized + debuginfo）。WASMは `gridcraft-web-200576538cd14828_bg.wasm`（37,288,192 bytes）、SHA-256は `adeba994e0b5269391697d2e0e26ecfb75fcc6717f80123b34117ac4493ca68a`。HTML相対参照とSRI 3件の照合成功。ビルドログ: `../outputs/GridCraft-Item21-Web-20261025.log`。既存出力は保持した。
 - 8784番の配信を新出力へ切替済み。再開コマンド: `python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-save-as-20261025`。URLは `http://127.0.0.1:8784/?sample=sales&lang=ja`。
 - Chromeで「ファイル→名前を付けて保存→名前を付けて保存…」からダイアログが開き、初期名の全選択を `2026年度売上` へ置換できること、空の名前+Enterで日本語エラーが出て継続すること、Escで元のタイトルのシートへ戻ることを確認。errorログ0件。証跡: `../outputs/GridCraft-Item21-SaveAs-Chrome-20261025.jpg`。ブラウザーのOS保存ダイアログから実ファイルへの保存完了、Safari実機、実OS IME候補変換は未検証。
+
+## 19. RustaniへのリブランディングとGitHub Pages（Item 22、2026-10-25、EXCEL.4）
+
+レポート末尾のItem 22を再読み込みし、WebのHTML title/loading/起動失敗表示、ネイティブのウィンドウ・メニュー、共有UIのアカウント/About/通知、翻訳をRustaniへ更新した。編集中のブック名は維持し、製品サフィックスをRustaniにする。AboutはGridCraftのArtCraftチームと貢献者への由来・MIT OR Apache-2.0をプレーンテキストで表示し、リンクは改変版のGitHubへ向ける。上流の公式製品・コミュニティとしての誘導を外した。
+
+内部のCargoパッケージ名、クレート、ディレクトリ、app ID、canvas/egui ID、保存済み設定キーは引き継ぐ。CORE/DIALOGSの翻訳キー変更は他言語カタログと同期する。商標画像の原本や既存ファイルは削除せず保持し、公開Web成果物には含めない。MIT/Apacheで配布可能な元の台帳型appアイコンは維持する。`LICENSE-MIT` と `NOTICE` の上流copyright・本文は保持し、`Modifications Copyright (c) 2026 atatakeisi (Rustani)` を追記した。READMEは新しい名称・機能・使い方・alpha/VBAの制約・由来・公開条件を案内する。
+
+`.github/workflows/pages.yml` は `main` push / workflow_dispatchから、固定Trunk 0.22.0・Wasm target・release・相対URL・locked Cargoでビルドする。日本語フォントは固定craft-fontsコミット＋SHA-256で検証し、OFL・MIT/Apache・NOTICE・ATTRIBUTION・`.nojekyll`を配信する。build後のPages artifactをdeploy jobへ渡し、権限・github-pages environment・同時実行制御を設定した。Actionsの参照は確認した公式タグのSHAで固定する。
+
+GitHub実設定の確認:
+
+- `gh api repos/atatakeisi/gridcraft` で `private: true`, `has_pages: false`, 管理権限を確認した。
+- Actionsを配信元とするPages有効化要求は **HTTP 422: Your current plan does not support GitHub Pages for this repository.** となった。GitHub側のプラン制約であり、ローカルビルドやワークフローでは解消できない。
+- **公開サイトは未稼働**。現状のリポジトリを非公開のままにしている。公開リポジトリへの変更、または非公開Pagesに対応するプランが必要。利用条件を満たしてからSettings → Pages → Build and deployment → Source: GitHub Actionsを選び、Actions → Rustani Pages → Run workflowを実行し、成功後にURLを案内する。
+- 現リポジトリ名の予定URL: `https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja`。将来リポジトリ名を `rustani` へ変更した場合のURL: `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja`。今回repo名・remoteは変更しない。
+
+検証結果とローカル8784番のRustani出力は、実行後にここへ記録する。Safari実機・実OS IME候補変換、Windows Chrome、Excel実行可能VBAプロジェクトの生成/書換えと引数付きVBAの拡張は引き続き未完了であり、この名称変更で解決済みとは扱わない。
