@@ -1,0 +1,14 @@
+Rustani application icon
+
+The rustani-source.png artwork is based on the project owner's supplied
+Gemini-generated bird-and-gear design, cleaned with OpenAI image generation.
+It is separate from the original GridCraft ledger icon and ArtCraft trademarks.
+
+Modifications Copyright (c) 2026 atatakeisi (Rustani)
+
+The Rustani artwork and its PNG, ICO and ICNS exports are made available under
+either the MIT License or the Apache License, Version 2.0, at your option.
+See the repository's LICENSE-MIT and LICENSE-APACHE for the full terms.
+
+This notice records the supplied design and processing; it does not claim
+ArtCraft authorship, endorsement, sponsorship or trademark rights.

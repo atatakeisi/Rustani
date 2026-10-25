@@ -64,8 +64,11 @@ jobs:
       - name: Include notices and disable Jekyll
         run: |
           touch gridcraft/dist/pages/.nojekyll
-          cp gridcraft/LICENSE-MIT gridcraft/LICENSE-APACHE gridcraft/NOTICE gridcraft/ATTRIBUTION.md gridcraft/dist/pages/
+          cp gridcraft/LICENSE-MIT gridcraft/LICENSE-APACHE gridcraft/NOTICE gridcraft/ATTRIBUTION.md gridcraft/THIRD_PARTY_NOTICES.txt gridcraft/dist/pages/
+          cp gridcraft/assets/app-icon/LICENSE-rustani.txt gridcraft/dist/pages/LICENSE-RUSTANI-ICON.txt
           cp craft-fonts/fonts/biz-ud-pgothic/OFL.txt gridcraft/dist/pages/OFL-biz-ud-pgothic.txt
+          test -s gridcraft/dist/pages/THIRD_PARTY_NOTICES.txt
+          test -s gridcraft/dist/pages/LICENSE-RUSTANI-ICON.txt
           test -s gridcraft/dist/pages/index.html
           test -n "$(find gridcraft/dist/pages -maxdepth 1 -name '*_bg.wasm' -print -quit)"
 

@@ -63,8 +63,8 @@ install -Dm644 "$HERE/$APP_ID.mime.xml" "$STAGE/usr/share/mime/packages/$APP_ID.
 mkdir -p "$STAGE/usr/share/metainfo"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$GRIDCRAFT_BUILD_DATE/g" \
   "$HERE/$APP_ID.metainfo.xml.in" >"$STAGE/usr/share/metainfo/$APP_ID.metainfo.xml"
-mkdir -p "$STAGE/usr/share/icons"
-cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/usr/share/icons/"
+mkdir -p "$STAGE/usr/share/icons/hicolor"
+cp -R "$ROOT/assets/app-icon/rustani-hicolor/." "$STAGE/usr/share/icons/hicolor/"
 mkdir -p "$STAGE/usr/share/doc/gridcraft"
 copy_docs "$STAGE/usr/share/doc/gridcraft"
 
@@ -104,7 +104,7 @@ if has appimage; then
   mv "$APPDIR/usr/share/doc" "$WORK/doc-unused"
   ln -s usr/bin/gridcraft "$APPDIR/AppRun"
   cp "$HERE/$APP_ID.desktop" "$APPDIR/$APP_ID.desktop"
-  cp "$ROOT/assets/app-icon/hicolor/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"
+  cp "$ROOT/assets/app-icon/rustani-hicolor/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"
   ln -s "$APP_ID.png" "$APPDIR/.DirIcon"
 
   TOOL="${APPIMAGETOOL:-$(command -v appimagetool || true)}"

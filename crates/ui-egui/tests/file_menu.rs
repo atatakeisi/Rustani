@@ -180,7 +180,7 @@ fn file_account_shows_the_version_and_opens_about() {
     assert_eq!(h.state().dialog.as_ref().unwrap().title, "About Rustani");
     h.get_by_label("An open-source spreadsheet built with Rust.");
     h.get_by_label("Based on GridCraft by the ArtCraft team and contributors, licensed under MIT OR Apache-2.0.");
-    h.get_by_label("github.com/atatakeisi/gridcraft");
+    h.get_by_label("github.com/atatakeisi/rustani");
     assert!(h.query_by_label("About GridCraft").is_none());
     assert!(h.query_by_label("getartcraft.com/apps/gridcraft").is_none());
     assert!(h.query_by_label("Join the ArtCraft Discord").is_none());
@@ -198,14 +198,14 @@ fn japanese_account_and_about_use_rustani_with_plain_text_upstream_credit() {
     h.get_by_label("Rust 製のオープンソース表計算ソフトです。");
     let credit = "ArtCraft チームおよび貢献者による GridCraft を基にした改変版です（MIT OR Apache-2.0）。";
     h.get_by_label(credit);
-    h.get_by_label("github.com/atatakeisi/gridcraft").click();
+    h.get_by_label("github.com/atatakeisi/rustani").click();
     h.run_steps(1);
     assert!(
         h.output()
             .platform_output
             .commands
             .iter()
-            .any(|command| { matches!(command, egui::OutputCommand::OpenUrl(url) if url.url == "https://github.com/atatakeisi/gridcraft") }),
+            .any(|command| { matches!(command, egui::OutputCommand::OpenUrl(url) if url.url == "https://github.com/atatakeisi/rustani") }),
         "the About hyperlink opens the fork repository"
     );
     assert!(h.query_by_label("ArtCraft Discord に参加").is_none());

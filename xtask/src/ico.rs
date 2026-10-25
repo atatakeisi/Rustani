@@ -95,10 +95,21 @@ mod tests {
 
     #[test]
     fn committed_icon_is_valid() {
-        let path = crate::root().join("assets/app-icon/gridcraft.ico");
-        let Ok(ico) = std::fs::read(&path) else { return };
-        assert_eq!(&ico[..4], &[0, 0, 1, 0]);
-        let n = u16::from_le_bytes([ico[4], ico[5]]) as usize;
-        assert!(n >= 4, "expected several sizes in {}", path.display());
+        for name in ["gridcraft.ico", "rustani.ico"] {
+            let path = crate::root().join("assets/app-icon").join(name);
+            let ico = std::fs::read(&path).unwrap();
+            assert_eq!(&ico[..4], &[0, 0, 1, 0]);
+            let count = u16::from_le_bytes([ico[4], ico[5]]) as usize;
+            assert!(count >= 4, "expected several sizes in {}", path.display());
+            for entry in ico[6..6 + 16 * count].as_chunks::<16>().0 {
+                let length = u32::from_le_bytes(entry[8..12].try_into().unwrap()) as usize;
+                let offset = u32::from_le_bytes(entry[12..16].try_into().unwrap()) as usize;
+                let (width, height) = png_size(&ico[offset..offset + length]).unwrap();
+                assert_eq!(
+                    (width, height),
+                    (if entry[0] == 0 { 256 } else { u32::from(entry[0]) }, if entry[1] == 0 { 256 } else { u32::from(entry[1]) })
+                );
+            }
+        }
     }
 }

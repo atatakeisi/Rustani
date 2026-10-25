@@ -180,8 +180,10 @@ fn cmd_ci() -> Result<(), String> {
             "test",
             Box::new(|| {
                 let mut c = cargo();
-                c.args(["test", "--workspace"]);
-                run(c, "cargo test --workspace")
+                // Reduce CI link artifacts after an lld SIGBUS failure whose cause is unconfirmed.
+                // This command-local override keeps normal test profiles and debug assertions intact.
+                c.args(["test", "--workspace", "--config", "profile.test.debug=0"]);
+                run(c, "cargo test --workspace --config profile.test.debug=0")
             }),
         ),
         ("assets", Box::new(|| assets::run(&root()))),

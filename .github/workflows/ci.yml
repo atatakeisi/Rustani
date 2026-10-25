@@ -44,5 +44,16 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: Runner disk and memory before quality gate
+        run: |
+          df -h .
+          free -h
+
       - name: Quality gate
         run: cargo xtask ci
+
+      - name: Runner disk and memory after quality gate
+        if: ${{ always() }}
+        run: |
+          df -h .
+          free -h

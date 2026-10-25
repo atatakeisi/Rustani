@@ -4,14 +4,25 @@ Modifications Copyright (c) 2026 atatakeisi (Rustani)
 Licensed under the MIT License or the Apache License, Version 2.0, at your option
 (LICENSE-MIT, LICENSE-APACHE).
 
-The ArtCraft name, wordmark and logos in docs/brand/ are trademarks of the ArtCraft Team. They are
-not open source and are not covered by the license above; their terms are in
-docs/brand/LICENSE-brand.txt.
+Rustani is a modified version based on GridCraft by the ArtCraft Team and contributors, not an
+official ArtCraft product. This version excludes ArtCraft wordmark and logo images. The upstream
+trademark terms are retained in docs/brand/LICENSE-brand.txt; the code licenses above do not
+grant rights to ArtCraft marks.
 
 Third-party material
 
-This product bundles third-party material under its own licenses, listed below. The per-file
-list (author, source, license) is in ATTRIBUTION.md.
+Third-party fonts and dependencies remain under their own licenses. Builds may embed egui's
+default fonts and the optional BIZ UDPGothic font from craft-fonts. Repository assets and the
+optional font are described in ATTRIBUTION.md. Distributions need the license and copyright
+notices for the fonts and other third-party material they actually bundle; the code-license
+choice above does not relicense those materials.
 
-None: every bundled asset is original to GridCraft. Builds made with craft-fonts
-(CRAFT_FONTS_DIR) embed the fonts listed in ATTRIBUTION.md under the SIL Open Font License 1.1.
+Rustani icon artwork
+
+The Rustani bird-and-gear icon is based on the owner-supplied Gemini-generated design, cleaned
+with OpenAI image generation, and distributed under MIT OR Apache-2.0. Its provenance is in
+assets/app-icon/LICENSE-rustani.txt. It is not an ArtCraft trademark.
+
+Additional dependency and font notices are retained in THIRD_PARTY_NOTICES.txt. This includes
+the default Hack, Ubuntu Light, Noto Emoji and emoji-icon-font assets, as well as the optional
+BIZ UDPGothic font. These materials keep their respective licences.

@@ -1,52 +1,54 @@
-# GridCraft app icon (PLACEHOLDER)
+# Rustani app icons
 
-**This icon is temporary.** Every Crafting App's icon is an engraved creature portrait that the
-product owner makes (craftrules `standards/icon-design.md`); GridCraft's hasn't been made yet.
-Until it is, this placeholder stands in: a simple ledger page with a header row, a row-number
-column, a selected cell with its fill handle and a double rule under a total, on a full-bleed
-GridCraft-green tile. It is original geometry written by hand for this repository, deliberately
-not modelled on any vendor's spreadsheet logo (no letters, no "X", no overlapping panels).
+The current Rustani artwork is a green Japanese white-eye (mejiro) with a silver gear on a
+transparent background. The project owner supplied the Gemini-generated JPEG design, and the
+built-in image generator cleaned it into `rustani-source.png`, a transparent 1254 × 1254 PNG.
+The supplied ZIP original is retained unchanged. Asset authorship and licence information is
+recorded in `ATTRIBUTION.md` at the repository root.
 
-When the owner's art arrives, replace `gridcraft.svg`, run `packaging/icons.sh`, update this
-README (provenance, creature) and the rows in `ATTRIBUTION.md`, and drop the word placeholder.
-
-## Palette
-
-Exactly three colours:
-
-| Colour | Hex | Used for |
-|---|---|---|
-| Ink | `#0b0b0c` | Line work and contour |
-| Paper | `#efe9dc` | The page |
-| GridCraft green (app colour, **proposed**) | `#1f9d55` | The full-bleed field and the header cells |
-
-The app colour is a proposal pending the owner's approval: GridCraft green `#1f9d55`, with ink
-(darker) variant `#147a40` for text and accents on light backgrounds. It differs from
-DesignCraft's `#7bb51c`.
-
-## Geometry
-
-A 512 × 512 viewBox, clipped to a rounded square with `rx=112`. Windows and Linux use the full
-tile. The macOS icons (`.icns`, `gridcraft-macos-512.png`) sit on Apple's grid: an 824/1024
-body with a transparent margin.
-
-## Files
+## Current files
 
 | File | Use |
 |---|---|
-| `gridcraft.svg` | Canonical artwork; also `hicolor/scalable` |
-| `gridcraft-1024.png` | 1024 px render of the full tile |
-| `gridcraft-macos-512.png` | Runtime Dock icon on macOS (for `apps/gridcraft` to embed) |
-| `gridcraft.icns` | macOS bundle icon (`CFBundleIconFile`) |
-| `gridcraft.ico` | Windows exe icon, 16–256 px (embedded by `apps/gridcraft/build.rs`) |
-| `hicolor/<size>/apps/ai.storyteller.gridcraft.png` | Linux icon theme, 16–512 px; the 256 px one is also the runtime window icon on Windows and Linux |
-| `hicolor/scalable/apps/ai.storyteller.gridcraft.svg` | Linux scalable icon |
-| `LICENSE.txt` | MIT OR Apache-2.0 |
+| `rustani-source.png` | Transparent source artwork for the Rustani variants |
+| `rustani-1024.png` | 1024 px version, also linked by the macOS DMG background SVG |
+| `rustani-macos-512.png` | Runtime Dock icon embedded by `apps/gridcraft` on macOS |
+| `rustani.icns` | macOS bundle icon; copied to the existing `GridCraft.icns` bundle resource |
+| `rustani.ico` | Web favicon and Windows executable, installer and shortcut icon |
+| `rustani-hicolor/<size>/apps/ai.storyteller.gridcraft.png` | Linux/FreeBSD/Flatpak icons at 16, 24, 32, 48, 64, 128, 256 and 512 px; the 256 px version is also the runtime window icon on Windows and Linux |
 
-The app ID is `ai.storyteller.gridcraft`. It's used for the hicolor icon names, the Wayland app
-ID and `packaging/linux/ai.storyteller.gridcraft.desktop`.
+The internal app ID remains `ai.storyteller.gridcraft`. Packaging installs the contents of
+`rustani-hicolor` under the standard `share/icons/hicolor` directory. The Rustani set contains
+raster PNG sizes and has no scalable SVG variant.
 
-## Regenerate
+## Regeneration
 
-Edit `gridcraft.svg`, then run `packaging/icons.sh`. It needs `resvg`, and `iconutil` for the
-`.icns` (macOS only). It packs the `.ico` with `cargo xtask ico`.
+Run `bash packaging/rustani-icons.sh` to generate the Rustani PNG, ICO and ICNS variants from
+`rustani-source.png`. It uses macOS `sips` and `iconutil` and the existing `cargo xtask ico`
+packer, preserving transparency and proportions. Review the small sizes and the macOS margin
+before replacing packaged outputs.
+
+`packaging/icons.sh` regenerates the original GridCraft ledger artwork from `gridcraft.svg`.
+It does not generate the Rustani icon set and must not be used to update these files.
+
+## Retained original artwork
+
+The original `gridcraft.svg`, `gridcraft-1024.png`, `gridcraft-macos-512.png`, `gridcraft.ico`,
+`gridcraft.icns` and `hicolor/` files are retained. They depict a ledger page on a green tile,
+original geometry by the GridCraft contributors under MIT OR Apache-2.0 (`LICENSE.txt`).
+The old palette is Ink `#0b0b0c`, Paper `#efe9dc` and green `#1f9d55`.
+
+## Artwork processing specification
+
+The built-in image tool was asked to preserve the supplied right-facing green-and-cream bird, white eye-ring, dark beak, feet, warm yellow interior and silver gear; remove photographed-screen moiré; reconstruct cropped gear edges; retain gentle shading; use a square transparent canvas and a small even margin; and add no text, logos or new elements. Native platform exports only resize and encode the selected result.
+
+The Rustani artwork uses `LICENSE-rustani.txt`. The original ledger assets keep `LICENSE.txt`.
+
+<details>
+<summary>Built-in image editing prompt (2026-10-25)</summary>
+
+Use case: precise-object-edit. Asset type: Rustani application icon. Edit target: the provided JPEG of a green Japanese white-eye bird (mejiro) framed by a silver gear. Create one clean, square, high-resolution app icon faithfully preserving this exact design: right-facing green-and-cream bird with white eye-ring, black round eye and small white highlight, dark beak, two pink-brown feet grasping the bottom edge, warm pale-yellow inner rounded-square panel, thick dark outline, silver toothed gear frame. Keep the composition, colors, character, pose, and relative proportions. Remove the photographed-screen moiré/pixel grid and lighting artifacts; produce smooth crisp vector-like illustrative edges with the same gentle shading. Reconstruct the cropped top and outermost gear edges so the entire symmetrical silver gear fits inside the image with a small, even transparent margin. Outside the gear must be genuine transparency, preserve the pale-yellow interior. No new design elements, no text, no letters, no logos, no watermark. One centered icon only, no mockup, no icon grid. Do not include ArtCraft or GridCraft brand imagery. This is the user's provided design; retain its identity.
+
+The built-in tool used the owner-supplied JPEG as its edit target and requested a transparent background.
+
+</details>

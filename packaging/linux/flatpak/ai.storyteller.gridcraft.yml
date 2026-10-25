@@ -48,7 +48,9 @@ modules:
       - install -Dm755 target/release/gridcraft-cli /app/bin/gridcraft-cli
       - install -Dm644 packaging/linux/ai.storyteller.gridcraft.desktop /app/share/applications/ai.storyteller.gridcraft.desktop
       - install -Dm644 packaging/linux/ai.storyteller.gridcraft.mime.xml /app/share/mime/packages/ai.storyteller.gridcraft.xml
-      - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
+      - mkdir -p /app/share/icons/hicolor && cp -R assets/app-icon/rustani-hicolor/. /app/share/icons/hicolor/
+      - install -d /app/share/licenses/ai.storyteller.gridcraft
+      - install -m644 LICENSE-MIT LICENSE-APACHE NOTICE ATTRIBUTION.md THIRD_PARTY_NOTICES.txt assets/app-icon/LICENSE-rustani.txt /app/share/licenses/ai.storyteller.gridcraft/
       - >-
         version=$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml);
         install -d /app/share/metainfo;

@@ -116,8 +116,12 @@ echo "==> assembling $APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # Executable and icon carry the display name (CFBundleExecutable / CFBundleIconFile).
 cp "$WORK/bin/gridcraft" "$APP/Contents/MacOS/GridCraft"
-cp "$ROOT/assets/app-icon/gridcraft.icns" "$APP/Contents/Resources/GridCraft.icns"
-# Licences of the embedded craft-fonts fonts (only when built with CRAFT_FONTS_DIR).
+cp "$ROOT/assets/app-icon/rustani.icns" "$APP/Contents/Resources/GridCraft.icns"
+# Application, dependency, icon and optional embedded-font notices.
+for f in LICENSE LICENSE-MIT LICENSE-APACHE COPYRIGHT NOTICE ATTRIBUTION.md THIRD_PARTY_NOTICES.txt; do
+  if [ -f "$ROOT/$f" ]; then cp "$ROOT/$f" "$APP/Contents/Resources/"; fi
+done
+cp "$ROOT/assets/app-icon/LICENSE-rustani.txt" "$APP/Contents/Resources/"
 copy_font_licences "$APP/Contents/Resources"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@SHORT_VERSION@/$SHORT_VERSION/g" \
   -e "s/@BUILD_SHA@/${GRIDCRAFT_BUILD_SHA:-unknown}/g" \

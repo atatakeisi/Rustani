@@ -1,6 +1,6 @@
 # Rustani
 
-日本語で使える、Rust製のオープンソース表計算アプリです。WebAssemblyによるWeb版とネイティブ版を開発しています。XLSXの読み書き、関数、グラフ、ピボットテーブル、部分的なVBA実行に対応しています。
+日本語で使える、Rust製の表計算アプリです。WebAssemblyによるWeb版とネイティブ版を開発しています。XLSXの読み書き、関数、グラフ、ピボットテーブル、部分的なVBA実行に対応しています。
 
 **開発段階はalphaです。Excelとの完全互換は未達です。** 実装範囲と検証結果は [PROJECT_STATUS.md](PROJECT_STATUS.md)、操作別の確認は [operational-parity.md](docs/operational-parity.md)を参照してください。
 
@@ -8,15 +8,21 @@ Rustaniは、ArtCraft Teamおよび貢献者によるオープンソースのGri
 
 ## Web版を開く
 
-GitHub Pagesの設定とデプロイが完了した後は、インストールせずに次のURLから開けます。
+**正式公開URL：[Rustani Web版](https://atatakeisi.github.io/Rustani/)**
 
-**[Rustani Web版・売上サンプル](https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja)**
+[売上サンプルを日本語で開く](https://atatakeisi.github.io/Rustani/?sample=sales&lang=ja)こともできます。友人に試してもらう場合は、このWeb版のURLを案内してください。
 
-現在のリポジトリ名は `gridcraft` です。上記はその公開先であり、このREADMEの更新だけで公開完了を示すものではありません。初回公開時は、リポジトリの **Settings → Pages → Build and deployment → Source** で **GitHub Actions** を選び、Pagesワークフローのデプロイ成功を確認してください。操作の詳細は [Web配信手順](packaging/web/README.md)を参照してください。
+開発リポジトリは [atatakeisi/Rustani](https://github.com/atatakeisi/Rustani) です。2026-10-25にユーザーが旧 `gridcraft` を改名し、公開へ変更しました。現在はRustソース、テスト、開発資料、Git履歴も公開されています。当初の「ソース非公開＋配布物だけを別リポジトリへ公開」という案から変更されています。
 
-公開準備時の確認（2026-10-25）では、リポジトリは非公開でPagesは未有効でした。有効化APIも現行プランの制限によりHTTP 422で拒否され、公開は未完了です。GitHub FreeでPagesを使うにはリポジトリの公開が必要です。非公開のまま利用するにはGitHub Pro等の対応プランが必要です。条件は [GitHub公式のPages案内](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)、最新の公開状況は [PROJECT_STATUS.md](PROJECT_STATUS.md)を参照してください。
+Pagesの配信元は **Settings → Pages → Source: GitHub Actions**。`Rustani Pages` ワークフローでreleaseビルドし、Pagesへ配信します。2026-10-25の [配信run 40182224633](https://github.com/atatakeisi/Rustani/actions/runs/40182224633) は成功し、正式URLのHTTP 200とChromeで日本語の売上サンプル表示を確認しました。確認時点の公開ソースは `5f06251b` です。
 
-リポジトリを将来 `rustani` に改名してPagesを再設定・デプロイした場合は、公開先が `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja` になります。
+新しいメジロと銀色の歯車のアイコン、未使用のArtCraft商標画像8点の除去、依存コード・フォントの告知整備はローカルで準備済みです。最終ローカルCIは全8項目・2,367件成功し、releaseビルドとChromeでの入力・計算を確認しました。公開への反映状態はGitHub Actionsの同じコミットの結果で確認してください。詳細は [PROJECT_STATUS.md §23](PROJECT_STATUS.md)、配信手順は [Web配信手順](packaging/web/README.md)を参照してください。
+
+### 公開しながら開発する
+
+ローカルのファイル編集やビルドだけでは、友人が開く公開サイトは変わりません。現在の版を公開したまま、修正・テスト・ビルドを行い、mainへのpushとPagesの配信成功後に更新します。今後は作業ブランチとPull Requestで確認してからmainへ反映する運用を推奨します。更新後の不具合や通信障害が起きない保証はありません。
+
+試用には元ブックのコピーを使い、再読み込みや更新前に必要な内容を保存してください。問題の報告にはOS・ブラウザー名とバージョン、再現手順を添えてください。
 
 ### 基本の使い方
 
@@ -85,11 +91,12 @@ cargo xtask ci
 
 ## ライセンスと由来
 
-元プロジェクトは [GridCraft](https://github.com/storytold/gridcraft)です。この改変版のソースは [atatakeisi/gridcraft](https://github.com/atatakeisi/gridcraft)で管理しています。
+元プロジェクトは [GridCraft](https://github.com/storytold/gridcraft)です。この改変版の開発ソースと履歴は、公開リポジトリ [atatakeisi/Rustani](https://github.com/atatakeisi/Rustani) で管理しています。
 
 - 元の著作権：Copyright (c) 2026 ArtCraft Team and the GridCraft contributors
 - 改変分：Modifications Copyright (c) 2026 atatakeisi (Rustani)
 - コード：[MIT](LICENSE-MIT) または [Apache-2.0](LICENSE-APACHE)を選択できます。[NOTICE](NOTICE)の告知も参照してください。
-- アセットごとの作者・条件：[ATTRIBUTION.md](ATTRIBUTION.md)。任意で埋め込むBIZ UDPGothicはSIL Open Font License 1.1で、配布物にも告知を同梱します。フォントのソースはこのリポジトリへ追加しません。
+- アセットごとの作者・条件：[ATTRIBUTION.md](ATTRIBUTION.md)。新しいRustaniアイコンは、所有者提供のGemini生成デザインを清書したメジロと銀色の歯車です。[原画像・各形式の説明](assets/app-icon/README.md)と[アイコンのMIT / Apache-2.0告知](assets/app-icon/LICENSE-rustani.txt)を参照してください。元の台帳型アイコンも保持しています。
+- 依存コードとフォント：[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)に、Web版の通常依存126クレートと、Hack・Ubuntu Light・Noto Emoji・emoji-icon-font・BIZ UDPGothicの5フォントの原文告知を集約しています。build/dev/native専用依存やRust標準ライブラリ等の対象外も明記しています。BIZ UDPGothicを埋め込む配布物には個別のOFLも同梱します。
 
-ArtCraftの名称・ワードマーク・マークはコードのライセンスの対象ではありません。[商標条件](docs/brand/LICENSE-brand.txt)に従い、この案内では商標画像を表示せず、上流の由来をプレーンテキストで示しています。RustaniはArtCraft Teamによる制作・公認・支援を示すものではありません。
+ArtCraftの名称・ワードマーク・マークはコードのライセンスの対象ではありません。[商標条件](docs/brand/LICENSE-brand.txt)に従い、参照されていない商標画像8点はユーザーの許可を受けて作業ツリーから除去しました。元コードの著作権・ライセンス・由来・Git履歴は保持しています。RustaniはArtCraft Teamによる制作・公認・支援を示すものではありません。

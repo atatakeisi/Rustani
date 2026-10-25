@@ -7,8 +7,8 @@ Finder scripting on CI, nothing extra installed in the signing job).
 
 | File | What |
 |---|---|
-| `background.svg` | Source of the background: the app icon (`assets/app-icon/gridcraft.svg`, linked, not copied) cropped as a cover on the GridCraft colour field (`#1f9d55`), Ink and Paper. Its text (Inter, JetBrains Mono) is outlined, so rendering it needs no fonts. No paper grain: noise doesn't compress, and this keeps `background.tiff` small. |
-| `background.tiff` | The background at 1x (660 × 400 px, 72 dpi) and 2x (1320 × 800 px, 144 dpi) in one HiDPI TIFF (16-colour palette, Deflate, sRGB). Goes to `.background/background.tiff`. |
+| `background.svg` | Source of the background: the Rustani app icon (`assets/app-icon/rustani-1024.png`, linked, not copied) cropped as a cover on the green colour field (`#1f9d55`), Ink and Paper. Its text (Inter, JetBrains Mono) is outlined, so rendering it needs no fonts. No paper grain: noise doesn't compress, and this keeps `background.tiff` small. |
+| `background.tiff` | The background at 1x (660 × 400 px, 72 dpi) and 2x (1320 × 800 px, 144 dpi) in one HiDPI TIFF (RGB + alpha, LZW). Goes to `.background/background.tiff`. |
 | `dmg-layout.DS_Store` | Finder's view settings for the volume: window size, icon size 128, GridCraft.app at (326, 205), `Applications` at (574, 205), and the background. Goes to `.DS_Store` in the image; named so it isn't mistaken for (or ignored like) a Finder-generated `.DS_Store`. |
 | `generate.py` | Writes `background.tiff` and `dmg-layout.DS_Store` from the SVG and the layout above. |
 
@@ -28,6 +28,13 @@ The DMG file name (`gridcraft-<version>-macos-<arch>.dmg`) still carries the ver
 
 ## Regenerate
 
+Changing the SVG's linked icon does not update the TIFF used by `package.sh`; regenerate the
+background before packaging. `generate.py` also recreates `dmg-layout.DS_Store` and removes its
+existing copy. For a background-only update, use `render` and `quantize` to write the two image
+sizes into an unused output directory, then save a new TIFF and review it before replacing the
+packaged TIFF. Keep the existing Finder layout when its positions are unchanged. The `write_tiff`
+helper also removes its temporary PNGs when it exits.
+
 Edit `background.svg` (or the layout constants in `generate.py`), then run, on any OS:
 
 ```sh
@@ -42,3 +49,7 @@ outline it (`usvg` from resvg converts text to paths). The window is 660 × 432 
 title bar; the content area is 660 × 400.
 
 This follows VectorCraft's `packaging/macos/dmg/` (storytold/vectorcraft#493).
+
+### Rustani artwork update (2026-10-25)
+
+The current TIFF was rendered with official resvg 0.49.0, exported as 1x/2x TIFFs by macOS `sips`, and combined/compressed with `tiffutil`. The second page's TIFF resolution tags were set to 144/1 after combining (the native tool otherwise reused the first page's 72 dpi). `tiffutil -info` verified 660×400 at 72 dpi and 1320×800 at 144 dpi. The Finder layout file was retained. Intermediate files were kept; the deletion paths in `generate.py` were not run. This native export is not claimed to be byte-for-byte reproducible.

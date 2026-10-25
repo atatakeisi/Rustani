@@ -174,7 +174,7 @@ fn tree() -> Vec<(&'static str, Vec<Entry>)> {
             vec![
                 ("Agent Control (MCP)…", "dialog:agents", None),
                 ("Contributors…", "dialog:about:Contributors", None),
-                ("Rustani on GitHub", "url:https://github.com/atatakeisi/gridcraft", None),
+                ("Rustani on GitHub", "url:https://github.com/atatakeisi/rustani", None),
             ],
         ),
     ]
@@ -341,7 +341,7 @@ mod tests {
         let entries = tree();
         let help = &entries.iter().find(|(title, _)| *title == "Help").unwrap().1;
         let links: Vec<_> = help.iter().filter(|(_, command, _)| command.starts_with("url:")).map(|(label, command, _)| (*label, *command)).collect();
-        assert_eq!(links, [("Rustani on GitHub", "url:https://github.com/atatakeisi/gridcraft")]);
+        assert_eq!(links, [("Rustani on GitHub", "url:https://github.com/atatakeisi/rustani")]);
         assert!(help.iter().all(|(label, _, _)| !label.contains("ArtCraft") && !label.contains("GridCraft")));
     }
 

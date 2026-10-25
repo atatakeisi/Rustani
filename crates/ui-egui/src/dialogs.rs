@@ -1892,7 +1892,7 @@ fn about(ui: &mut egui::Ui, d: &mut Dialog) {
             ui.add_space(4.0);
             ui.label(lang.tr("An open-source spreadsheet built with Rust."));
             ui.label(lang.tr("Based on GridCraft by the ArtCraft team and contributors, licensed under MIT OR Apache-2.0."));
-            ui.hyperlink_to("github.com/atatakeisi/gridcraft", "https://github.com/atatakeisi/gridcraft");
+            ui.hyperlink_to("github.com/atatakeisi/rustani", "https://github.com/atatakeisi/rustani");
         }
     }
 }

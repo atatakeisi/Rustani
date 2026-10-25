@@ -2,7 +2,7 @@
 .SYNOPSIS
   Exercise the actual MSI's desktop-shortcut choices on a disposable GitHub Windows runner.
 .DESCRIPTION
-  Compiles original no-op GUI/CLI fixtures instead of Rust, uses GridCraft's existing icon,
+  Compiles original no-op GUI/CLI fixtures instead of Rust, uses the Rustani icon,
   and builds adjacent MSI versions. Installs the real package (including its registrations),
   checks default/explicit choices, repair and major upgrades, then uninstalls in finally.
   Run through the Packaging lint workflow, never on a developer's Windows installation.
@@ -22,7 +22,7 @@ $StartLink = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'GridCra
 $ChoiceKey = 'HKLM:\Software\GridCraft\Installer'
 $ComponentKey = 'HKLM:\Software\GridCraft\Installer'
 $UninstallRoot = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
-$Icon = Join-Path $Root 'assets\app-icon\gridcraft.ico'
+$Icon = Join-Path $Root 'assets\app-icon\rustani.ico'
 if ((Test-Path $InstallDir) -or (Test-Path $DesktopLink) -or (Test-Path $StartLink) -or
     (Test-Path 'HKLM:\Software\GridCraft') -or (Test-Path 'HKCU:\Software\GridCraft')) {
   throw 'Refusing to run against an existing GridCraft installation or its settings.'
@@ -88,6 +88,9 @@ function Assert-Package($Package) {
   foreach ($exe in 'gridcraft.exe', 'gridcraft-cli.exe') {
     Assert-That (Test-Path (Join-Path $InstallDir $exe)) "$exe missing after installation"
   }
+  foreach ($notice in 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'ATTRIBUTION.md', 'THIRD_PARTY_NOTICES.txt', 'LICENSE-rustani.txt') {
+    Assert-That (Test-Path (Join-Path $InstallDir $notice)) "$notice missing after installation"
+  }
   Assert-That (Test-Path $StartLink) 'The existing Start Menu shortcut is missing'
 }
 
@@ -108,7 +111,7 @@ function Assert-Desktop([bool] $Enabled) {
     Assert-That ($shortcut.IconLocation -match '^(.*),\s*0$') 'Desktop shortcut must use icon index zero'
     $iconPath = [Environment]::ExpandEnvironmentVariables($Matches[1].Trim('"'))
     Assert-That (Test-Path $iconPath) 'Desktop shortcut icon is missing'
-    Assert-That ((Get-FileHash $iconPath).Hash -eq (Get-FileHash $Icon).Hash) 'Desktop shortcut does not use the packaged GridCraft icon'
+    Assert-That ((Get-FileHash $iconPath).Hash -eq (Get-FileHash $Icon).Hash) 'Desktop shortcut does not use the packaged Rustani icon'
   } finally {
     foreach ($item in $shortcut, $shell) {
       if ($item) { [Runtime.InteropServices.Marshal]::FinalReleaseComObject($item) | Out-Null }
@@ -172,7 +175,7 @@ $packages = @()
 foreach ($version in '90.0.0', '90.0.1', '90.0.2') {
   $msi = Join-Path $WorkDir "gridcraft-$version.msi"
   & wix build (Join-Path $PSScriptRoot 'gridcraft.wxs') -arch x64 `
-    -d "Version=$version" -d "BinDir=$Bin" -d "IconPath=$Icon" -o $msi | Write-Host
+    -d "Version=$version" -d "BinDir=$Bin" -d "LicenseDir=$Root" -d "IconPath=$Icon" -o $msi | Write-Host
   if ($LASTEXITCODE -ne 0) { throw "WiX failed to build $version" }
   $packages += [pscustomobject]@{ Path = $msi; Code = (Get-ProductCode $msi); Version = $version }
 }

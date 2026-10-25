@@ -1,10 +1,12 @@
 # Rustani 現状共有シート
 
-更新日: 2026-10-25（日本時間）。最新修正は「20」のKeyTips生成と `cargo fmt` の設定統一（比較基点 `3776e11a`）。生成時にworkspaceの `rustfmt.toml` を明示し、生成コード2件を更新した。検証結果は「20」、確定したコミットと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
+更新日: 2026-10-25（日本時間）。**最新作業は「23」の新Rustaniアイコン・商標画像除去・依存告知の整備。現在の公開構成は「22」。** ユーザーが旧 `atatakeisi/gridcraft` を `atatakeisi/Rustani` へ改名し公開した。正式URLは `https://atatakeisi.github.io/Rustani/`。GitHub ActionsのPages成功、HTTP 200、Chromeで日本語サンプルの描画とerrorログ0件を確認した公開版は `5f06251b` に基づく旧版である。開発ソース・履歴も公開中であり、「非公開開発＋配布用だけ公開」という「21」の案は現行構成ではない。
+
+今回のアイコン・商標画像除去・告知・CI対策は「23」の `BRAND.2` 統合対象。最終ローカルCIは全8項目・2,367件成功（0失敗・既存ignore 1件）。releaseビルドとローカルHTTP全12件・SRI整合、Chromeでセル入力と参照計算を確認した。8784番は `dist/web-rustani-icon-20261025`。確定コミットとorigin同期は `git log -1 --oneline` / `git status -sb`、公開更新の結果は同じSHAのPages runで確認する。
 
 直前の作業は「19」の **Item 22: RustaniへのリブランディングとGitHub Pages設定**（比較基点 `a7feefae`）。内部のCargo名・ディレクトリ・保存キーは引き継ぎ、表示名・README・著作権告知を更新した。検証とコミット状態は「19」と `git log -1 --oneline` / `git status -sb` で確認する。
 
-GitHubのリポジトリは非公開。Pages有効化要求は現行プラン制限でHTTP 422となり、**Web公開は未完了**。リポジトリの公開範囲や契約は変更していない。条件を満たした後にSettings → Pages → Source: GitHub Actionsを選び、Rustani Pagesを実行する。予定URLは `https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja`、将来 `rustani` へ改名した場合は `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja`。
+当初のprivate同一リポジトリPages案はプラン制約（HTTP 422）で利用できず、「19」の履歴として残す。その後「21」の配布分離を試行したが、ユーザーの改名・公開操作により「22」の公開ソース＋Actions配信へ変更された。現在の設定・適用結果は「22」を参照する。
 
 直前の統合は「18」の `EXCEL.3: prompt for Web Save As filenames`（Item 21、`a7feefae`、比較基点 `8bbfe9a9`）。CI全8項目・161 suite・2,363テスト成功、0失敗・既存ignore 1件。Chromeで日本語名入力・空名エラー・Esc取消を確認した。Safari実機とブラウザーのOS保存完了は未確認。Item 17〜20は「16」、その配布ZIPは「17」の履歴を参照。
 
@@ -155,7 +157,7 @@ cd apps/gridcraft-web
 ../../../.tools/trunk-0.22.0/trunk --skip-version-check serve --dist ../../dist/web-new-output
 ```
 
-最新確認版: `http://127.0.0.1:8784/?sample=sales&lang=ja`（「16」）。配信対象は `dist/web-functions-20261025`。8785番は「12」の旧版、従来の開発URLは8771番。WebGL比較は `&webgl` を付けるが、今回その比較試験は実施していない。
+正式公開版: `https://atatakeisi.github.io/Rustani/?sample=sales&lang=ja`（「22」）。「21」の配布分離用releaseは過去の試行であり、現在の正式配信は公開ソースのGitHub Actionsによる。ローカルの `http://127.0.0.1:8784/?sample=sales&lang=ja` は「23」の `dist/web-rustani-icon-20261025` を配信中。8785番は「12」の旧版、従来の開発URLは8771番。WebGL比較は `&webgl` を付けるが、今回その比較試験は実施していない。
 
 `cargo xtask wasm` はWasm向けの **cargo check**。Safari/Chromeでの動作試験とは別です。共有体制準備時点ではビルド/実機試験は未実施でした。その後の検証は末尾へ記録します。既存の `dist/web` は以前のビルドで、現在のVBA実装の確認には新しい出力先を使用します。
 
@@ -328,7 +330,7 @@ Git送信記録: `dc6d1caee303259378b714285c61f52013cf8568` / `EXCEL.1: integrat
 
 - `cargo xtask ci` 全8項目成功。158 suite、**2,328成功・0失敗・既存ignore 1件**。下書き間Undo分離を含めた最終ソースの結果。ログ: `../outputs/GridCraft-Safari-VbaPaste-Final-CI-20261025.log`。
 - Trunk 0.22.0で新規出力 `dist/web-safari-vba-paste-20261025-v2` を生成。WASMは `gridcraft-web-efc436f7b1532fd_bg.wasm`。ログ: `../outputs/GridCraft-Safari-VbaPaste-Final-Web-20261025.log`。旧出力は削除・上書きせず保持。
-- Item 17単独の検証時点では8784番をこの出力へ切り替えた。現在の配信と再開コマンドは「19」を参照する。
+- Item 17単独の検証時点では8784番をこの出力へ切り替えた。現在の配信と再開コマンドは「21」を参照する。
 - Chromeで最終版の「表示→マクロ→VBAエディター→右クリック→貼り付け」により日本語の `Sub PasteCheck()` を入力し、1回のCmd+Zで空の元ソースに戻ることを確認。確認時のerrorログ0件。証跡: `../outputs/GridCraft-Safari-VbaPaste-Chrome-Final-20261025.jpg`。
 
 Safari操作は画面取得失敗により再検証未完了。上記はSafari実機成功や実OS IME候補変換成功を意味しない。この節の修正は「16」の `EXCEL.2` に含む。
@@ -383,9 +385,11 @@ Item 21のWebビルド・画面確認:
 
 ## 19. RustaniへのリブランディングとGitHub Pages（Item 22、2026-10-25、EXCEL.4）
 
+この節のPages設定は2026-10-25の初期案の履歴である。配布分離の試行は「21」、現在の公開ソースとActions配信は「22」を参照する。以下の有効化拒否と予定URLは当時の記録で、現行の公開手順ではない。
+
 レポート末尾のItem 22を再読み込みし、WebのHTML title/loading/起動失敗表示、ネイティブのウィンドウ・メニュー、共有UIのアカウント/About/通知、翻訳をRustaniへ更新した。編集中のブック名は維持し、製品サフィックスをRustaniにする。AboutはGridCraftのArtCraftチームと貢献者への由来・MIT OR Apache-2.0をプレーンテキストで表示し、リンクは改変版のGitHubへ向ける。上流の公式製品・コミュニティとしての誘導を外した。
 
-内部のCargoパッケージ名、クレート、ディレクトリ、app ID、canvas/egui ID、保存済み設定キーは引き継ぐ。CORE/DIALOGSの翻訳キー変更は他言語カタログと同期する。商標画像の原本や既存ファイルは削除せず保持し、公開Web成果物には含めない。MIT/Apacheで配布可能な元の台帳型appアイコンは維持する。`LICENSE-MIT` と `NOTICE` の上流copyright・本文は保持し、`Modifications Copyright (c) 2026 atatakeisi (Rustani)` を追記した。READMEは新しい名称・機能・使い方・alpha/VBAの制約・由来・公開条件を案内する。
+内部のCargoパッケージ名、クレート、ディレクトリ、app ID、canvas/egui ID、保存済み設定キーは引き継ぐ。CORE/DIALOGSの翻訳キー変更は他言語カタログと同期する。この初期作業時点では商標画像の原本や既存ファイルを削除せず保持し、公開Web成果物には含めなかった。その後のユーザー許可による商標画像8点の除去と新アイコン導入は「23」を参照する。MIT/Apacheで配布可能な元の台帳型appアイコンは保持する。`LICENSE-MIT` と `NOTICE` の上流copyright・本文は保持し、`Modifications Copyright (c) 2026 atatakeisi (Rustani)` を追記した。READMEは新しい名称・機能・使い方・alpha/VBAの制約・由来・公開条件を案内する。
 
 `.github/workflows/pages.yml` は `main` push / workflow_dispatchから、固定Trunk 0.22.0・Wasm target・release・相対URL・locked Cargoでビルドする。日本語フォントは固定craft-fontsコミット＋SHA-256で検証し、OFL・MIT/Apache・NOTICE・ATTRIBUTION・`.nojekyll`を配信する。build後のPages artifactをdeploy jobへ渡し、権限・github-pages environment・同時実行制御を設定した。Actionsの参照は確認した公式タグのSHAで固定する。
 
@@ -393,10 +397,10 @@ GitHub実設定の確認:
 
 - `gh api repos/atatakeisi/gridcraft` で `private: true`, `has_pages: false`, 管理権限を確認した。
 - Actionsを配信元とするPages有効化要求は **HTTP 422: Your current plan does not support GitHub Pages for this repository.** となった。GitHub側のプラン制約であり、ローカルビルドやワークフローでは解消できない。
-- **公開サイトは未稼働**。現状のリポジトリを非公開のままにしている。公開リポジトリへの変更、または非公開Pagesに対応するプランが必要。利用条件を満たしてからSettings → Pages → Build and deployment → Source: GitHub Actionsを選び、Actions → Rustani Pages → Run workflowを実行し、成功後にURLを案内する。
-- 現リポジトリ名の予定URL: `https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja`。将来リポジトリ名を `rustani` へ変更した場合のURL: `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja`。今回repo名・remoteは変更しない。
+- この初期案では**公開サイトは未稼働**だった。private本体を直接Pages配信元にするには公開切替または対応プランが必要と確認し、Source: GitHub ActionsとRustani Pagesワークフローによる配信を検討した。その後「21」の配布分離を試行したが、現行構成は「22」。
+- 当初の同一リポジトリ案の予定URLは `https://atatakeisi.github.io/gridcraft/?sample=sales&lang=ja`、改名を行う場合は `https://atatakeisi.github.io/rustani/?sample=sales&lang=ja` としていた。この段階では改名せずprivate開発repoを維持したが、後にユーザーが改名・公開した現在の正式URLは大文字の `/Rustani/` である。
 
-検証結果とローカル8784番のRustani出力は、実行後にここへ記録する。Safari実機・実OS IME候補変換、Windows Chrome、Excel実行可能VBAプロジェクトの生成/書換えと引数付きVBAの拡張は引き続き未完了であり、この名称変更で解決済みとは扱わない。
+この初期案に続くKeyTips/CIの検証は「20」、配布分離用releaseは「21」、現在の公開先とローカル8784番の区別は「22」「23」を参照する。Safari実機・実OS IME候補変換、Windows Chrome、Excel実行可能VBAプロジェクトの生成/書換えと引数付きVBAの拡張は引き続き未完了であり、この名称変更で解決済みとは扱わない。
 
 ## 20. KeyTips生成のrustfmt設定とCI整合（2026-10-25）
 
@@ -404,4 +408,80 @@ GitHub Actionsの `cargo xtask ci` が `fmt` で停止する原因として、st
 
 `cargo run -p xtask -- keytips` → `cargo fmt --all` の順で更新し、生成ファイル2件のSHA-256が全体整形の前後で一致することを確認した。`max_width = 150` / `use_small_heuristics = "Max"` を共有し、生成と整形の往復で差分を作らない。KeyTipsの入力JSONと操作仕様は変更していない。 プロジェクト外の親ディレクトリから `./gridcraft/target/debug/xtask keytips --check` も成功した（`../outputs/Rustani-Keytips-Other-Cwd-20261025.log`）。
 
-`cargo xtask ci` の全8項目が成功した（fmt、Clippy、test、assets、layers、Wasm、parity、keytips）。161 suite・2,367件成功・0失敗・既存ignore 1件。`fmt --check` と生成コードの `keytips --check` が両方通過し、生成と整形の不一致を解消した。生成ログ: `../outputs/Rustani-Keytips-Generate-20261025.log`、整形ログ: `../outputs/Rustani-Keytips-Format-20261025.log`、CIログ: `../outputs/Rustani-Keytips-CI-20261025.log`。GitHub Pages未有効化の問題は「19」に記録した別の制約である。
+`cargo xtask ci` の全8項目が成功した（fmt、Clippy、test、assets、layers、Wasm、parity、keytips）。161 suite・2,367件成功・0失敗・既存ignore 1件。`fmt --check` と生成コードの `keytips --check` が両方通過し、生成と整形の不一致を解消した。生成ログ: `../outputs/Rustani-Keytips-Generate-20261025.log`、整形ログ: `../outputs/Rustani-Keytips-Format-20261025.log`、CIログ: `../outputs/Rustani-Keytips-CI-20261025.log`。当初のprivate同一リポジトリPages有効化の問題は「19」、配布分離の試行は「21」の履歴。現在の公開ソースとActions配信は「22」を参照する。
+
+## 21. 配布分離の試行と非公開保全（2026-10-25、履歴）
+
+当初のユーザー承認に従い、非公開gridcraftとは別に配布物専用public rustaniを作成した。初回コミットは `f931c62f86132c2194bcb350f8927f2db04bcfff`、標準Pages run `40173568096` は成功した。HTML/JS/WASM/アイコン/README/告知類の11ファイルのみで、Rustソースや元のGit履歴をコピーしていない。
+
+最終監査で初回WASMにローカルホーム由来のソース位置が602件残ることを検出した。内訳はCargo registry 553、Rust toolchain 48、git依存1。既知の認証キー・private URLの混入は検出していない。ユーザーへ説明し、初回履歴は **`atatakeisi/rustani-initial-build-private-20261025` として非公開で保全**した。ローカル `../rustani-public-20261025` のoriginもその保管先へ変更済み。ファイル削除やforce pushはしていない。既に取得された外部コピーやキャッシュの消去を保証するものではない。
+
+その後、作業用コピーにWasmの `--remap-path-prefix` を指定して `dist/web-rustani-public-clean-20261025` を生成した。環境変数は変更していない。新WASMは `gridcraft-web-5bf4540bc3837963_bg.wasm`、25,681,236 bytes、SHA-256 `6ae0e02fa2691d7cb69ffacbc54c8bb21914b83f64183bb337507dd27065a2fa`。ローカルホーム・`/Users/`・旧private URLの既知文字列0件、HTML SRI 3件一致。ログ: `../outputs/Rustani-Publication-Clean-Web-20261025.log`。
+
+BIZのOFLに加え、既定のHack/Ubuntu Light/Noto Emoji/emoji-icon-fontにも告知が必要と確認した。原文は `../outputs/Rustani-Licenses-epaint-default-fonts-0.36.2-20261025/` に保全。この時点では公開専用NOTICE/ATTRIBUTION草稿と依存コードのライセンス集約は整理中だった。現在の作業ツリーへの原文集約・Pages同梱設定は「23」を参照する。
+
+ユーザーのGitHub側変更を受け、この別構成への追加公開は停止した。**上記のcleanローカルWASM・追加告知は現在の正式サイトに未反映**。現在の正しい公開元は次節を参照する。
+
+## 22. ユーザーによるRustani公開と正式URLの確認（2026-10-25）
+
+ユーザーが旧gridcraftをGitHub上で改名・public化し、正式URL `https://atatakeisi.github.io/Rustani/` を指定した。以後はこの構成を基準にする。確認はread-onlyで行い、ユーザーが有効化したPagesを再び停止したり、別配布物を上書きしたりしていない。
+
+| 対象 | 確認結果 |
+|---|---|
+| リポジトリ | `https://github.com/atatakeisi/Rustani`、id `1430538462`。元の開発リポジトリと同一。`private: false` |
+| 公開範囲 | Rustソース、Cargo、テスト、ai-team、PROJECT_STATUS、開発資料、Git履歴を含む。配布物専用ではない |
+| 正式アプリURL | `https://atatakeisi.github.io/Rustani/`。日本語売上サンプルは `?sample=sales&lang=ja` を付ける |
+| Pages | `build_type: workflow`、HTTPS、status built。Rustani Pagesと通常CIはactive |
+| 確認時のmain | `5f06251b098f93f1f1a9ddcb53e4208bef0edd94` |
+| 最新Pages | run `40182224633`、workflow_dispatch、completed/success。同じmainから配信 |
+
+正式URLをHTTPで取得し200、HTML title Rustaniを確認。配信中のWASM参照は `gridcraft-web-396e042943407686_bg.wasm`。証拠: `../outputs/Rustani-Official-URL-HTTP-20261025.json`。Chromeで日本語の売上サンプル・グラフを描画し、errorログ0件。証跡: `../outputs/Rustani-Official-URL-Chrome-20261025.jpg`。これはブラウザー起動確認であり、全機能・Safari実機・実OS IME・Windows Chromeの検証完了を意味しない。
+
+### ローカル変更とCI
+
+GitHubの旧通常CI run `40171753157` はfmt/Clippyを通過したが、Linuxテストのリンクでlld SIGBUSにより失敗した。根因は未確定。ローカルではxtaskのtest gateに限り `--config profile.test.debug=0` を指定し、workflowにdf/freeの前後記録を追加した。debug assertionsと通常の `cargo test` は維持する。
+
+最初のsandbox内試行は既存ループバック通信テスト2件がPermissionDeniedで失敗した。必要な通信を許可して再実行した **この段階の最終ローカルCIは全8項目・161 suite・2,367件成功、0失敗、既存ignore 1件**。ログ: `../outputs/Rustani-Publication-Final-CI-v2-20261025.log`。この時点ではCI対策・公開リンク・文書更新は未コミット・未pushだった。後続のアイコン変更と合わせた検証・統合は「23」を参照する。
+
+ローカル8784番は旧 `dist/web-rustani-20261025` のまま。Safari実機、実OS IME、Windows Chrome、ブラウザーのOS保存完了、実Excelでの保存物確認は引き続き未検証。VBAの引数付き手続きとExcel実行可能 `vbaProject.bin` の生成・書換えは未対応。
+
+### GitHub Aboutと商標画像の追加確認
+
+GitHubのAboutはアプリ内Aboutとは別のrepository metadataで、旧GridCraft紹介が残っていた。Rustaniの日本語説明と正式ホームページURLへAPIで更新し、再読込で確認した。mainのソースコミットやPages配布物はこのmetadata編集では変化しない。
+
+この確認時点では公開ソースにdocs/brand/artcraft-*.png / *.svgの8画像が残っていた。改変版からmarksを除去する商標条件を確認し、削除候補とSHA-256を `../outputs/Rustani-Brand-Removal-Preview-20261025.md` へ記録した。当初は明示許可待ちで未実行だったが、その後のユーザー許可と除去結果は以下「23」。元コードの著作権・ライセンス・由来と商標画像を区別する。
+
+## 23. Rustaniアイコン・商標画像除去・依存告知（2026-10-25、BRAND.2）
+
+### 許可された商標画像の除去
+
+ユーザーの条件付き許可「今回ファイル無関係なら削除」に基づき、参照0件を確認した上記プレビューのArtCraft商標画像8点だけを作業ツリーから除去した。「19」「22」の画像保持・許可待ちはそれぞれ当時の記録である。`docs/brand/LICENSE-brand.txt`、元コードの著作権・MIT/Apacheライセンス・由来、既存のGit履歴は保持している。過去コミットの書換えはしていない。
+
+### 新しいアプリアイコン
+
+所有者が提供したDesktop ZIP内のGemini生成JPEGを元に、メジロと銀色の歯車の図案を画像生成ツールで清書した。透明PNGの原画像は `assets/app-icon/rustani-source.png`、実寸1254×1254、RGB＋alpha。提供されたZIP原本は変更せず保持している。由来・再生成手順は `assets/app-icon/README.md`、条件は `assets/app-icon/LICENSE-rustani.txt` と `ATTRIBUTION.md` に記録し、MIT OR Apache-2.0とした。
+
+| 出力・反映先 | 作業ツリーの状態 |
+|---|---|
+| PNG | 1024px・macOS runtime用512pxと、hicolor 16/24/32/48/64/128/256/512pxの8サイズを生成 |
+| ICO / ICNS | 9フレームICO、macOS ICNSを生成。ICO構造・PNG寸法・ICNSヘッダサイズの整合を確認 |
+| アプリ・パッケージ | Web favicon、native runtime、macOS bundle、Windows exe/installer/shortcut、Linux/FreeBSD/Flatpakの参照を新アイコンへ変更。内部app IDは維持 |
+| macOS DMG背景 | source SVGと2ページTIFFを更新。660×400@72dpiと1320×800@144dpi、RGB＋alpha・LZWを確認。既存DS_Storeは保持 |
+| 元の台帳型アイコン | 元のSVG・PNG・ICO・ICNS・hicolorを保持。新Rustaniアイコンとは由来・ライセンス告知を分ける |
+
+### 依存コード・フォントの告知
+
+`NOTICE` と `ATTRIBUTION.md` を更新し、ルートに `THIRD_PARTY_NOTICES.txt` を追加した。CargoのWASM向け通常依存を確認し、外部126クレートのライセンス・必要なNOTICE原文と、組込みフォント5種（Hack Regular、Ubuntu Light、Noto Emoji、emoji-icon-font、BIZ UDPGothic Regular）の告知を集約した。registryに原文が不足するものは固定したVCS SHAの公式上流から補完した。Pagesワークフローにも集約告知の同梱を追加済み。
+
+対象は通常のWeb依存関係であり、proc macroとその専用依存、build/dev/native専用依存、Cargo metadataに含まれないRust toolchain・標準ライブラリ等は対象外として明記した。最終WASMのシンボル単位のリンク監査や全プラットフォームの依存告知完了を主張するものではない。BIZの個別OFL同梱も維持する。
+
+### 検証・公開状態と運用
+
+- GitHub Aboutの日本語説明・正式URLは更新済み。改修前の公開確認基点は `5f06251b`。今回の全変更は `BRAND.2: adopt Rustani owner artwork and complete publication notices` に統合する。確定コミットとorigin同期はgitの現物、公開更新は同じSHAのGitHub Actions結果で確認する。
+- 先行CIは追加したICO構造テストのClippy指摘（`chunks_exact`）で停止し、`as_chunks` へ修正した。**最終 `cargo xtask ci` は全8項目・161 suite・2,367件成功、0失敗・既存ignore 1件**。ログ: `../outputs/Rustani-Brand-Icon-Final-CI-20261025.log`。既存Wasm dead_code警告1件は継続。追加のICO検査は旧・新両ファイルの各フレームのPNGサイズとディレクトリ一致を確認する。
+- Trunk 0.22.0のreleaseビルド成功。新出力は `dist/web-rustani-icon-20261025`。WASMは `gridcraft-web-5bf4540bc3837963_bg.wasm`、SHA-256 `6ae0e02fa2691d7cb69ffacbc54c8bb21914b83f64183bb337507dd27065a2fa`。新faviconは `rustani-164fd0d59f34644f.ico`、SHA-256 `ec20147262ea4d8966324fc1f2f9a7a8a424c57389c05b82801a22968d17be19`。ログ: `../outputs/Rustani-Brand-Icon-Web-20261025.log`。
+- 環境変数を変更せず、非公開の作業用コピーのCargo設定でローカルパスを置換した。生成物の既知ホームパス・旧private URLは0件、HTML SRI 3件一致。ファイル一覧: `../outputs/Rustani-Brand-Icon-Manifest-20261025.json`。
+- 8784番を新出力へ切替。HTML/JS/WASM/ICO/告知類の全12件がHTTP 200でローカルhash一致、WASMはapplication/wasm。記録: `../outputs/Rustani-Brand-Icon-Local-HTTP-20261025.json`。ChromeでC20=40、D20=`=C20+2`が42になり、errorログ0件。証跡: `../outputs/Rustani-Brand-Icon-Chrome-20261025.jpg`。
+- シェル6ファイルのbash構文、WiX XMLとComponent/File定義の重複なし、ICO9フレーム・ICNSサイズ・PNG寸法を検証した。Windows/MSIや各OSの実パッケージ作成・インストールはこのMacでは実施していない。GitHub Packaging lintの結果は別途確認する。
+- 正式URLは引き続き `https://atatakeisi.github.io/Rustani/`。別リポジトリへの移行は行わない。ローカルの修正・テスト・ビルドは配信中の静的ファイルに影響せず、旧版を公開したまま確認できる。mainへのpushとPagesの配信成功後に更新し、今後は作業ブランチ／Pull Requestで確認してからmainへ反映する運用を推奨する。
+- 更新後の不具合や通信障害がない保証はしない。試用ブックはコピーを使い、再読み込み前に必要な内容を保存する。Safari実機・実OS IME・Windows Chrome・ブラウザーのOS保存完了・実Excelの保存物確認、VBAの既存制約は継続する。

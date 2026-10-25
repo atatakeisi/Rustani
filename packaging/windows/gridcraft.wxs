@@ -2,7 +2,7 @@
 <!--
   GridCraft MSI (WiX Toolset v5: `dotnet tool install -g wix`). Built by package.ps1:
 
-    wix build gridcraft.wxs -arch x64 -d Version=1.2.3 -d BinDir=... -d IconPath=... -o out.msi
+    wix build gridcraft.wxs -arch x64 -d Version=1.2.3 -d BinDir=... -d LicenseDir=... -d IconPath=... -o out.msi
 
   Per-machine install into Program Files, a Start Menu shortcut, an optional desktop shortcut,
   App Paths (Win+R `gridcraft`),
@@ -200,6 +200,25 @@
 
       <Component Id="GridcraftCli">
         <File Id="GridcraftCliExe" Source="$(var.BinDir)\gridcraft-cli.exe" KeyPath="yes" />
+      </Component>
+
+      <Component Id="GridcraftLicenseMit">
+        <File Id="GridcraftLicenseMitFile" Source="$(var.LicenseDir)\LICENSE-MIT" KeyPath="yes" />
+      </Component>
+      <Component Id="GridcraftLicenseApache">
+        <File Id="GridcraftLicenseApacheFile" Source="$(var.LicenseDir)\LICENSE-APACHE" KeyPath="yes" />
+      </Component>
+      <Component Id="GridcraftNotice">
+        <File Id="GridcraftNoticeFile" Source="$(var.LicenseDir)\NOTICE" KeyPath="yes" />
+      </Component>
+      <Component Id="GridcraftAttribution">
+        <File Id="GridcraftAttributionFile" Source="$(var.LicenseDir)\ATTRIBUTION.md" KeyPath="yes" />
+      </Component>
+      <Component Id="GridcraftThirdPartyNotices">
+        <File Id="GridcraftThirdPartyNoticesFile" Source="$(var.LicenseDir)\THIRD_PARTY_NOTICES.txt" KeyPath="yes" />
+      </Component>
+      <Component Id="RustaniIconLicense">
+        <File Id="RustaniIconLicenseFile" Source="$(var.LicenseDir)\assets\app-icon\LICENSE-rustani.txt" KeyPath="yes" />
       </Component>
 
       <!-- Persist both on and off, independently of the optional shortcut. AppSearch reads
