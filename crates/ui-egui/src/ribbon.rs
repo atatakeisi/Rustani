@@ -1057,21 +1057,10 @@ fn home(app: &mut SheetApp, ui: &mut Ui) {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
             let (s, sa) = split_button(ui, Icon::Sum, None, "AutoSum");
-            control_keytip(app, ui, &sa, "formulas.autoSum");
             if s {
                 act(app, "formulas.autoSum", json!({}));
             }
-            egui::Popup::menu(&sa).show(|ui| {
-                for f in ["SUM", "AVERAGE", "COUNT", "MAX", "MIN"] {
-                    if ui.button(f).clicked() {
-                        act(app, "formulas.autoSum", json!({"function": f}));
-                    }
-                }
-                ui.separator();
-                if ui.button("More Functions…").clicked() {
-                    app.open_dialog("insertFunction", json!({}));
-                }
-            });
+            auto_sum_popup(app, ui, &sa, "HU");
         });
         let fill = small_button(ui, Icon::FillDown, "", "Fill", true);
         for sequence in keytip_table::group_extension(
@@ -1918,6 +1907,84 @@ fn page_layout(app: &mut SheetApp, ui: &mut Ui) {
     }
 }
 
+fn auto_sum_popup(app: &mut SheetApp, ui: &mut Ui, anchor: &egui::Response, keytip_group: &str) {
+    anchor.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("AutoSum")));
+    const FUNCTIONS: &[(&str, &str, &str)] = &[
+        ("Sum", "SUM", "formulas.autoSum.sum"),
+        ("Average", "AVERAGE", "formulas.autoSum.average"),
+        ("Count Numbers", "COUNT", "formulas.autoSum.count"),
+        ("Max", "MAX", "formulas.autoSum.max"),
+        ("Min", "MIN", "formulas.autoSum.min"),
+    ];
+    const MORE: &str = "formulas.autoSum.more";
+    for &(_, function, command) in FUNCTIONS {
+        if invoke(app, command) {
+            act(app, "formulas.autoSum", json!({"function": function}));
+            egui::Popup::close_all(ui.ctx());
+        }
+    }
+    if invoke(app, MORE) {
+        app.open_dialog("insertFunction", json!({}));
+        egui::Popup::close_all(ui.ctx());
+    }
+    let invoked = invoke(app, "formulas.autoSum");
+    let forced = invoked || app.keytips.prefix() == Some(keytip_group);
+    egui::Popup::menu(anchor).open_memory(popup_command(forced, anchor.clicked())).show(|ui| {
+        let lang = app.ui.language;
+        for &(label, function, command) in FUNCTIONS {
+            let response = ui.add(egui::Button::new(lang.tr(label)).min_size(vec2(180.0, 22.0)));
+            if let Some(sequence) = keytip_table::item_letter(app.keytips.prefix().unwrap_or_default(), command) {
+                keytip(app, ui, sequence, pos2(response.rect.right() - 10.0, response.rect.center().y));
+            }
+            if response.clicked() {
+                act(app, "formulas.autoSum", json!({"function": function}));
+                ui.close();
+            }
+        }
+        ui.separator();
+        let response = ui.add(egui::Button::new(lang.tr("More Functions…")).min_size(vec2(180.0, 22.0)));
+        if let Some(sequence) = keytip_table::item_letter(app.keytips.prefix().unwrap_or_default(), MORE) {
+            keytip(app, ui, sequence, pos2(response.rect.right() - 10.0, response.rect.center().y));
+        }
+        if response.clicked() {
+            app.open_dialog("insertFunction", json!({}));
+            ui.close();
+        }
+    });
+    if app.keytips.prefix() != Some(keytip_group) {
+        let mut targets: Vec<&str> = FUNCTIONS.iter().map(|(_, _, command)| *command).collect();
+        targets.push(MORE);
+        anchor_keytip(app, ui, anchor, &targets);
+    }
+}
+
+fn function_category_menu(app: &mut SheetApp, ui: &mut Ui, category: &str, functions: &[serde_json::Value]) {
+    egui::ScrollArea::vertical().id_salt(("function_library", category)).max_height(360.0).show(ui, |ui| {
+        for function in functions {
+            if function["category"].as_str() == Some(category)
+                && let Some(canonical) = function["name"].as_str()
+            {
+                let locale = app.ui.language.formula_locale();
+                let name = app
+                    .session
+                    .active()
+                    .map(|doc| crate::formula_locale::completion_name(canonical, locale, &doc.wb, doc.wb.active_sheet))
+                    .unwrap_or(canonical);
+                let description = crate::formula_locale::description(canonical, locale, app.ui.language).unwrap_or_default();
+                if ui.button(name).on_hover_text(description).clicked() {
+                    app.run_or_alert("formulas.insertFunction", json!({"name": canonical}));
+                    ui.close();
+                }
+            }
+        }
+    });
+    ui.separator();
+    if ui.button(app.ui.language.tr("More Functions…")).clicked() {
+        app.open_dialog("insertFunction", json!({"category": category}));
+        ui.close();
+    }
+}
+
 /// The Formulas tab: Insert Function, AutoSum, the function-category menus (names in the formula
 /// language, descriptions in the interface language), defined names, auditing and calculation.
 fn formulas(app: &mut SheetApp, ui: &mut Ui) {
@@ -1927,10 +1994,7 @@ fn formulas(app: &mut SheetApp, ui: &mut Ui) {
         app.open_dialog("insertFunction", json!({}));
     }
     let s = big_button(ui, Icon::Sum, "AutoSum", "AutoSum", true);
-    control_keytip(app, ui, &s, "formulas.autoSum");
-    if s.clicked() {
-        act(app, "formulas.autoSum", json!({}));
-    }
+    auto_sum_popup(app, ui, &s, "MU");
     for (label, cat, cid) in [
         ("Financial", "Financial", "formulas.financial"),
         ("Logical", "Logical", "formulas.logical"),
@@ -1938,31 +2002,28 @@ fn formulas(app: &mut SheetApp, ui: &mut Ui) {
         ("Date &\nTime", "DateTime", "formulas.dateTime"),
         ("Lookup &\nReference", "Lookup", "formulas.lookup"),
         ("Math &\nTrig", "MathTrig", "formulas.mathTrig"),
-        ("More\nFunctions", "Statistical", "formulas.moreFunctions"),
     ] {
         let r = big_button(ui, Icon::Book, label, label, true);
+        r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr(label)));
         control_keytip(app, ui, &r, cid);
         let forced_c = invoke(app, cid);
         egui::Popup::menu(&r).open_memory(popup_command(forced_c, r.clicked())).show(|ui| {
-            ui.set_max_height(420.0);
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for f in gridcraft_engine::cmd::formulas::function_list() {
-                    if f["category"].as_str() == Some(cat)
-                        && let Some(n) = f["name"].as_str()
-                    {
-                        let locale = app.ui.language.formula_locale();
-                        let name =
-                            app.session.active().map(|d| crate::formula_locale::completion_name(n, locale, &d.wb, d.wb.active_sheet)).unwrap_or(n);
-                        let desc = crate::formula_locale::description(n, locale, app.ui.language).unwrap_or_default();
-                        if ui.button(name).on_hover_text(desc).clicked() {
-                            app.run_or_alert("formulas.insertFunction", json!({"name": n}));
-                            ui.close();
-                        }
-                    }
-                }
-            });
+            function_category_menu(app, ui, cat, &gridcraft_engine::cmd::formulas::function_list());
         });
     }
+    let more = big_button(ui, Icon::Book, "More\nFunctions", "More\nFunctions", true);
+    more.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("More\nFunctions")));
+    control_keytip(app, ui, &more, "formulas.moreFunctions");
+    let forced = invoke(app, "formulas.moreFunctions");
+    egui::Popup::menu(&more).open_memory(popup_command(forced, more.clicked())).show(|ui| {
+        let functions = gridcraft_engine::cmd::formulas::function_list();
+        for category in ["Statistical", "Engineering", "Information", "Database", "Compatibility", "Web", "AddIn"] {
+            if functions.iter().any(|function| function["category"].as_str() == Some(category)) {
+                let label = app.ui.language.tr(crate::dialogs::function_category_label(category));
+                ui.menu_button(label, |ui| function_category_menu(app, ui, category, &functions));
+            }
+        }
+    });
     sep(ui);
     let __k = big_button(ui, Icon::Name, "Name\nManager", "Name Manager", false);
     control_keytip(app, ui, &__k, "dialog:nameManager");

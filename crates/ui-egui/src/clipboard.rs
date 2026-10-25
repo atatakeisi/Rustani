@@ -1,5 +1,5 @@
 //! Async clipboard requests retain their intended editor and reject stale destinations.
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use egui::{Context, Id};
 use gridcraft_engine::Selection;
@@ -33,6 +33,15 @@ pub(crate) struct Pending {
     sheet: usize,
     selection: Selection,
     editor: Option<Id>,
+    scope: Option<Weak<()>>,
+    text: Option<String>,
+}
+
+impl Pending {
+    fn current(&self, app: &SheetApp) -> bool {
+        self.scope.as_ref().is_none_or(|scope| scope.upgrade().is_some())
+            && app.session.active().is_some_and(|d| d.uid == self.uid && d.wb.active_sheet == self.sheet && d.selection == self.selection)
+    }
 }
 
 impl SheetApp {
@@ -54,13 +63,53 @@ impl SheetApp {
     }
 
     pub(crate) fn request_clipboard(&mut self, editor: Option<Id>) {
+        self.begin_clipboard(editor, None);
+    }
+
+    pub(crate) fn request_editor_clipboard(&mut self, id: Id, scope: Option<Weak<()>>) {
+        if self.services.paste_async.is_some() {
+            self.begin_clipboard(Some(id), scope);
+        } else if let Some(text) = self.services.paste_text.as_mut().and_then(|read| read())
+            && let Some(d) = self.session.active()
+        {
+            self.clipboard_pending = Some(Pending {
+                inbox: ClipboardInbox::default(),
+                uid: d.uid,
+                sheet: d.wb.active_sheet,
+                selection: d.selection.clone(),
+                editor: Some(id),
+                scope,
+                text: Some(text),
+            });
+        }
+    }
+
+    fn begin_clipboard(&mut self, editor: Option<Id>, scope: Option<Weak<()>>) {
         let Some(read) = &self.services.paste_async else { return };
         let Some(d) = self.session.active() else { return };
         let inbox = ClipboardInbox::default();
-        let pending = Pending { inbox: inbox.clone(), uid: d.uid, sheet: d.wb.active_sheet, selection: d.selection.clone(), editor };
+        let pending =
+            Pending { inbox: inbox.clone(), uid: d.uid, sheet: d.wb.active_sheet, selection: d.selection.clone(), editor, scope, text: None };
         // Invoke before returning from the gesture; browsers can otherwise revoke activation.
         read(inbox);
         self.clipboard_pending = Some(pending);
+    }
+
+    /// Deliver immediately before the actual TextEdit is shown, never as an unscoped event
+    /// in a later raw-input batch. Closing a draft or focusing another field invalidates it.
+    pub(crate) fn apply_editor_clipboard(&mut self, ctx: &Context, id: Id) {
+        if !self.clipboard_pending.as_ref().is_some_and(|p| p.editor == Some(id) && p.text.is_some()) {
+            return;
+        }
+        let Some(mut pending) = self.clipboard_pending.take() else { return };
+        let focused = ctx.memory(|m| m.has_focus(id) || (pending.scope.is_some() && m.focused().is_none()));
+        if !pending.current(self) || self.message.is_some() || !focused {
+            return;
+        }
+        if let Some(text) = pending.text.take() {
+            ctx.memory_mut(|m| m.request_focus(id));
+            ctx.input_mut(|input| input.events.push(egui::Event::Paste(text)));
+        }
     }
 
     pub fn try_paste_picture(&mut self) -> bool {
@@ -81,17 +130,23 @@ impl SheetApp {
     }
 
     pub(crate) fn poll_clipboard(&mut self, ctx: &Context) {
+        if self.clipboard_pending.as_ref().is_some_and(|p| !p.current(self)) {
+            self.clipboard_pending = None;
+        }
         let arrived = self.clipboard_pending.as_ref().and_then(|p| p.inbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take());
         if let Some(result) = arrived
-            && let Some(p) = self.clipboard_pending.take()
+            && let Some(mut p) = self.clipboard_pending.take()
         {
-            let current = self.session.active().is_some_and(|d| d.uid == p.uid && d.wb.active_sheet == p.sheet && d.selection == p.selection);
-            let focused = p.editor.map_or_else(|| self.image_paste_target(ctx).is_some(), |id| ctx.memory(|m| m.has_focus(id)));
+            let current = p.current(self);
+            let focused = p.editor.map_or_else(
+                || self.image_paste_target(ctx).is_some(),
+                |id| ctx.memory(|m| m.has_focus(id) || (p.scope.is_some() && m.focused().is_none())),
+            );
             if current && focused {
                 match (p.editor, result) {
-                    (Some(id), Ok(ClipboardData::Text { text, .. })) => {
-                        ctx.memory_mut(|m| m.request_focus(id));
-                        self.synthetic.push_back(vec![egui::Event::Paste(text)]);
+                    (Some(_), Ok(ClipboardData::Text { text, .. })) => {
+                        p.text = Some(text);
+                        self.clipboard_pending = Some(p);
                     }
                     (None, Ok(ClipboardData::Text { text, html })) if !text.is_empty() => {
                         if Self::same_clipboard_text(Some(&text), self.clipboard_text_at_copy.as_deref()) && self.session.clipboard.is_some() {

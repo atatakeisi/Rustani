@@ -101,6 +101,54 @@ fn alignment_sequences_consume_key_and_text_events_in_either_order() {
 }
 
 #[test]
+fn auto_sum_keytips_choose_each_function_in_home_and_formulas_with_one_undo() {
+    for text_first in [false, true] {
+        for (tab_key, tab_name) in [(Key::H, "Home"), (Key::M, "Formulas")] {
+            for (item, function, expected) in
+                [(Key::S, "SUM", 18.0), (Key::A, "AVERAGE", 6.0), (Key::C, "COUNT", 3.0), (Key::M, "MAX", 12.0), (Key::I, "MIN", 2.0)]
+            {
+                let mut session = blank();
+                session.execute("range.setValues", json!({"range":"A1", "values":[[2], [4], [12]]})).unwrap();
+                session.execute("selection.set", json!({"range":"A1:A3"})).unwrap();
+                let mut h = harness(session);
+                h.state_mut().ui.ribbon_tab = "Data".into();
+                sequence(&mut h, &[tab_key, Key::U, item], text_first);
+                assert_eq!(h.state().ui.ribbon_tab, tab_name);
+                assert_eq!(h.state().keytips.prefix(), None);
+                assert!(h.state().message.is_none() && h.state().toast.is_none(), "{tab_name} {function} must run without an error");
+                assert!(h.state().editor.is_none() && h.state().dialog.is_none());
+                let cell = h.state().session.doc().unwrap().wb.active().unwrap().cell(CellRef::parse("A4").unwrap()).unwrap();
+                assert_eq!(cell.formula.as_ref().unwrap().text, format!("{function}(A1:A3)"));
+                assert_eq!(value(&h, "A4"), Value::Number(expected));
+                h.state_mut().run("edit.undo", json!({})).unwrap();
+                assert_eq!(value(&h, "A4"), Value::Empty, "one Undo removes the chosen {function}");
+                assert_eq!(value(&h, "A1"), Value::Number(2.0));
+                assert_eq!(value(&h, "A2"), Value::Number(4.0));
+                assert_eq!(value(&h, "A3"), Value::Number(12.0));
+            }
+        }
+    }
+}
+
+#[test]
+fn auto_sum_more_function_keytips_open_the_builder_from_either_tab() {
+    for text_first in [false, true] {
+        for (tab_key, tab_name) in [(Key::H, "Home"), (Key::M, "Formulas")] {
+            let mut session = blank();
+            session.execute("cell.set", json!({"cell":"A1", "input":"keep 日本語"})).unwrap();
+            let mut h = harness(session);
+            sequence(&mut h, &[tab_key, Key::U, Key::F], text_first);
+            assert_eq!(h.state().ui.ribbon_tab, tab_name);
+            assert_eq!(h.state().keytips.prefix(), None);
+            assert_eq!(h.state().dialog.as_ref().map(|dialog| dialog.name()), Some("insertFunction"));
+            assert!(h.state().message.is_none() && h.state().toast.is_none());
+            assert_eq!(value(&h, "A1"), Value::from("keep 日本語"));
+            assert!(h.state().editor.is_none(), "More Functions opens the builder without replacing cell input");
+        }
+    }
+}
+
+#[test]
 fn paste_special_options_wait_for_enter_and_transpose_values() {
     let mut h = harness(copied_row());
     sequence(&mut h, &[Key::H, Key::V, Key::S], true);

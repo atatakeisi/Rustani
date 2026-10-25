@@ -1,6 +1,6 @@
 # GridCraft 現状共有シート
 
-更新日: 2026-10-24（日本時間）。レビュー比較基点: `0a87bfe8`。今回の統合単位は `EXCEL.1`（`main` / `origin/main`）。「13」のExcel操作差異修正を統合し、CI全8項目・2,321テスト成功、最新版WASMを8784番へ反映済み。飛び地貼り付けは「12」、IME/VBAレビューは「11」、統合範囲と現在の残課題は「14」を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
+更新日: 2026-10-25（日本時間）。最新の統合は「16」の `EXCEL.2: stabilize VBA paste and function-library editing`（Item 17〜20、比較基点 `dc6d1cae`）。CI全8項目・2,349テスト成功。新WASMを8784番へ反映し、Chromeで関数メニュー・途中挿入・Undo/Redoを確認済み。配布用ZIPとビルド情報は「17」を参照。Safari実機の再検証は画面取得エラーで未完了。Item 17のSafari VBA右クリック貼付け対策は「15」を参照。直前の `EXCEL.1` は `dc6d1cae` として `origin/main` へ送信済み。飛び地貼り付けは「12」、IME/VBAレビューは「11」、Excel操作差異の統合は「13」〜「14」を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
 
 現在の体制は **Codex + Antigravity上のGemini**。ユーザー指定でGemini CLI・Claude CLIは使用しない。Geminiは `ai-team/tasks/` を直接読み、`ai-team/reports/` に新規レポートを保存する。コード編集・Cargo等の実行はCodexが担当する。
 
@@ -147,7 +147,7 @@ cd apps/gridcraft-web
 ../../../.tools/trunk-0.22.0/trunk --skip-version-check serve --dist ../../dist/web-new-output
 ```
 
-最新確認版: `http://127.0.0.1:8784/?sample=sales&lang=ja`（「13」）。配信対象は `dist/web-excel-parity-complete-20261024-v2`。8785番は「12」の旧版、従来の開発URLは8771番。WebGL比較は `&webgl` を付けるが、今回その比較試験は実施していない。
+最新確認版: `http://127.0.0.1:8784/?sample=sales&lang=ja`（「16」）。配信対象は `dist/web-functions-20261025`。8785番は「12」の旧版、従来の開発URLは8771番。WebGL比較は `&webgl` を付けるが、今回その比較試験は実施していない。
 
 `cargo xtask wasm` はWasm向けの **cargo check**。Safari/Chromeでの動作試験とは別です。共有体制準備時点ではビルド/実機試験は未実施でした。その後の検証は末尾へ記録します。既存の `dist/web` は以前のビルドで、現在のVBA実装の確認には新しい出力先を使用します。
 
@@ -295,9 +295,60 @@ Root Causes A〜E、Item 0/0b、Item 1〜16 の対応表は `docs/operational-pa
 
 文書整理後・統合コミット直前の `cargo xtask ci` は全8項目成功。158 suite、2,321成功・0失敗・既存ignore 1件。ログ: `../outputs/GridCraft-ExcelParity-Precommit-CI-20261024.log`。この再確認では実装ソースを変更していない。
 
+Git送信記録: `dc6d1caee303259378b714285c61f52013cf8568` / `EXCEL.1: integrate reviewed Excel interaction fixes` を `origin/main` へ送信し、リモートhashとHEADの一致、当時のclean working treeを確認した。以下「15」はその後の修正で、この送信記録には含めない。
+
 | 残課題 | 現在の状態 | 次の完了条件 |
 |---|---|---|
 | Safari・実OS日本語IME | 合成IMEイベントとChromeの選択操作は回帰確認済み。Safari実機とOS候補変換は未検証 | Safari/Chromeで候補確定・取消・Enter/Tab/Escape・スクロールを実機比較し、再現した差異を修正して回帰試験へ追加 |
 | VBA言語の拡張 | 引数なしSubの部分実装。引数付きSub、Function、ByRef/ByVal、optional/named arguments等は未実装 | 引数/戻り値/参照渡しと呼出し規則を実装し、再現可能なExcel観察と境界試験で比較。詳細は `docs/vba-compatibility.md` |
 | Excel実行可能VBAの保存 | 元のbinary project保持とGridCraft metadataへのソース保存のみ。編集を実行可能な `vbaProject.bin` へ反映できない | 新規project生成・既存project書換えを実装し、Excelで保存物を開く→編集したマクロを実行→再保存・再読込まで検証 |
 | その他の互換性 | VBA events/UserForms/Windows依存実行、実Excelコーパス、WebGPU/WebGL性能比較等は未完了 | `docs/vba-compatibility.md` / `docs/gaps.md` / `docs/roadmap.md` の境界を維持し、対象を絞って順に検証。過去の工数・readinessを完了率と読み替えない |
+
+## 15. Safari VBA右クリック貼付け対策（2026-10-25）
+
+ユーザーからSafari実機の「表示→マクロ→VBAエディター→右クリック→貼り付け」でWasm panicが発生したと報告を受けた。Safariの実スタックは未取得のため、特定のpanic原因を断定していない。現行ソースから次の問題を確認・修正した。
+
+- VBA入力欄のIDをUI階層由来から `egui::Id::new("gridcraft.vba_source")` へ固定。メニュー閉鎖・描画の後にフォーカスを戻し、要求中のブラウザユーザー操作を維持する。
+- 非同期のテキストは宛先を持たない `synthetic` イベントへ流さず、そのIDのTextEditを描く直前にだけ注入する。`app.dialog` が開いていても対象のVBA入力へ届き、セルへ誤配信しない。
+- VBA下書きの生存範囲は `Arc<()>` / `Weak<()>` で識別する。閉じる・再作成・モジュール差替え後の応答を破棄し、別入力欄へフォーカスが移った応答も破棄する。生存中の対象下書きでフォーカスが空の場合のみ安全に復元する。
+- 固定IDのTextEditStateを別下書きへ持ち越さない。修正前は「旧下書きを貼付け編集→破棄→別ソースを開く→Cmd+Z」で旧ソースへ戻ることを新しいテストで再現した。下書き・外部ソースの切替時だけ状態を初期化し、同じ下書き内のPaste/Undoは保持する。
+- Webのclipboard getter、`read` / `readText` / `getType` / Blob `arrayBuffer` をcatch付き `Reflect::get` / `Function::apply` 経由へ変更。使用中のweb-sys bindingが捕捉しない同期JavaScript例外もInboxのエラーへ戻し、Promise拒否・API未提供と同様に通常処理する。
+
+重点テスト: `vba_text_menu` 8件（同期編集、遅延Unicode貼付けとUndo、フォーカス復帰、別入力欄、close/reopen、描画前の失効、権限拒否後の操作継続、下書き間Undo分離）、`formula_text_menu` 1件、`async_clipboard` 6件成功。貼付け試験はWorkbook・シート選択・Workbook Undo履歴が不変であることも確認する。
+
+最終検証・配信:
+
+- `cargo xtask ci` 全8項目成功。158 suite、**2,328成功・0失敗・既存ignore 1件**。下書き間Undo分離を含めた最終ソースの結果。ログ: `../outputs/GridCraft-Safari-VbaPaste-Final-CI-20261025.log`。
+- Trunk 0.22.0で新規出力 `dist/web-safari-vba-paste-20261025-v2` を生成。WASMは `gridcraft-web-efc436f7b1532fd_bg.wasm`。ログ: `../outputs/GridCraft-Safari-VbaPaste-Final-Web-20261025.log`。旧出力は削除・上書きせず保持。
+- Item 17単独の検証時点では8784番をこの出力へ切り替えた。現在の配信と再開コマンドは「16」を参照する。
+- Chromeで最終版の「表示→マクロ→VBAエディター→右クリック→貼り付け」により日本語の `Sub PasteCheck()` を入力し、1回のCmd+Zで空の元ソースに戻ることを確認。確認時のerrorログ0件。証跡: `../outputs/GridCraft-Safari-VbaPaste-Chrome-Final-20261025.jpg`。
+
+Safari操作は画面取得失敗により再検証未完了。上記はSafari実機成功や実OS IME候補変換成功を意味しない。この節の修正は「16」の `EXCEL.2` に含む。
+
+作業中に `ai-team/reports/gemini-excel-parity-20261024-080500.md` 末尾へのItem 17〜20の追記を確認した。Item 17はこのSafari貼付け対策と照合した。続いて実装したItem 18〜20は「16」に記載する。レポート本文は維持し、統合時に末尾の余分な空行だけを整形した。
+
+## 16. 関数ライブラリの操作差異（Item 18〜20、2026-10-25）
+
+- **Item 18**: 数式タブの「その他の関数」を統計・エンジニアリング・情報・データベース・互換性・Web・アドインと自動化の7分類へ分離。既存6分類を含む全13分類の末尾から、分類を指定した「関数の挿入」ダイアログを開ける。ダイアログは分類と検索のAND条件で絞り込み、分類切替時も検索文字を保つ。表示項目はengineの関数カタログから取得する。
+- **Item 19**: ホームと数式のオートSUMメニューを共通化。合計・平均・数値の個数・最大値・最小値・その他の関数を選択できる。ホームの既存主ボタンはSUMのまま。Alt KeyTipsのHU/MU配下も各関数へ正しい引数を渡し、メニュー表示とバッジを共用する。
+- **Item 20**: engineの `UiRequest::InsertFunction` と、入力欄の描画直前に適用する関数挿入を追加。リボン・ダイアログのどちらも、編集中の数式のカーソル位置へ `NAME(` を挿入し、選択部分を置換する。日本語・絵文字の文字位置を安全にbyte位置へ変換する。入力元セル・編集モード・数式言語を保持し、セルへ確定せずTextEditの1回Undo/Redoで戻せる。非数式の下書きは `=NAME(` へ置き換えてUndo可能、入力欄がなければ新規数式を開始する。
+- フォーカスがメニューや検索欄へ移るとeguiが元の選択範囲を縮めるため、所有する入力欄の選択範囲を別途保持する。背後のセル入力はダイアログのEnterを先行消費しない。新しい回帰試験は修正前の選択消失とEnter競合を再現している。
+
+Item 17の8件のVBAテストと非同期貼付け対策も維持する。Item 17〜20のソース・回帰テスト・レポート・文書は `EXCEL.2: stabilize VBA paste and function-library editing` に統合する。確定済みのコミットと `origin/main` の同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
+
+検証結果:
+
+- 重点回帰テストは8 suite・438件成功。関数挿入9件、関数ライブラリ7件、KeyTips 27件と生成テスト369件、数式言語11件、数式メニュー1件、非同期clipboard 6件、VBAメニュー8件を含む。ログ: `../outputs/GridCraft-Functions-Regression-20261025.log`。
+- `cargo xtask ci` 全8項目成功。`cargo test --workspace` は160 suite・**2,349件成功・0失敗・既存ignore 1件**。fmt、Clippy、assets、layers、Wasm、parity、KeyTips生成整合も成功。ログ: `../outputs/GridCraft-Items17-20-CI-Complete-20261025.log`。Wasmの既存 `backstage.rs` dead_code警告1件は継続する。
+- 新しい日本語ラベルは、他言語と固定キーを共有するカタログの件数・内容を変更せず、既存の拡張カタログに登録した。既存の一意性検査と訳語の回帰テストも成功。
+- Trunk 0.22.0で新規出力 `dist/web-functions-20261025` を生成し、8784番の配信を切替済み。WASMは `gridcraft-web-be236058a5e66552_bg.wasm`。ビルド記録: `../outputs/GridCraft-Items17-20-Web-Build-20261025.log`。旧出力は保持。再開はrepoルートから `python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-functions-20261025`。
+- Chromeの最終WASMで、7分類、Web分類で絞られた関数ダイアログ、数式タブのオートSUM全6項目を確認。`=10+20` の途中へIFを挿入して `=10+IF(20` となり、1回Undoで元へ、Redoで再挿入されることを確認した。確認時のブラウザーerrorログは0件。証跡: `../outputs/GridCraft-Items17-20-Chrome-20261025.jpg`。
+- Safari実機の未再検証と実OS IME候補変換の未検証は継続する。
+
+## 17. Item 17〜20のWeb配布バンドル（2026-10-25、EXCEL.2）
+
+- 配布用フォルダ: `dist/gridcraft-web-0.11.1-excel2-20261025/`。ZIP: `dist/gridcraft-web-0.11.1-excel2-20261025.zip`。ZIPのSHA-256は隣の `.zip.sha256` に記録する。
+- 検証済みの `dist/web-functions-20261025` のHTML・JS・WASM・アイコンを使用する。今回のソースに一致する更新済みWASMで、既存の配信対象はそのまま利用できる。ビルドプロファイルは **dev（optimized + debuginfo）**。releaseビルドや新しい公開リリースを意味しない。
+- サーバー設定例・HOSTING.md・README・MIT/Apacheライセンス・NOTICE・ATTRIBUTION・埋込BIZ UDPGothicのOFLを同梱する。`BUILD_INFO.json` にビルド元・ソースの指紋・検証記録・ファイルSHA-256を記録し、`SHA256SUMS` とZIP CRCも検査する。
+- `dist/` は既存のGit除外対象。Gitにはソース・テスト・レポート・再現手順を保存し、生成物はこのMacの配布成果物として保持する。既存ディレクトリやZIPを削除・上書きせず、新しい名前で作成する。環境変数を変更しない。
+- コミット直前のCIログ: `../outputs/GridCraft-EXCEL2-Precommit-CI-20261025.log`。先行する全8項目・2,349件成功の記録と、Chrome確認の証拠は「16」を参照する。

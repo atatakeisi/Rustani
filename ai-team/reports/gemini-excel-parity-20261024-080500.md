@@ -283,3 +283,53 @@ Investigating the architecture across `crates/engine` and `crates/ui-egui` revea
      - In `tabs.rs:126-171`, highlight every tab in `selected_sheets` with the active/grouped background (`t.tab_active`) and underline band so the user clearly sees all selected sheets (and show `[Group]` / `[グループ]` in the title bar like Excel).
      - In formula point mode (`app.editor.as_ref().is_some_and(|e| e.can_point())`), `Shift + Click` on a sheet tab (`tabs.rs:28-30`) + clicking a cell (`grid.rs:2323-2327`) should emit a 3-D span reference `Sheet1:Sheet3!A1` across the selected sheet span.
      - Apply sheet tab commands (`home.deleteSheet`, `sheet.tabColor`, `sheet.hide`, `sheet.move`, and cell edits/formatting in group mode) across all `selected_sheets`.
+
+### 17. [HIGH] Safari WASM Panic on Right-Click -> Paste Inside VBA Editor (`vba_editor.rs`, `clipboard.rs`)
+- **Location**:
+  - `crates/ui-egui/src/vba_editor.rs:413-431` (`code_editor`)
+  - `crates/ui-egui/src/clipboard.rs` (Web clipboard read / paste handling)
+- **What the User Noticed**:
+  - On Safari (`http://127.0.0.1:8784/?sample=sales&lang=ja`), opening the VBA Editor (`View` -> `Macros` -> `Visual Basic`), right-clicking inside the code editor area, and selecting the browser's **"貼り付け (Paste)"** menu item triggers an immediate WASM panic overlay (`RuntimeError: Unreachable code should not be executed` inside `egui::containers::scroll_area::State::load` / `vba_editor::show` / `eframe`).
+  - Pasting via keyboard (`Cmd+V`) works normally.
+- **Root Cause & Fix**:
+  1. Assign an explicit, stable `id_salt("vba_code_editor_text")` to `egui::TextEdit::multiline(&mut buf)` and `egui::ScrollArea::both().id_salt("vba_code_scroll")` in `vba_editor.rs:413-424` so widget state IDs never collide with `ScrollArea` state during Safari native context-menu focus/paste event dispatch.
+  2. Provide an in-app right-click context menu (`resp.context_menu(|ui| ...)`) on the VBA code editor with **Cut (`切り取り`) / Copy (`コピー`) / Paste (`貼り付け`) / Select All (`すべて選択`)** wired to `app.clipboard_text` and Web async clipboard fallback (`navigator.clipboard.readText()`), while guarding against re-entrant `RefCell` borrows or corrupted `ScrollArea` state bytes when a native browser `paste` event arrives.
+
+### 18. [HIGH] `More Functions` (`その他の関数`) on the `Formulas` (`数式`) Tab Hardcodes `"Statistical"` and Hides `Engineering`, `Information`, `Database`, `Compatibility`, `Web`, and `AddIn` (`ribbon.rs`)
+- **Location**:
+  - `crates/ui-egui/src/ribbon.rs:1934-1964` (`tab_formulas` -> `Function Library`)
+  - `crates/engine/src/cmd/formulas.rs:180-232` (`function_list`)
+- **What the User Noticed**:
+  - The user asked whether all functions on the `Formulas` (`数式`) tab work and can be verified.
+- **Root Cause**:
+  - While all 400+ functions in `gridcraft_functions::all()` and 33 special forms in `formulas::function_list()` are implemented and pass all unit tests, `ribbon.rs:1941` defines `("More\nFunctions", "Statistical", "formulas.moreFunctions")` with `cat = "Statistical"` hardcoded!
+  - Consequently, clicking `More Functions` (`その他の関数`) only lists `Statistical` (`統計`) functions and completely hides **`Engineering` (`エンジニアリング`, e.g., `HEX2DEC`, `BIN2DEC`, `CONVERT`, `IMABS`)**, **`Information` (`情報`, e.g., `ISBLANK`, `ISNUMBER`, `CELL`, `INFO`, `SHEET`, `SHEETS`, `TYPE`)**, **`Database` (`データベース`, e.g., `DSUM`, `DAVERAGE`, `DCOUNT`, `DGET`)**, **`Compatibility` (`互換性`)**, **`Web` (`ENCODEURL`)**, and **`AddIn` (`EUROCONVERT`)** from the Ribbon.
+- **Fix**:
+  - Replace the single-category popup on `More Functions` (`その他の関数`) in `ribbon.rs:1941-1963` with a categorized submenu matching commercial Excel:
+    - `Statistical` (`統計`)
+    - `Engineering` (`エンジニアリング`)
+    - `Information` (`情報`)
+    - `Database` (`データベース`)
+    - `Compatibility` (`互換性`)
+    - `Web` (`Web`) / `Add-in and Automation` (`アドインとオートメーション`)
+  - Also add `"More Functions…"` (`その他の関数…`) at the bottom of each category dropdown to open `Dialog::InsertFunction` pre-filtered to that category.
+
+### 19. [MEDIUM] `AutoSum` (`オートSUM`) on the `Formulas` (`数式`) Tab Shows a Dropdown Arrow (`true`) But Has No Dropdown Menu (`ribbon.rs`)
+- **Location**:
+  - `crates/ui-egui/src/ribbon.rs:1929-1933` (`Formulas` tab `AutoSum`) vs `crates/ui-egui/src/ribbon.rs:1469-1485` (`Home` tab `AutoSum`)
+- **Root Cause**:
+  - On the `Home` (`ホーム`) tab (`ribbon.rs:1469-1485`), `AutoSum` opens a popup menu with `Sum` (`合計`), `Average` (`平均`), `Count Numbers` (`数値の個数`), `Max` (`最大値`), `Min` (`最小値`), and `More Functions…` (`その他の関数…`).
+  - On the `Formulas` (`数式`) tab (`ribbon.rs:1929-1933`), `big_button(ui, Icon::Sum, "AutoSum", "AutoSum", true)` draws the dropdown arrow (`true`), but clicking it immediately runs `formulas.autoSum` (`SUM` only) with no dropdown menu.
+- **Fix**:
+  - Wire the `Formulas` tab `AutoSum` button (`ribbon.rs:1929-1933`) to the same dropdown menu (`Sum`, `Average`, `Count Numbers`, `Max`, `Min`, `More Functions…`) as the `Home` tab (`ribbon.rs:1469-1485`).
+
+### 20. [MEDIUM] Selecting a Function from a Ribbon Category Dropdown Overwrites an In-Progress Formula Instead of Inserting at the Caret (`ribbon.rs`, `formulas.rs`, `dialogs.rs`)
+- **Location**:
+  - `crates/ui-egui/src/ribbon.rs:1957-1959`
+  - `crates/engine/src/cmd/formulas.rs:167-172` (`insert_function`)
+  - `crates/ui-egui/src/dialogs.rs:2137-2145` (`insert_function` dialog)
+- **Root Cause**:
+  - In `dialogs.rs:2138-2143` (`Insert Function` dialog), if the user is already editing a formula starting with `=` (e.g., `=10+`), selecting a function appends `NAME(` -> `=10+NAME(`.
+  - However, in `ribbon.rs:1958`, selecting a function from any Ribbon category dropdown (`Financial`, `Logical`, `Text`, `Date & Time`, `Lookup & Reference`, `Math & Trig`, `More Functions`) calls `formulas.insertFunction`, which unconditionally sends `UiRequest::EditCell(Some("=NAME("))` (`formulas.rs:170`), wiping out the user's in-progress formula in `app.editor`.
+- **Fix**:
+  - When `app.editor` is already active and editing a formula (`e.text.starts_with('=')`), selecting a function from a Ribbon category dropdown (or `UiRequest::EditCell` when `formulas.insertFunction` is called) should insert `NAME(` at the current cursor/caret position (or append if at the end) rather than overwriting the entire formula text with `=NAME(`.

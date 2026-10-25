@@ -181,6 +181,29 @@ mod tests {
     }
 
     #[test]
+    fn auto_sum_variants_route_to_distinct_controls_in_both_tabs() {
+        let targets = [
+            "formulas.autoSum.sum",
+            "formulas.autoSum.average",
+            "formulas.autoSum.count",
+            "formulas.autoSum.max",
+            "formulas.autoSum.min",
+            "formulas.autoSum.more",
+        ];
+        for (tab, group) in [("H", "HU"), ("M", "MU")] {
+            assert_eq!(lookup(group), Some(Entry::Continue));
+            assert_eq!(anchor_badge(tab, &targets), Some(group));
+            assert_eq!(group_extension(tab, &targets), vec![group]);
+            for (letter, target) in ['S', 'A', 'C', 'M', 'I', 'F'].into_iter().zip(targets) {
+                let sequence = format!("{group}{letter}");
+                assert_eq!(lookup(&sequence), Some(Entry::Finish(Action::Control(target))));
+                assert_eq!(item_letter(group, target), Some(sequence.as_str()));
+                assert!(!has_deeper(&sequence), "every AutoSum item must finish its sequence");
+            }
+        }
+    }
+
+    #[test]
     fn implicit_levels_wait_for_deeper_sequences() {
         assert!(has_deeper("J"), "JI is reachable only through the implicit J level");
         assert!(is_group_level("J"), "implicit levels are group levels");

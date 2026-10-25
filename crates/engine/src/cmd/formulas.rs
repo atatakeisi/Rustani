@@ -22,7 +22,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Insert Function…",
             ["Formulas", "Function Library"],
             Some("Shift+F3"),
-            "{name?: \"VLOOKUP\"} (UI opens the dialog; with a name, starts the formula in the active cell)",
+            "{name?: \"VLOOKUP\"} (UI opens the dialog; with a name, inserts at the editor selection or starts a formula)",
             has_doc,
             insert_function
         ),
@@ -167,7 +167,7 @@ fn auto_sum_writes(sh: &gridcraft_model::Sheet, sel: RangeRef, func: &str) -> Re
 fn insert_function(s: &mut Session, p: &Json) -> Result<Json> {
     match str_param(p, "name") {
         Some(n) => {
-            s.ui_requests.push(crate::UiRequest::EditCell(Some(format!("={}(", n.to_ascii_uppercase()))));
+            s.ui_requests.push(crate::UiRequest::InsertFunction(n.to_ascii_uppercase()));
             ok()
         }
         None => {

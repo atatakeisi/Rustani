@@ -9,57 +9,95 @@ fn error(e: JsValue) -> String {
     format!("Clipboard access failed: {e:?}")
 }
 
+fn property(object: &JsValue, name: &str) -> Result<JsValue, String> {
+    js_sys::Reflect::get(object, &name.into()).map_err(error)
+}
+
+// These web-sys clipboard bindings do not have `catch`: a synchronous JavaScript exception
+// would escape before JsFuture could observe a rejected Promise. Reflect and Function::apply
+// have catch-enabled bindings. Keep the original receiver and invoke before yielding the
+// user's gesture, then handle both synchronous exceptions and asynchronous rejections.
+fn call_promise(object: &JsValue, method: &str, argument: Option<&JsValue>) -> Result<js_sys::Promise, String> {
+    let function: js_sys::Function =
+        property(object, method)?.dyn_into().map_err(|_| format!("This browser does not support clipboard {method}."))?;
+    let arguments = js_sys::Array::new();
+    if let Some(argument) = argument {
+        arguments.push(argument);
+    }
+    function.apply(object, &arguments).map_err(error)?.dyn_into().map_err(|_| format!("Clipboard {method} did not return a Promise."))
+}
+
+fn begin_read() -> Result<(js_sys::Promise, bool), String> {
+    let window = web_sys::window().ok_or("Browser window is unavailable.")?;
+    let navigator = property(window.as_ref(), "navigator")?;
+    let clipboard = property(&navigator, "clipboard")?;
+    if clipboard.is_null() || clipboard.is_undefined() {
+        return Err("Browser clipboard is unavailable in this context.".into());
+    }
+    let rich = property(&clipboard, "read")?.is_function();
+    let promise = call_promise(&clipboard, if rich { "read" } else { "readText" }, None)?;
+    Ok((promise, rich))
+}
+
 async fn blob_bytes(blob: web_sys::Blob) -> Result<Vec<u8>, String> {
-    if blob.size() > MAX_BYTES as f64 {
+    let size = property(blob.as_ref(), "size")?
+        .as_f64()
+        .filter(|size| size.is_finite() && *size >= 0.0)
+        .ok_or("Clipboard returned an invalid Blob size.")?;
+    if size > MAX_BYTES as f64 {
         return Err("Clipboard content is larger than 64 MB.".into());
     }
-    let buffer = JsFuture::from(blob.array_buffer()).await.map_err(error)?;
+    let promise = call_promise(blob.as_ref(), "arrayBuffer", None)?;
+    let buffer: js_sys::ArrayBuffer = JsFuture::from(promise).await.map_err(error)?.dyn_into().map_err(error)?;
+    let length = property(buffer.as_ref(), "byteLength")?
+        .as_f64()
+        .filter(|length| length.is_finite() && *length >= 0.0)
+        .ok_or("Clipboard returned an invalid ArrayBuffer length.")?;
+    if length > MAX_BYTES as f64 {
+        return Err("Clipboard content is larger than 64 MB.".into());
+    }
     Ok(js_sys::Uint8Array::new(&buffer).to_vec())
 }
 
-async fn item_blob(item: &web_sys::ClipboardItem, mime: &str) -> Result<web_sys::Blob, String> {
-    JsFuture::from(item.get_type(mime)).await.map_err(error)?.dyn_into().map_err(error)
+async fn item_blob(item: &JsValue, mime: &str) -> Result<web_sys::Blob, String> {
+    let promise = call_promise(item, "getType", Some(&mime.into()))?;
+    JsFuture::from(promise).await.map_err(error)?.dyn_into().map_err(error)
 }
 
 pub(super) fn read(inbox: ClipboardInbox, ctx: egui::Context) {
-    let Some(window) = web_sys::window() else { return };
-    let clipboard = window.navigator().clipboard();
-    if clipboard.is_undefined() || clipboard.is_null() {
-        *inbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Err("Browser clipboard is unavailable in this context.".into()));
-        ctx.request_repaint();
-        return;
-    }
-    let rich = js_sys::Reflect::get(&clipboard, &"read".into()).ok().is_some_and(|v| v.is_function());
-    if !rich && !js_sys::Reflect::get(&clipboard, &"readText".into()).ok().is_some_and(|v| v.is_function()) {
-        *inbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Err("This browser does not support clipboard reads.".into()));
-        ctx.request_repaint();
-        return;
-    }
-    let promise = if rich { clipboard.read() } else { clipboard.read_text() };
+    let (promise, rich) = match begin_read() {
+        Ok(read) => read,
+        Err(error) => {
+            *inbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Err(error));
+            ctx.request_repaint();
+            return;
+        }
+    };
     wasm_bindgen_futures::spawn_local(async move {
         let result = async {
             let value = JsFuture::from(promise).await.map_err(error)?;
             if !rich {
-                let text = value.as_string().unwrap_or_default();
+                let text = value.as_string().ok_or("Clipboard readText did not return text.")?;
                 if text.len() > MAX_BYTES {
                     return Err("Clipboard content is larger than 64 MB.".into());
                 }
                 return Ok(ClipboardData::Text { text, html: None });
             }
-            let items = js_sys::Array::from(&value);
+            let items: js_sys::Array = value.dyn_into().map_err(error)?;
             let mut text = None;
             let mut html = None;
             // A single image wins over its text/html alternative, as screenshot paste does in Excel.
             for value in items.iter().take(32) {
-                let item: web_sys::ClipboardItem = value.dyn_into().map_err(error)?;
-                let types = item.types();
+                let item = value;
+                let types: js_sys::Array = property(&item, "types")?.dyn_into().map_err(error)?;
+                let has_type = |mime: &str| types.iter().take(32).any(|value| value.as_string().as_deref() == Some(mime));
                 for mime in ["image/png", "image/jpeg"] {
-                    if types.includes(&mime.into(), 0) {
+                    if has_type(mime) {
                         return Ok(ClipboardData::Image(blob_bytes(item_blob(&item, mime).await?).await?));
                     }
                 }
                 for (mime, destination) in [("text/plain", &mut text), ("text/html", &mut html)] {
-                    if types.includes(&mime.into(), 0) {
+                    if has_type(mime) {
                         let bytes = blob_bytes(item_blob(&item, mime).await?).await?;
                         *destination = Some(String::from_utf8(bytes).map_err(|e| e.to_string())?);
                     }

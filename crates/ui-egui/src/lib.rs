@@ -791,12 +791,25 @@ impl SheetApp {
                     });
                     self.begin_edit(text, false);
                 }
+                UiRequest::InsertFunction(name) => self.insert_function(&name),
                 UiRequest::OpenUrl(u) => {
                     if let Some(f) = &self.services.open_url {
                         f(&u);
                     }
                 }
             }
+        }
+    }
+
+    fn insert_function(&mut self, name: &str) {
+        let locale = self.editor.as_ref().map(|ed| ed.locale).unwrap_or_else(|| self.ui.language.formula_locale());
+        let sheet = self.editor.as_ref().map(|ed| ed.sheet);
+        let name =
+            self.session.active().map(|d| formula_locale::completion_name(name, locale, &d.wb, sheet.unwrap_or(d.wb.active_sheet))).unwrap_or(name);
+        if let Some(ed) = &mut self.editor {
+            ed.pending_function = Some(format!("{name}("));
+        } else {
+            self.begin_edit(Some(format!("={name}(")), false);
         }
     }
 

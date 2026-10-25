@@ -1,6 +1,6 @@
 # Geminiの依頼一覧（Antigravity）
 
-更新日: 2026-10-24（日本時間）。Gemini CLI・Claude CLIは使用しない。Codexが実装・Cargo等の検証・統合を担当し、AntigravityのGeminiは対象を絞った調査とレビューを担当する。
+更新日: 2026-10-25（日本時間）。Gemini CLI・Claude CLIは使用しない。Codexが実装・Cargo等の検証・統合を担当し、AntigravityのGeminiは対象を絞った調査とレビューを担当する。
 
 ## 現在の状態
 
@@ -8,7 +8,8 @@
 |---|---|
 | `GEMINI.md` | ブラウザ調査は完了。`../reports/gemini-browser-20261024-064000.md` をCodexが照合・修正し、CI全8項目成功。実OS IME/Safariは未検証。詳細はPROJECT_STATUS.md §11 |
 | `GEMINI_VBA_REVIEW.md` | VBA I/Oレビューは完了。`../reports/gemini-vba-io-20261024-064100.md` をCodexが照合・修正し、保存/再読込回帰試験・CI成功。実Excelは未検証。詳細はPROJECT_STATUS.md §11 |
-| Excel操作差異監査（追加レポート） | `../reports/gemini-excel-parity-20261024-080500.md` の全項目を実装・回帰確認。CI全8項目・2,321件成功。ユーザーからAntigravity/Geminiのコード・テストレビュー完了の報告を受領。統合範囲と残課題はPROJECT_STATUS.md §13–14 / docs/operational-parity.md |
+| Excel操作差異監査（0〜16の履歴） | `../reports/gemini-excel-parity-20261024-080500.md` の当初の項目0〜16を実装・回帰確認した時点の記録。CI全8項目・2,321件成功。この統合について、ユーザーからAntigravity/Geminiのコード・テストレビュー完了の報告を受領。統合範囲と残課題はPROJECT_STATUS.md §13–14 / docs/operational-parity.md |
+| 同レポート追記 Item 17〜20 | CodexがVBA貼り付け対策と関数メニュー・編集中の関数挿入を実装。最終CI全8項目成功、2,349件成功・0失敗・既存ignore 1件。新WASMを8784番へ反映し、Chromeで関数分類・AutoSum・途中挿入とUndo/Redoを確認。Safari実機は未再確認。詳細はPROJECT_STATUS.md §15–16 / docs/operational-parity.md。追記分のAntigravity/Geminiコードレビュー完了は未確認 |
 | `JAPANESE_REGRESSION.md` | Codexからの指定待ち。再依頼時も静的レビューだけを行う |
 | `CLAUDE.md` | 休止中の参考資料。実行しない |
 

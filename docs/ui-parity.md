@@ -1,6 +1,6 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (consolidated current inventory; features distinguished from missing shortcuts) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** minor (items 17–20 implemented; final CI passed, refreshed Web and Chrome checks complete) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
 The earlier **UI/UX fidelity estimate of ~55% and 50–80 h of work** has not been reassessed.
@@ -22,7 +22,7 @@ context, not evidence that every original platform-specific report has been rete
 | Title bar, Quick Access Toolbar, AutoSave toggle | yes | yes | Earlier macOS window-control alignment (#170) and Dock icon-size (#169) reports have not been rechecked in this audit |
 | Ribbon: tabs, groups, split buttons, galleries, contextual tabs | yes | yes; contextual Table Design, Chart Design and Header & Footer tabs; colour pickers include Recent Colors and More Colors… (#928) | Dedicated contextual tabs for pictures, shapes, sparklines and slicers are missing; no contextual Format or PivotTable tab is currently added by `contextual_tabs` |
 | Ribbon collapse, simplified ribbon, customize ribbon/QAT | yes | partial | Collapse exists; full ribbon/QAT customization is missing |
-| Key tips (Alt / F10 then letters) | yes, every ribbon control | 364-sequence table across the ribbon tabs, with control badges, prefix waiting and dropdown editing; left-Alt-held sequences work | Some bindings are pending their commands; complete QAT/Backstage coverage is missing |
+| Key tips (Alt / F10 then letters) | yes, every ribbon control | 367-sequence table across the ribbon tabs, with control badges, prefix waiting and dropdown editing; left-Alt-held sequences work | Some bindings are pending their commands; complete QAT/Backstage coverage is missing |
 | Formula bar with Name Box, expand, function hints | yes | yes | Dynamic-array spill children show the source formula muted and read-only using current spill ownership; expansion exists, but Ctrl+Shift+U is unbound |
 | Sheet tabs: rename, reorder, colour, hide, scroll | yes | yes | Ctrl-drag (Cmd or Option on macOS) copies (#971); active tabs are revealed on navigation/resize; manual wheel/trackpad browsing is preserved; New sheet (+) follows the last tab within the 60% strip cap. Navigation skips Hidden/VeryHidden sheets and retains the selection if no visible destination exists. Earlier macOS rename-focus report (#145) remains unverified |
 | Sheet groups | yes | yes | Shift and Cmd/Ctrl tab selection, group highlighting, [Group] title, Select All Sheets and Ungroup; supported edits apply atomically to the selected sheets with Undo. Ctrl+Shift+Page Up/Down is not bound to grouping |
@@ -48,7 +48,7 @@ this logic, with one undo step.
 |---|---|
 | Click/drag/Shift/Ctrl selection, multi-area selection | Pointer regressions cover both drag directions and release endpoints. Cmd-click adds/removes areas on Mac; Ctrl-click does so on Windows/Linux, subtracting selected cells without overlapping rectangles. Mac Ctrl-click opens the context menu. Synthetic coverage does not establish every browser gesture |
 | Paste into multiple selected areas | Internal copy/Paste Special and external TSV/HTML target every area in one undoable edit; output areas remain selected. Cut moves reject multiple destinations; overlapping output blocks and invalid footprints are rejected atomically. Bounds and verification: PROJECT_STATUS.md §12 |
-| Web clipboard paste | Ribbon/menu paste requests the system clipboard asynchronously from the user gesture, with an internal-copy fallback and a stale-destination guard; PNG paste inserts and selects a floating picture. Permissions and browser clipboard formats still require platform verification |
+| Web clipboard paste | Ribbon/menu paste requests the system clipboard asynchronously from the user gesture, with an internal-copy fallback and a stale-destination guard; PNG paste inserts and selects a floating picture. Clipboard method/property access now handles synchronous JavaScript exceptions as well as rejected Promises. Permissions, browser formats and the reported Safari VBA Paste failure still require live verification |
 | Multi-area edits | Fill, supported row/column insert/delete, row/column selection, Replace All, AutoSum and defined names handle all selected areas; supported grouped-sheet edits are atomic. See [operational-parity.md](operational-parity.md) for each tested contract |
 | Cursor while dragging cells, headers, freeze handles and objects | Stable for the active drag (#936); Draw tools keep their crosshair; header arrows and a custom cell cursor remain unimplemented |
 | Selection outline animation | 0.12 s deceleration for keyboard selection, fill and fill handle; pointer selection draws immediately. View ▸ Animations turns it off. Timing is estimated against Excel; system reduced-motion preference is not followed |
@@ -68,7 +68,7 @@ this logic, with one undo step.
 | Cell context menu | Includes clipboard, insert/delete, clear, filter/sort, comments/notes, formatting, drop-down list, names and links; Insert Copied Cells and whole-row/column Insert Cut Cells are available. Cell-block Insert Cut Cells, paste-option icons, Quick Analysis, Get Data from Table, Show Changes and Smart Lookup remain missing |
 | Move and resize charts, pictures and shapes | All eight resize handles, with opposite-edge anchoring and one Undo; LTR/RTL regressions. Floating/in-cell pictures can be converted through context menus; picture insertion offers over-cells before in-cell placement |
 | Row/column, tab and object context menus | Headers/tabs and picture placement controls exist; full Excel object menu coverage remains partial |
-| Editor text context menus | Formula/cell/VBA editors offer Cut, Copy, Paste and Select All; reopening preserves selected Unicode text and TextEdit Undo. Actual selection/copy/cut/paste behavior is regression-tested |
+| Editor text context menus | Formula/cell/VBA editors offer Cut, Copy, Paste and Select All; reopening preserves selected Unicode text and TextEdit Undo. Async Paste is delivered only before the destination TextEdit is shown, with focus and lifetime guards; replacing a VBA draft resets its Undo history. Item 17 has eight VBA regressions and the 2,328-test CI result recorded in operational-parity.md. Safari panic causation and live revalidation remain unconfirmed |
 | Format Painter | Single application and double-click sticky behavior are covered by real double-click event regressions; sticky mode survives repeated applications |
 | Quick Analysis (Ctrl+Q) | Missing |
 | Smooth scrolling, scrollbars | Vertical and horizontal scrollbars implemented; horizontal bar supports dragging and page clicks. The tab/scrollbar split cannot be dragged |
@@ -83,7 +83,7 @@ this logic, with one undo step.
 | Ctrl+1, Ctrl+; / Ctrl+Shift+;, Ctrl+D/R/E, Ctrl+T/L/K, Ctrl+Shift+L and format keys | yes | implemented, with platform-specific mappings below |
 | Function keys | yes | Editing F4, F2/F5/F7/F9, Shift+F2/F3/F10/F11 and F12 exist; F4 Repeat, F8 extend mode, F3 Paste Name and F11 chart sheet remain missing |
 | Mac variants | yes | Cmd/Control/Option mappings in `keymap.rs`; remaining exceptions below |
-| Sequential Alt access keys | every ribbon tab | 364-sequence table across tabs; pending entries are not implemented commands, and complete QAT/Backstage coverage remains missing |
+| Sequential Alt access keys | every ribbon tab | 367-sequence table across tabs; pending entries are not implemented commands, and complete QAT/Backstage coverage remains missing |
 | Requests | — | #110 (shortcuts), #33 (sequential Alt); initial support #43 is historical, not the present coverage limit |
 
 ### Shortcut audit (#110)
@@ -156,6 +156,26 @@ full Excel Options dialog. Power Query, Insert Object, Equation editor, full Wor
 management and Accessibility checker remain missing. Dialogs open centred and move by their
 title bar, retaining their position while open (#1250).
 
+### Function-library follow-up (items 18–20)
+
+The appended Gemini report findings below are implemented. The targeted integration run
+passed 438 tests, including the existing item 17 regressions. Final `cargo xtask ci` passed
+all eight steps: **2,349 tests passed, zero failed, one existing ignored test** (160 suites).
+Log: `../outputs/GridCraft-Items17-20-CI-Complete-20261025.log`.
+
+| Report item | Required UI behavior | Current stage |
+|---|---|---|
+| 18: More Functions categories | Submenus for Statistical, Engineering, Information, Database, Compatibility, Web and Add-in/Automation; each category's More Functions… opens Insert Function with that category preselected | Seven `function_library` tests: seven submenus, 13 category footers, category/search filtering and switching, Japanese labels |
+| 19: Formulas AutoSum | Home and Formulas use one shared menu: Sum, Average, Count Numbers, Max, Min and More Functions… | Both-tab menu clicks, calculated results for five functions, More Functions routes and all HU/MU variants pass |
+| 20: Function insertion during editing | Ribbon category and Insert Function selections insert `NAME(` at the caret or replace the selected text, retaining the surrounding formula; one TextEdit Undo restores the previous expression | Nine `function_insertion` tests pass: both editors, Unicode selection, Undo/Redo and selection restoration, dialog, locale and cross-sheet origin |
+
+Menu hit testing also respects popup layers, so a category click cannot start editing the
+formula bar behind it. The refreshed Trunk build is served on 8784. Chrome verified the seven
+categories, a Web-filtered dialog, six AutoSum choices and insertion/Undo/Redo in a live formula.
+Safari live revalidation remains incomplete.
+Item 17's stable VBA ID, scoped Paste, exception handling and draft Undo isolation remain in
+place. See [operational-parity.md](operational-parity.md) for dated verification evidence.
+
 ## Accessibility
 
 AccessKit is enabled, and numerous controls, tabs, inputs and dialogs expose labels/states;
@@ -185,6 +205,8 @@ the current inventory above.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-25 | minor | Complete items 18–20: categorized More Functions menus/category-prefiltered dialogs, a shared Home/Formulas AutoSum menu with distinct keytips and caret/selection-aware function insertion with TextEdit Undo. Final eight-step CI passed 2,349 tests across 160 suites; refreshed Web deployed on 8784 and Chrome categories/insertion/Undo/Redo verified. Preserve item 17's eight VBA regressions, historical 2,328-test CI evidence and unresolved Safari live verification |
+| 2026-10-25 | minor | Harden editor context-menu Paste: restore focus outside popup layout, route async replies only to their destination TextEdit, use a stable VBA widget ID with a separate lifetime scope, and discard stale or redirected replies. Catch synchronous browser clipboard property/method exceptions through Result-returning calls. Initial targeted VBA/formula/async regressions pass; no actual Safari panic stack or successful Safari revalidation is claimed. Full post-change CI evidence is tracked separately in operational-parity.md |
 | 2026-10-24 | minor | Consolidate duplicate current-state rows; distinguish implemented macros, VBA editor, sheet groups, outline controls and formula-bar expansion from unbound shortcuts; document all eight object resize handles and asynchronous Web paste. Preserve historical estimates and dated change records |
 | 2026-10-24 | major | Operational audit: macro entry points/recorded VBA, multi-area fill/structural edits/selection/replace/AutoSum/names, Japanese formula diagnostics, text context menus, async clipboard, 8-handle pictures and placement conversions, grouped sheets and 3D formula pointing. Behavior evidence: operational-parity.md and PROJECT_STATUS.md §13; no new compatibility percentage inferred |
 | 2026-10-24 | minor | Multi-area paste across internal copy/Paste Special and external TSV/HTML; retain all destination areas and one Undo; preflight cut/overlap/size limits. Mac Ctrl-primary click routes to context menus while Cmd additive selection stays. Regression evidence: PROJECT_STATUS.md §12; scores unchanged |

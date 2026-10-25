@@ -981,9 +981,11 @@ pub(super) const DIALOGS: &[(&str, &str)] = &[
     ("Unprotect Sheet…", "シート保護の解除…"),
 ];
 
-/// Editor and macro strings beyond the shared reference catalog. Source identifiers and user
-/// program output are intentionally absent: translations apply only to interface text.
+/// Editor, function-library and macro strings beyond the shared reference catalog.
+/// Source identifiers and user program output are intentionally absent: translations apply only to interface text.
 pub(super) const VBA: &[(&str, &str)] = &[
+    ("More Functions…", "その他の関数…"),
+    ("Count Numbers", "数値の個数"),
     (
         "This workbook contains VBA macros. The original project is preserved when saved as .xlsm. Inspect source in Macros; Excel VBA compatibility is still incomplete.",
         "このブックには VBA マクロが含まれています。.xlsm 形式で保存すると、元のプロジェクトを保持します。コードは「マクロ」で確認できます。Excel VBA との完全互換は、まだ実現していません。",
@@ -1228,6 +1230,8 @@ mod tests {
             ("Sort", "並べ替え"),
             ("Filter", "フィルター"),
             ("Conditional Formatting", "条件付き書式"),
+            ("More Functions…", "その他の関数…"),
+            ("Count Numbers", "数値の個数"),
             ("Do you want to save the changes you made to {title}?", "{title} への変更を保存しますか?"),
             ("Save a copy as .{format}", ".{format} としてコピーを保存"),
             ("Format Cells|Fill", "塗りつぶし"),

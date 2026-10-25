@@ -42,9 +42,9 @@ pub fn show(app: &mut SheetApp, ui: &mut egui::Ui) {
                 let read_only = active_spill_anchor(app).is_some();
                 if !read_only
                     && app.editor.is_none()
-                    && ui.input(|i| {
-                        (i.pointer.primary_clicked() || i.pointer.secondary_clicked()) && i.pointer.interact_pos().is_some_and(|p| field.contains(p))
-                    })
+                    && app.dialog.is_none()
+                    && ui.rect_contains_pointer(field)
+                    && ui.input(|i| i.pointer.primary_clicked() || i.pointer.secondary_clicked())
                 {
                     app.begin_edit(None, true);
                 }
@@ -251,6 +251,9 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
     } else {
         ed.from_formula_bar == (id == egui::Id::new("gridcraft.formula_bar"))
     };
+    if mine {
+        insert_pending_function(&mut ed, ui.ctx(), id);
+    }
     if mine && ed.request_focus && !ui.ctx().memory(|m| m.has_focus(id)) {
         ui.ctx().memory_mut(|m| m.request_focus(id));
     }
@@ -266,7 +269,7 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
     let mut cancel = false;
     // A message box over the editor (a data validation alert, a formula error) gets Enter and Esc;
     // the editor used to take them, so the first Esc cancelled the edit behind the message.
-    if has_focus && mine && app.message.is_none() {
+    if has_focus && mine && app.message.is_none() && app.dialog.is_none() {
         consume_ime_boundary_keys(ui.ctx(), id);
         let (enter, tab, esc, alt_enter, cmd_enter, ctrl_shift_enter, shift) = ui.input_mut(|i| {
             let m = i.modifiers;
@@ -405,7 +408,7 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
     } else {
         TextEdit::singleline(&mut ed.text)
     };
-    crate::text_menu::before_show(ui.ctx(), id);
+    crate::text_menu::before_show(app, ui.ctx(), id);
     let mut output = edit
         .id(id)
         .frame(egui::Frame::NONE)
@@ -429,7 +432,7 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
         if !starts_with_input {
             let cursor = egui::text::CCursor::new(ed.caret);
             output.state.cursor.set_char_range(Some(egui::text::CCursorRange::one(cursor)));
-            output.state.store(ui.ctx(), id);
+            output.state.clone().store(ui.ctx(), id);
         }
     } else if resp.clicked() || resp.secondary_clicked() || resp.gained_focus() {
         // Clicking into the other editor moves editing there.
@@ -439,10 +442,19 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
         ed.enter_mode = false;
         app.session.mode = gridcraft_engine::Mode::Edit;
     }
-    if (!synced || starts_with_input)
+    let owns_editor = if cross_sheet {
+        id == egui::Id::new("gridcraft.formula_bar")
+    } else {
+        ed.from_formula_bar == (id == egui::Id::new("gridcraft.formula_bar"))
+    };
+    if owns_editor
+        && (!synced || starts_with_input)
         && let Some(r) = output.cursor_range
     {
         ed.caret = r.primary.index.into();
+    }
+    if owns_editor && (synced || resp.has_focus()) {
+        ed.text_selection = output.state.cursor.char_range();
     }
     if resp.changed() {
         ed.completion = None;
@@ -559,6 +571,40 @@ pub fn editor_widget(app: &mut SheetApp, ui: &mut egui::Ui, id: egui::Id, font: 
             app.commit_edit(dr, dc, array, fill);
         }
     }
+}
+
+/// Apply after the ribbon/dialog has closed, where the owning widget's selection and undo
+/// state are available. Cursor indices are characters, never byte offsets into Unicode text.
+fn insert_pending_function(ed: &mut crate::editor::EditState, ctx: &egui::Context, id: egui::Id) {
+    let Some(function) = ed.pending_function.take() else { return };
+    let mut state = TextEdit::load_state(ctx, id).unwrap_or_default();
+    let caret = egui::text::CCursorRange::one(egui::text::CCursor::new(ed.caret.min(ed.text.chars().count())));
+    let cursor = if ed.sync_caret { caret } else { ed.text_selection.or_else(|| state.cursor.char_range()).unwrap_or(caret) };
+    let before = ed.text.clone();
+    if ed.is_formula() {
+        let [start, end] = cursor.sorted_cursors();
+        let start = ed.text.char_indices().nth(start.index.into()).map(|(b, _)| b).unwrap_or(ed.text.len());
+        let end = ed.text.char_indices().nth(end.index.into()).map(|(b, _)| b).unwrap_or(ed.text.len());
+        ed.caret = ed.text.get(..start).map(|s| s.chars().count()).unwrap_or(0) + function.chars().count();
+        ed.text.replace_range(start..end, &function);
+    } else {
+        ed.text = format!("={function}");
+        ed.caret = ed.text.chars().count();
+    }
+    let mut undoer = state.undoer();
+    undoer.add_undo(&(cursor, before));
+    state.set_undoer(undoer);
+    ed.text_selection = Some(egui::text::CCursorRange::one(egui::text::CCursor::new(ed.caret)));
+    state.cursor.set_char_range(ed.text_selection);
+    state.store(ctx, id);
+    ed.point = None;
+    ed.point_cell = None;
+    ed.point_anchor = None;
+    ed.autocomplete.clear();
+    ed.completion = None;
+    ed.request_focus = true;
+    ed.sync_caret = true;
+    ed.caret_to_end = false;
 }
 
 fn cycle_anchor(ed: &mut crate::editor::EditState) {

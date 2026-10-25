@@ -43,6 +43,12 @@ pub struct EditState {
     pub completion: Option<String>,
     /// Move the caret to the end on the next frame.
     pub caret_to_end: bool,
+    /// A ribbon/dialog function insertion, delivered by the owning TextEdit so its selection
+    /// and undo history are available even after a popup has taken keyboard focus.
+    pub(crate) pending_function: Option<String>,
+    /// Last selection of the owning focused TextEdit. Unfocused TextEdits collapse their
+    /// internal selection, so retain this while a function menu/dialog owns focus.
+    pub(crate) text_selection: Option<egui::text::CCursorRange>,
 }
 
 impl EditState {
@@ -65,6 +71,8 @@ impl EditState {
             sync_caret: true,
             caret_to_end: true,
             completion: None,
+            pending_function: None,
+            text_selection: None,
         }
     }
 

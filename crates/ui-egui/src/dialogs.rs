@@ -726,7 +726,12 @@ impl Dialog {
                 }
                 d
             }
-            "insertFunction" => Dialog::custom("insertFunction", "Formula Builder", json!({"category": "Most Recently Used"})),
+            "insertFunction" => {
+                let mut d = Dialog::custom("insertFunction", "Formula Builder", json!({"category": p("category").as_str().unwrap_or("All")}));
+                d.search = p("search").as_str().unwrap_or("").to_string();
+                d.focus_first_field = true;
+                d
+            }
             "find" => {
                 let mut d = Dialog::custom("find", "Find and Replace", json!({"what": "", "with": "", "within": "sheet", "lookIn": "formulas"}));
                 d.tab = if p("replace").as_bool() == Some(true) { "Replace".into() } else { "Find".into() };
@@ -2090,20 +2095,43 @@ fn format_cells(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confirm: 
 }
 
 /// Insert Function: searches names (as the formula language spells them) and descriptions, shows
-/// each hit's category and description, and starts editing `=NAME(` (or appends to the formula).
+/// each hit's category and description, and inserts at the current editor selection.
 fn insert_function(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confirm: &mut bool) {
     let language = app.ui.language;
+    let list = gridcraft_engine::cmd::formulas::function_list();
+    let categories: std::collections::BTreeSet<&str> = list.iter().filter_map(|f| f["category"].as_str()).collect();
+    let mut category = d.values.get("category").and_then(Json::as_str).unwrap_or("All").to_string();
+    if !categories.contains(category.as_str()) {
+        category = "All".into();
+    }
+    let previous = category.clone();
+    ui.horizontal(|ui| {
+        ui.label(language.tr("Category:"));
+        egui::ComboBox::from_id_salt("function_category").selected_text(language.tr(function_category_label(&category))).show_ui(ui, |ui| {
+            ui.selectable_value(&mut category, "All".to_string(), language.tr("All"));
+            for cat in &categories {
+                ui.selectable_value(&mut category, (*cat).to_string(), language.tr(function_category_label(cat)));
+            }
+        });
+    });
+    if category != previous {
+        d.list_index = 0;
+    }
+    d.values.insert("category".into(), json!(category));
     ui.horizontal(|ui| {
         ui.label(language.tr("Search:"));
         let r = ui.add(egui::TextEdit::singleline(&mut d.search).desired_width(300.0).hint_text(language.tr("e.g. lookup, average, date")));
-        r.request_focus();
+        take_first_focus(d, &r);
+        if r.changed() {
+            d.list_index = 0;
+        }
     });
-    let locale = language.formula_locale();
-    let list = gridcraft_engine::cmd::formulas::function_list();
+    let locale = app.editor.as_ref().map(|ed| ed.locale).unwrap_or_else(|| language.formula_locale());
     // The names and descriptions searched are the ones shown, so in the interface language.
     let q = d.search.to_lowercase();
     let hits: Vec<&Json> = list
         .iter()
+        .filter(|f| category == "All" || f["category"].as_str() == Some(category.as_str()))
         .filter(|f| {
             q.is_empty()
                 || f["name"].as_str().is_some_and(|n| locale.function_name(n).to_lowercase().contains(&q))
@@ -2111,6 +2139,7 @@ fn insert_function(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confir
         })
         .take(300)
         .collect();
+    d.list_index = d.list_index.min(hits.len().saturating_sub(1));
     egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
         for (i, f) in hits.iter().enumerate() {
             let name = locale.function_name(f["name"].as_str().unwrap_or(""));
@@ -2134,13 +2163,7 @@ fn insert_function(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confir
     let mut open = true;
     ok_cancel(ui, confirm, &mut open);
     if *confirm && let Some(n) = hits.get(d.list_index).and_then(|f| f["name"].as_str()) {
-        let n = app.session.active().map(|doc| crate::formula_locale::completion_name(n, locale, &doc.wb, doc.wb.active_sheet)).unwrap_or(n);
-        let cur = app.editor.as_ref().map(|e| e.text.clone());
-        let text = match cur {
-            Some(t) if t.starts_with('=') => format!("{t}{n}("),
-            _ => format!("={n}("),
-        };
-        app.begin_edit(Some(text), false);
+        app.run_or_alert("formulas.insertFunction", json!({"name": n}));
     }
     if !open {
         *confirm = true;
@@ -2148,7 +2171,7 @@ fn insert_function(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confir
 }
 
 /// Excel's name for a function category, given the catalog's id (`MathTrig`).
-fn function_category_label(id: &str) -> &str {
+pub(crate) fn function_category_label(id: &str) -> &str {
     match id {
         "DateTime" => "Date & Time",
         "Lookup" => "Lookup & Reference",

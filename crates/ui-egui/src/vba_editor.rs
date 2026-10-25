@@ -1,6 +1,7 @@
 //! Workbook VBA editor. Execution and validation belong to engine commands.
 
 use std::fmt::Write as _;
+use std::sync::Arc;
 
 use egui::{RichText, TextEdit};
 use serde_json::{Value as Json, json};
@@ -21,6 +22,9 @@ struct Module {
 
 #[derive(Clone, Debug)]
 pub(crate) struct VbaEditor {
+    // Async paste belongs to this draft, even though its widget has a fixed global ID.
+    clipboard_scope: Arc<()>,
+    reset_text_state: bool,
     owner: Option<u64>,
     modules: Vec<Module>,
     name: String,
@@ -41,6 +45,8 @@ pub(crate) struct VbaEditor {
 impl VbaEditor {
     pub(crate) fn new(app: &mut SheetApp, params: &Json) -> Self {
         let mut editor = Self {
+            clipboard_scope: Arc::new(()),
+            reset_text_state: true,
             owner: app.view_key().map(|key| key.0),
             modules: vec![],
             name: "Module1".into(),
@@ -78,7 +84,11 @@ impl VbaEditor {
         let Some(text) = value.as_str() else { return };
         match key {
             "name" => self.name = text.to_string(),
-            "source" => self.source = text.chars().take(SOURCE_LIMIT).collect(),
+            "source" => {
+                self.clipboard_scope = Arc::new(());
+                self.reset_text_state = true;
+                self.source = text.chars().take(SOURCE_LIMIT).collect();
+            }
             "procedure" => self.procedure = text.to_string(),
             _ => {}
         }
@@ -131,6 +141,8 @@ impl VbaEditor {
 
     fn select(&mut self, name: &str) {
         if let Some(module) = self.modules.iter().find(|m| m.name.eq_ignore_ascii_case(name)) {
+            self.clipboard_scope = Arc::new(());
+            self.reset_text_state = true;
             self.name.clone_from(&module.name);
             self.source.clone_from(&module.source);
             self.saved_name.clone_from(&module.name);
@@ -153,6 +165,8 @@ impl VbaEditor {
             name = format!("Module{suffix}");
         }
         self.name = name;
+        self.clipboard_scope = Arc::new(());
+        self.reset_text_state = true;
         self.source.clear();
         self.saved_name.clone_from(&self.name);
         self.saved_source.clear();
@@ -249,6 +263,8 @@ impl VbaEditor {
     }
 
     pub(crate) fn discard_edits(&mut self) {
+        self.clipboard_scope = Arc::new(());
+        self.reset_text_state = true;
         self.name.clone_from(&self.saved_name);
         self.source.clone_from(&self.saved_source);
         self.overwrite_requested = false;
@@ -313,6 +329,10 @@ impl VbaEditor {
         }
         ui.separator();
         let editable = same_workbook && !self.running();
+        if !editable {
+            self.clipboard_scope = Arc::new(());
+            self.reset_text_state = true;
+        }
         let dirty = self.dirty();
         ui.add_enabled_ui(editable, |ui| {
             ui.horizontal(|ui| {
@@ -370,6 +390,8 @@ impl VbaEditor {
             }
             ui.horizontal(|ui| {
                 if ui.add_enabled(self.source.trim().is_empty(), egui::Button::new(lang.tr("Insert summary example"))).clicked() {
+                    self.clipboard_scope = Arc::new(());
+                    self.reset_text_state = true;
                     self.source = SAMPLE.into();
                     self.procedure = "MakeSummary".into();
                 }
@@ -387,8 +409,14 @@ impl VbaEditor {
             egui::ScrollArea::both().id_salt("vba_source_scroll").max_height(height).show(ui, |ui| {
                 ui.horizontal_top(|ui| {
                     ui.add(egui::Label::new(RichText::new(numbers).monospace().color(tokens.text_dim)).selectable(false));
-                    let id = ui.make_persistent_id("vba_source");
-                    crate::text_menu::before_show(ui.ctx(), id);
+                    let id = egui::Id::new("gridcraft.vba_source");
+                    if self.reset_text_state {
+                        // The ID survives UI hierarchy changes; a different draft must not
+                        // inherit its predecessor's selection or TextEdit Undo history.
+                        TextEdit::store_state(ui.ctx(), id, Default::default());
+                        self.reset_text_state = false;
+                    }
+                    crate::text_menu::before_show(app, ui.ctx(), id);
                     let output = TextEdit::multiline(&mut self.source)
                         .id(id)
                         .code_editor()
@@ -396,7 +424,13 @@ impl VbaEditor {
                         .desired_rows(10)
                         .char_limit(SOURCE_LIMIT)
                         .show(ui);
-                    crate::text_menu::show(app, ui, &output.response, self.source.chars().count());
+                    crate::text_menu::show_scoped(
+                        app,
+                        ui,
+                        &output.response,
+                        self.source.chars().count(),
+                        Some(Arc::downgrade(&self.clipboard_scope)),
+                    );
                 });
             });
         });

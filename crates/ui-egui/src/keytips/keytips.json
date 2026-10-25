@@ -930,31 +930,45 @@
   },
   {
    "seq": "HUA",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.average",
    "excel": "Auto Average",
-   "note": "AutoSum: Average (variant TBD)"
+   "note": "AutoSum menu: Average"
   },
   {
    "seq": "HUC",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.count",
    "excel": "Auto Count Numbers",
-   "note": "AutoSum: Count (variant TBD)"
+   "note": "AutoSum menu: Count Numbers"
+  },
+  {
+   "seq": "HUF",
+   "kind": "control",
+   "target": "formulas.autoSum.more",
+   "excel": "More Functions",
+   "note": "AutoSum menu: More Functions"
   },
   {
    "seq": "HUI",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.min",
    "excel": "Auto Min",
-   "note": "AutoSum: Min (variant TBD)"
+   "note": "AutoSum menu: Min"
   },
   {
    "seq": "HUM",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.max",
    "excel": "Auto Max",
-   "note": "AutoSum: Max (variant TBD)"
+   "note": "AutoSum menu: Max"
+  },
+  {
+   "seq": "HUS",
+   "kind": "control",
+   "target": "formulas.autoSum.sum",
+   "excel": "Sum",
+   "note": "AutoSum menu: Sum"
   },
   {
    "seq": "HV",
@@ -1641,45 +1655,45 @@
   },
   {
    "seq": "MUA",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.average",
    "excel": "Average",
-   "note": "AutoSum: Average (variant TBD)"
+   "note": "AutoSum menu: Average"
   },
   {
    "seq": "MUC",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.count",
    "excel": "Count Numbers",
-   "note": "AutoSum: Count (variant TBD)"
+   "note": "AutoSum menu: Count Numbers"
   },
   {
    "seq": "MUF",
-   "kind": "command",
-   "target": "formulas.moreFunctions",
+   "kind": "control",
+   "target": "formulas.autoSum.more",
    "excel": "More Functions (AutoSum)",
-   "note": "containment(More Functions)"
+   "note": "AutoSum menu: More Functions"
   },
   {
    "seq": "MUI",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.min",
    "excel": "Min",
-   "note": "AutoSum: Min (variant TBD)"
+   "note": "AutoSum menu: Min"
   },
   {
    "seq": "MUM",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.max",
    "excel": "Max",
-   "note": "AutoSum: Max (variant TBD)"
+   "note": "AutoSum menu: Max"
   },
   {
    "seq": "MUS",
-   "kind": "command",
-   "target": "formulas.autoSum",
+   "kind": "control",
+   "target": "formulas.autoSum.sum",
    "excel": "Sum",
-   "note": ""
+   "note": "AutoSum menu: Sum"
   },
   {
    "seq": "MV",

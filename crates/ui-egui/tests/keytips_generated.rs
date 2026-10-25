@@ -1035,28 +1035,48 @@ fn keytip_hu_() {
 fn keytip_hua_() {
     let mut h = harness(blank());
     sequence(&mut h, "HUA", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "HUA must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "HUA must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_huc_() {
     let mut h = harness(blank());
     sequence(&mut h, "HUC", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "HUC must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "HUC must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
+}
+
+#[test]
+fn keytip_huf_() {
+    let mut h = harness(blank());
+    sequence(&mut h, "HUF", false);
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "HUF must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_hui_() {
     let mut h = harness(blank());
     sequence(&mut h, "HUI", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "HUI must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "HUI must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_hum_() {
     let mut h = harness(blank());
     sequence(&mut h, "HUM", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "HUM must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "HUM must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
+}
+
+#[test]
+fn keytip_hus_() {
+    let mut h = harness(blank());
+    sequence(&mut h, "HUS", false);
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "HUS must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
@@ -1799,42 +1819,48 @@ fn keytip_mu_() {
 fn keytip_mua_() {
     let mut h = harness(blank());
     sequence(&mut h, "MUA", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "MUA must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "MUA must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_muc_() {
     let mut h = harness(blank());
     sequence(&mut h, "MUC", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "MUC must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "MUC must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_muf_() {
     let mut h = harness(blank());
     sequence(&mut h, "MUF", false);
-    assert!(h.state().message.is_none() && h.state().toast.is_none(), "MUF must run formulas.moreFunctions cleanly");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "MUF must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_mui_() {
     let mut h = harness(blank());
     sequence(&mut h, "MUI", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "MUI must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "MUI must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_mum_() {
     let mut h = harness(blank());
     sequence(&mut h, "MUM", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "MUM must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "MUM must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
 fn keytip_mus_() {
     let mut h = harness(blank());
     sequence(&mut h, "MUS", false);
-    assert!(h.state().session.journal.iter().any(|(id, _)| id == "formulas.autoSum"), "MUS must journal formulas.autoSum");
+    assert!(h.state().message.is_none() && h.state().toast.is_none(), "MUS must route to its control without an error box");
+    assert_eq!(h.state().keytips.prefix(), None);
 }
 
 #[test]
@@ -2755,7 +2781,7 @@ fn keytip_q_() {
 
 #[test]
 fn generated_test_count_matches_the_table() {
-    const EXPECTED: usize = 365;
+    const EXPECTED: usize = 367;
     assert_eq!(gridcraft_ui_egui::keytips::keytip_table::SEQUENCES.len(), EXPECTED);
 }
 

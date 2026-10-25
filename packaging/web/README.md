@@ -4,6 +4,24 @@
 
 **本体はalpha、VBAは部分実装で、Excel VBAの完全互換は未達です。** マクロの「モジュールを保存」はGridCraft独自のmetadataへソースを保存し、Excelの `vbaProject.bin` を書き換えたり生成したりしません。元のprojectは別に保持します。現在の対応範囲は [VBA互換性](../../docs/vba-compatibility.md)、検証結果と使用中の出力先は [PROJECT_STATUS.md](../../PROJECT_STATUS.md)を参照してください。
 
+## Item 17〜20を含む確認用バンドル（EXCEL.2、2026-10-25）
+
+今回のローカル配布物は `dist/gridcraft-web-0.11.1-excel2-20261025.zip` です。元のWASM出力は `dist/web-functions-20261025` で、`dev` プロファイル（optimized + debuginfo）です。releaseビルドや上流の公式リリースではありません。
+
+VBAエディターの非同期貼り付け対策、その他の関数の7分類と分類指定ダイアログ、オートSUM共通メニュー、編集中の数式への関数挿入とUndo/Redoを含みます。全体CIは2,349件成功、Chromeで分類・途中挿入・Undo/Redoを確認しました。Safari実機の再確認は未完了です。
+
+ZIPには静的サイト一式、配信設定例、ライセンス、`BUILD_INFO.json`、`SHA256SUMS` を同梱します。ZIP自体のSHA-256は隣の `.zip.sha256` に記録します。展開後は次のコマンドで配布物を確認できます。
+
+```sh
+cd gridcraft-web-0.11.1-excel2-20261025
+shasum -a 256 -c SHA256SUMS
+python3 -u -m http.server 8786 --bind 127.0.0.1
+```
+
+ブラウザーで `http://127.0.0.1:8786/?sample=sales&lang=ja` を開きます。現在の確認環境は引き続き8784番です。`dist/` はGit除外対象で、ソース・テスト・この手順をリポジトリへ保存します。
+
+既存の `package.sh` は `dist/web` を入力に取り、削除処理と環境変数設定を行います。今回のバンドルはそのスクリプトを実行せず、未使用の出力名へ検証済みファイルをまとめています。再作成時も既存のフォルダやZIPを上書きせず、別の名前を使用してください。
+
 ## このMacでローカル起動する
 
 以下はすべて `gridcraft` ルートを起点とした手順です。現在の出力名は共有シートで確認し、次の `dist/使用する出力名` を実際のフォルダに置き換えてください。既存の出力が最新ソースから作られたとは限りません。

@@ -301,6 +301,8 @@ pub enum UiRequest {
     Message(String),
     /// Start editing the active cell (F2) with optional initial text.
     EditCell(Option<String>),
+    /// Insert a function at the front end's current text selection, or start a formula.
+    InsertFunction(String),
     OpenUrl(String),
 }
 
