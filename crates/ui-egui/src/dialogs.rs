@@ -44,6 +44,8 @@ pub struct Dialog {
     /// The dialog this one was opened from (Name Manager › New…): it comes back when this closes.
     back: Option<Box<Dialog>>,
     focus_initialized: bool,
+    /// Save As keeps IME boundary keys inside the filename field, including commit frames.
+    ime_composing: bool,
     vba_editor: Option<crate::vba_editor::VbaEditor>,
 }
 
@@ -116,6 +118,7 @@ impl Dialog {
             picture_target: None,
             back: None,
             focus_initialized: false,
+            ime_composing: false,
             vba_editor: None,
         }
     }
@@ -137,6 +140,7 @@ impl Dialog {
             picture_target: None,
             back: None,
             focus_initialized: false,
+            ime_composing: false,
             vba_editor: None,
         }
     }
@@ -886,6 +890,16 @@ impl Dialog {
                 dialog
             }
             "pickList" => Dialog::custom("pickList", "Pick From List", json!({})),
+            "saveAs" => {
+                let doc = app.session.active()?;
+                Dialog::form(
+                    "saveAs",
+                    "Save As",
+                    "ui.saveAsDownload",
+                    vec![],
+                    json!({"name": crate::save_as::suggested_name(&doc.display_title()), "document": doc.uid}),
+                )
+            }
             "saveCopy" => Dialog::custom("saveCopy", "Save a Copy", json!({"format": p("format")})),
             "saveChanges" => Dialog::custom("saveChanges", "Save Changes?", json!({"title": p("title"), "quit": p("quit")})),
             "start" => Dialog::custom("start", "GridCraft", json!({})),
@@ -1175,6 +1189,11 @@ pub(crate) fn build_params(d: &Dialog) -> Json {
 
 pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
     let Some(mut d) = app.dialog.take() else { return };
+    if d.name == "saveAs" {
+        save_as_ime_boundary(&mut d, ctx);
+        show_save_as(app, ctx, d);
+        return;
+    }
     if d.name == "pasteSpecial" {
         paste_special_shortcuts(&mut d, ctx);
     }
@@ -1651,6 +1670,87 @@ fn ok_cancel(ui: &mut egui::Ui, confirm: &mut bool, open: &mut bool) {
             }
         })
     });
+}
+
+fn save_as_ime_boundary(d: &mut Dialog, ctx: &egui::Context) {
+    let mut boundary = d.ime_composing;
+    ctx.input_mut(|input| {
+        for event in &input.events {
+            if let egui::Event::Ime(event) = event {
+                match event {
+                    egui::ImeEvent::Preedit { text, .. } => d.ime_composing = !text.is_empty(),
+                    egui::ImeEvent::Commit(_) => d.ime_composing = false,
+                    egui::ImeEvent::DeleteSurrounding { .. } => continue,
+                    _ => continue,
+                }
+                boundary = true;
+            }
+        }
+        if boundary {
+            // Filter before TextEdit: otherwise an earlier Enter makes it stop processing the
+            // frame before a later IME Commit. Escape must not cancel the dialog on that frame.
+            input.events.retain(|e| !matches!(e, egui::Event::Key { key: Key::Enter | Key::Escape, .. }));
+        }
+    });
+}
+
+fn save_as(ui: &mut egui::Ui, d: &mut Dialog, confirm: &mut bool, open: &mut bool) {
+    let lang = crate::i18n::current(ui.ctx());
+    ui.label(lang.tr("File name:"));
+    let mut name = d.values.get("name").and_then(Json::as_str).unwrap_or_default().to_string();
+    let response = ui.add(egui::TextEdit::singleline(&mut name).id(egui::Id::new("gridcraft.save_as.name")).char_limit(255).desired_width(340.0));
+    take_first_focus(d, &response);
+    if response.changed() {
+        d.result = None;
+    }
+    d.values.insert("name".into(), json!(name));
+    ui.add_space(8.0);
+    ui.label(lang.tr("Save as type"));
+    ui.label(lang.tr("Excel Workbook (*.xlsx)"));
+    if let Some(error) = d.result.as_ref().and_then(Json::as_str) {
+        ui.colored_label(ui.visuals().error_fg_color, lang.tr_error(error));
+    }
+    ui.add_space(12.0);
+    ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let save = ui.add_enabled(
+                !d.ime_composing,
+                egui::Button::new(egui::RichText::new(lang.tr("Save As|Save")).color(Color32::WHITE))
+                    .fill(crate::theme::Tokens::get(ui.ctx()).accent),
+            );
+            if save.clicked() || (!d.ime_composing && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter))) {
+                *confirm = true;
+            }
+            if ui.button(lang.tr("Cancel")).clicked() {
+                *open = false;
+            }
+        });
+    });
+}
+
+fn show_save_as(app: &mut SheetApp, ctx: &egui::Context, mut d: Dialog) {
+    let mut confirm = false;
+    let mut open = true;
+    egui::Modal::new(egui::Id::new("gridcraft.save_as.dialog")).show(ctx, |ui| {
+        ui.set_width(360.0);
+        ui.heading(app.ui.language.tr("Save As"));
+        ui.add_space(8.0);
+        save_as(ui, &mut d, &mut confirm, &mut open);
+    });
+    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+        open = false;
+    }
+    if confirm && open {
+        match app.run("ui.saveAsDownload", build_params(&d)) {
+            Ok(_) => open = false,
+            Err(error) => d.result = Some(json!(crate::clean_error(&error))),
+        }
+    }
+    if open {
+        app.dialog = Some(d);
+    } else if let Some(back) = d.back.take() {
+        app.dialog = Some(*back);
+    }
 }
 
 fn form(ui: &mut egui::Ui, d: &mut Dialog, confirm: &mut bool, open: &mut bool) {

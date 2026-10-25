@@ -11,7 +11,7 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!(noundo "file.open", "Open…", ["File"], Some("Cmd+O"), "{path} | {name, base64}, plus {password} for a password-protected workbook and {csvAsText?: bool} to keep every csv/tsv/txt field as text, with no number or date conversion (xlsx, xlsm, xls import, xlsb and ods data import, csv, tsv, txt, json)", always, open),
         cmd!(noundo "file.save", "Save", ["File"], Some("Cmd+S"), "{path?} (xlsx by default; .csv/.tsv/.json/.html/.pdf by extension)", has_doc, save),
         cmd!(noundo "file.saveAs", "Save As…", ["File"], Some("Cmd+Shift+S"), "{path} (.xlsx, .csv, .tsv, .json, .html, or .pdf: a PDF of the active sheet)", has_doc, save_as),
-        cmd!(query "file.saveBytes", "Encode Workbook", [], None, "{format?: xlsx|csv|tsv|json|html} → {base64}", has_doc, save_bytes),
+        cmd!(query "file.saveBytes", "Encode Workbook", [], None, "{format?: xlsx|csv|tsv|json|html, name?: basename (255 UTF-8 bytes including extension; missing extension uses format)} → {name, base64, bytes}; no document state changes", has_doc, save_bytes),
         cmd!(noundo "file.close", "Close", ["File"], Some("Cmd+W"), "{force?: bool}", has_doc, close),
         cmd!(noundo "file.exportCsv", "Export as CSV", ["File", "Export"], None, "{path, sheet?}", has_doc, |s, p| export(s, p, "csv")),
         cmd!(noundo "file.exportHtml", "Save as Web Page", ["File", "Export"], None, "{path}", has_doc, |s, p| export(s, p, "html")),
@@ -153,10 +153,47 @@ fn save_as(s: &mut Session, p: &Json) -> Result<Json> {
 fn save_bytes(s: &mut Session, p: &Json) -> Result<Json> {
     let fmt = str_param(p, "format").unwrap_or("xlsx");
     let d = s.doc()?;
-    let name = format!("{}.{fmt}", std::path::Path::new(&d.display_title()).file_stem().and_then(|x| x.to_str()).unwrap_or("Book"));
+    let name = match p.get("name") {
+        None => format!("{}.{fmt}", std::path::Path::new(&d.display_title()).file_stem().and_then(|x| x.to_str()).unwrap_or("Book")),
+        Some(value) => export_name(value.as_str().ok_or_else(|| bad("file.saveBytes", "The name parameter must be a string."))?, fmt)?,
+    };
     // The file name goes into a PivotChart's link to its PivotTable.
     let bytes = crate::io::save_bytes(&d.wb, &name)?;
     Ok(json!({"name": name, "base64": crate::io::base64_encode(&bytes), "bytes": bytes.len()}))
+}
+
+/// A download is a named byte payload, never a filesystem path. Validate its name before
+/// encoding, and pass the same name to the writer (PivotChart links include the book name).
+fn export_name(name: &str, format: &str) -> Result<String> {
+    const MAX_NAME_BYTES: usize = 255;
+    if name.trim().is_empty() {
+        return Err(bad("file.saveBytes", "File name must not be empty."));
+    }
+    if matches!(name, "." | "..") || name.chars().any(|ch| matches!(ch, '/' | '\\') || ch.is_control()) {
+        return Err(bad("file.saveBytes", "File name must be a basename without folders or control characters."));
+    }
+    if name.len() > MAX_NAME_BYTES {
+        return Err(bad("file.saveBytes", "File name must be at most 255 UTF-8 bytes, including the extension."));
+    }
+    // Do not let an untrusted format add another path or an arbitrarily large extension. The
+    // format-only path above retains its existing behavior; named exports require a real format.
+    if format.len() > 16
+        || !format.bytes().all(|ch| ch.is_ascii_alphanumeric())
+        || crate::io::FileKind::from_path(&format!("export.{format}")).is_none()
+    {
+        return Err(bad("file.saveBytes", "Unknown export format."));
+    }
+    let result = match std::path::Path::new(name).extension().and_then(|ext| ext.to_str()) {
+        None => format!("{name}.{format}"),
+        Some(ext) if ext.eq_ignore_ascii_case(format) => name.to_string(),
+        // XLSX and XLSM share a FileKind but have different package/VBA semantics. Require the
+        // exact requested extension rather than treating those containers as interchangeable.
+        Some(_) => return Err(bad("file.saveBytes", "File name extension must match the requested format.")),
+    };
+    if result.len() > MAX_NAME_BYTES {
+        return Err(bad("file.saveBytes", "File name must be at most 255 UTF-8 bytes, including the extension."));
+    }
+    Ok(result)
 }
 
 fn close(s: &mut Session, p: &Json) -> Result<Json> {
@@ -226,4 +263,151 @@ fn activate_window(s: &mut Session, p: &Json) -> Result<Json> {
     }
     s.set_active(i);
     ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{io::Read, sync::Arc};
+
+    use super::*;
+
+    fn session() -> Session {
+        let mut s = Session::new();
+        s.new_workbook();
+        s.execute("cell.set", json!({"cell":"A1","input":"42"})).unwrap();
+        s
+    }
+
+    fn assert_document_unchanged(s: &Session, before: &DocState) {
+        let d = s.doc().unwrap();
+        assert!(Arc::ptr_eq(&d.wb, &before.wb));
+        assert!(Arc::ptr_eq(&d.saved, &before.saved));
+        assert_eq!(d.path, before.path);
+        assert_eq!(d.title, before.title);
+        assert_eq!(d.content_kind, before.content_kind);
+        assert_eq!(d.selection, before.selection);
+        assert_eq!(d.revision, before.revision);
+        assert_eq!(d.undo.len(), before.undo.len());
+        assert_eq!(d.redo.len(), before.redo.len());
+        assert_eq!(d.is_dirty(), before.is_dirty());
+    }
+
+    fn bytes(result: &Json) -> Vec<u8> {
+        crate::io::base64_decode(result["base64"].as_str().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn named_export_uses_the_same_unicode_name_in_the_payload_and_pivot_chart_links() {
+        let mut s = session();
+        s.execute("range.setValues", json!({"range":"A1","values":[["Region","Sales"],["East",10],["West",20]]})).unwrap();
+        s.execute("selection.set", json!({"cell":"A1"})).unwrap();
+        s.execute("insert.pivotTable", json!({"rows":["Region"],"values":["Sales"]})).unwrap();
+        s.execute("insert.pivotChart", json!({})).unwrap();
+        let before = s.doc().unwrap().clone();
+        let journal_len = s.journal.len();
+        let result = s.execute("file.saveBytes", json!({"format":"xlsx","name":"2026年度売上"})).unwrap();
+        assert_eq!(result["name"], "2026年度売上.xlsx");
+        let bytes = bytes(&result);
+        assert_eq!(result["bytes"].as_u64(), Some(bytes.len() as u64));
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes.clone())).unwrap();
+        let mut chart = String::new();
+        zip.by_name("xl/charts/chart1.xml").unwrap().read_to_string(&mut chart).unwrap();
+        assert!(chart.contains("<c:name>[2026年度売上.xlsx]Sheet2!PivotTable1</c:name>"), "{chart}");
+        let (reopened, _) = crate::io::open_bytes("2026年度売上.xlsx", &bytes).unwrap();
+        let pivot = reopened.sheets.iter().flat_map(|sh| sh.charts.iter()).find_map(|chart| chart.pivot.as_deref());
+        assert_eq!(pivot, Some("Sheet2!PivotTable1"));
+        assert_document_unchanged(&s, &before);
+        assert_eq!(s.journal.len(), journal_len, "encoding remains a pure query");
+    }
+
+    #[test]
+    fn named_export_rejects_paths_controls_bad_types_and_names_over_the_completed_byte_limit() {
+        let mut s = session();
+        let before = s.doc().unwrap().clone();
+        for name in [
+            "",
+            "  \u{3000}  ",
+            ".",
+            "..",
+            "dir/book.xlsx",
+            "dir\\book.xlsx",
+            "/book.xlsx",
+            "book\n.xlsx",
+            "book\0.xlsx",
+            "book\u{7f}.xlsx",
+            "book\u{85}.xlsx",
+        ] {
+            let err = s.execute("file.saveBytes", json!({"name":name})).unwrap_err();
+            assert!(matches!(err, EngineError::BadParams { .. }), "{name:?}: {err}");
+            assert_document_unchanged(&s, &before);
+        }
+        for name in [Json::Null, json!(12), json!(true), json!(["book.xlsx"]), json!({"name":"book.xlsx"})] {
+            assert!(matches!(s.execute("file.saveBytes", json!({"name":name})), Err(EngineError::BadParams { .. })));
+            assert_document_unchanged(&s, &before);
+        }
+        for name in ["x".repeat(251), format!("{}.xlsx", "あ".repeat(84)), "x".repeat(256)] {
+            let error = s.execute("file.saveBytes", json!({"name":name})).unwrap_err().to_string();
+            assert!(error.contains("255 UTF-8 bytes"), "{error}");
+            assert_document_unchanged(&s, &before);
+        }
+        let name = "x".repeat(250);
+        let result = s.execute("file.saveBytes", json!({"name":name})).unwrap();
+        assert_eq!(result["name"].as_str().unwrap().len(), 255, "the extension is included in the limit");
+        assert_document_unchanged(&s, &before);
+    }
+
+    #[test]
+    fn format_only_exports_remain_compatible_and_named_formats_must_match_exactly() {
+        let mut s = session();
+        s.doc_mut().unwrap().title = "different display title".into();
+        s.doc_mut().unwrap().path = Some("/kept/source.xlsx".into());
+        let before = s.doc().unwrap().clone();
+        for format in ["xlsx", "XLSX", "csv", "tsv", "txt", "json", "html"] {
+            let result = s.execute("file.saveBytes", json!({"format":format})).unwrap();
+            assert_eq!(result["name"], format!("source.{format}"));
+            assert_document_unchanged(&s, &before);
+        }
+        let default = s.execute("file.saveBytes", json!({})).unwrap();
+        assert_eq!(default["name"], "source.xlsx");
+        let result = s.execute("file.saveBytes", json!({"format":"xlsx","name":"Budget.XLSX"})).unwrap();
+        assert_eq!(result["name"], "Budget.XLSX");
+        let csv = s.execute("file.saveBytes", json!({"format":"csv","name":"売上.csv"})).unwrap();
+        assert_eq!(String::from_utf8(bytes(&csv)).unwrap().trim(), "42");
+        for params in [
+            json!({"format":"xlsx","name":"budget.csv"}),
+            json!({"format":"xlsx","name":"macros.xlsm"}),
+            json!({"format":"xlsm","name":"macros.xlsx"}),
+            json!({"format":"json","name":"budget.xlsx"}),
+            json!({"format":"bogus","name":"budget.bogus"}),
+            json!({"format":"../xlsx","name":"budget.xlsx"}),
+        ] {
+            assert!(matches!(s.execute("file.saveBytes", params), Err(EngineError::BadParams { .. })));
+            assert_document_unchanged(&s, &before);
+        }
+    }
+
+    #[test]
+    fn named_macro_export_keeps_the_existing_project_without_changing_document_identity() {
+        let mut wb = gridcraft_model::Workbook::new();
+        // Synthetic opaque bytes test preservation, not VBA execution or Excel compatibility.
+        let project = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1 synthetic VBA project".to_vec();
+        wb.vba_project = Some(Arc::new(project.clone()));
+        let mut s = Session::new();
+        s.add_document(DocState::new(wb, None, "Original.xlsm".into()));
+        let before = s.doc().unwrap().clone();
+        let result = s.execute("file.saveBytes", json!({"format":"xlsm","name":"保存するマクロ.xlsm"})).unwrap();
+        assert_eq!(result["name"], "保存するマクロ.xlsm");
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes(&result))).unwrap();
+        let mut saved_project = Vec::new();
+        zip.by_name("xl/vbaProject.bin").unwrap().read_to_end(&mut saved_project).unwrap();
+        assert_eq!(saved_project, project);
+        let mut content_types = String::new();
+        zip.by_name("[Content_Types].xml").unwrap().read_to_string(&mut content_types).unwrap();
+        assert!(content_types.contains("macroEnabled.main+xml"));
+        assert_document_unchanged(&s, &before);
+        let result = s.execute("file.saveBytes", json!({"format":"xlsx","name":"通常ブック.xlsx"})).unwrap();
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes(&result))).unwrap();
+        assert!(zip.by_name("xl/vbaProject.bin").is_err(), "the selected container must govern macro retention");
+        assert_document_unchanged(&s, &before);
+    }
 }

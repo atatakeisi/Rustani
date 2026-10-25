@@ -1,6 +1,6 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** minor (items 17–20 implemented; final CI passed, refreshed Web and Chrome checks complete) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** minor (item 21 Web Save As verified; CI passed 2,363 tests; Web refreshed and Chrome dialog checked; items 17–20 evidence retained) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
 The earlier **UI/UX fidelity estimate of ~55% and 50–80 h of work** has not been reassessed.
@@ -156,6 +156,25 @@ full Excel Options dialog. Power Query, Insert Object, Equation editor, full Wor
 management and Accessibility checker remain missing. Dialogs open centred and move by their
 title bar, retaining their position while open (#1250).
 
+### Web Save As follow-up (item 21)
+
+Verified by UI/engine regressions and the final CI: when no native `pick_save` service exists and a download
+service is available, Save As opens a filename dialog instead of immediately downloading under
+the current name. It suggests the workbook name, initially focuses/selects the filename, fixes
+the format to `.xlsx`, and supports Save/Enter and Cancel/Escape with an IME boundary guard.
+Empty/invalid names retain the dialog; valid names gain `.xlsx` if absent. The chosen name is
+passed to both workbook encoding and download dispatch, then becomes the document title.
+The existing native save picker is preserved.
+
+`ui.saveAsDownload({name, document?})` exposes the UI operation; a captured document UID guards
+against saving a different workbook. Dispatch does not acknowledge a completed browser save:
+standalone dirty/saved state and local path remain unchanged, and existing host synchronization
+is retained. The targeted run passed 35 tests; final CI passed all eight gates with 2,363
+tests, zero failures and one existing ignored test (161 suites). `dist/web-save-as-20261025`
+serves port 8784. Chrome checked Japanese name input, empty-name errors and Esc cancellation
+with zero error logs; download payloads were checked with mocks. Browser OS-write completion,
+Safari and real OS IME remain unverified. Log: `../outputs/GridCraft-Item21-CI-20261025.log`.
+
 ### Function-library follow-up (items 18–20)
 
 The appended Gemini report findings below are implemented. The targeted integration run
@@ -205,6 +224,7 @@ the current inventory above.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-25 | minor | Implement item 21 Web Save As filename dialog, fixed XLSX format, focus/selection, keyboard/IME guards and custom-name encoding/download through ui.saveAsDownload. Preserve native picker and standalone dirty/saved/path semantics without claiming browser save completion. 35 targeted passes and final eight-step CI passed (2,363 tests); Web refreshed and Chrome dialog checked. Browser OS-write completion and Safari remain unverified; prior item 17–20 results remain dated evidence |
 | 2026-10-25 | minor | Complete items 18–20: categorized More Functions menus/category-prefiltered dialogs, a shared Home/Formulas AutoSum menu with distinct keytips and caret/selection-aware function insertion with TextEdit Undo. Final eight-step CI passed 2,349 tests across 160 suites; refreshed Web deployed on 8784 and Chrome categories/insertion/Undo/Redo verified. Preserve item 17's eight VBA regressions, historical 2,328-test CI evidence and unresolved Safari live verification |
 | 2026-10-25 | minor | Harden editor context-menu Paste: restore focus outside popup layout, route async replies only to their destination TextEdit, use a stable VBA widget ID with a separate lifetime scope, and discard stale or redirected replies. Catch synchronous browser clipboard property/method exceptions through Result-returning calls. Initial targeted VBA/formula/async regressions pass; no actual Safari panic stack or successful Safari revalidation is claimed. Full post-change CI evidence is tracked separately in operational-parity.md |
 | 2026-10-24 | minor | Consolidate duplicate current-state rows; distinguish implemented macros, VBA editor, sheet groups, outline controls and formula-bar expansion from unbound shortcuts; document all eight object resize handles and asynchronous Web paste. Preserve historical estimates and dated change records |

@@ -86,10 +86,13 @@ fn save_actions_include_the_cell_draft_and_close_keeps_the_unsaved_prompt() {
     choose(&mut h, "Save");
     assert!(h.state().editor.is_none(), "opening File commits the cell draft");
     assert_eq!(page(&h), Some("saveAs"), "a workbook without a file saves through Save As");
-    click(&mut h, "Download (.xlsx)");
+    click(&mut h, "Save As…");
+    assert!(downloads.lock().unwrap().is_empty(), "Save As waits for a filename confirmation");
+    click(&mut h, "Save");
     assert!(h.state().backstage.is_none());
     choose(&mut h, "Save As");
-    click(&mut h, "Download (.xlsx)");
+    click(&mut h, "Save As…");
+    click(&mut h, "Save");
     choose(&mut h, "Export");
     click(&mut h, "CSV (Comma delimited)");
     let saved = downloads.lock().unwrap();

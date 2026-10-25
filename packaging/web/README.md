@@ -4,6 +4,18 @@
 
 **本体はalpha、VBAは部分実装で、Excel VBAの完全互換は未達です。** マクロの「モジュールを保存」はGridCraft独自のmetadataへソースを保存し、Excelの `vbaProject.bin` を書き換えたり生成したりしません。元のprojectは別に保持します。現在の対応範囲は [VBA互換性](../../docs/vba-compatibility.md)、検証結果と使用中の出力先は [PROJECT_STATUS.md](../../PROJECT_STATUS.md)を参照してください。
 
+## Item 21を含む現在のWeb出力（EXCEL.3、2026-10-25）
+
+現在の確認環境（8784番）は `dist/web-save-as-20261025` を配信しています。Webの「名前を付けて保存」は、ファイル名入力画面で「保存」を押してからXLSXを生成します。空の名前を拒否し、必要なら `.xlsx` を補完して表示名も更新します。デスクトップの保存ダイアログは従来どおりです。
+
+```sh
+python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-save-as-20261025
+```
+
+新しい出力はdev（optimized + debuginfo）です。Chromeでは日本語名入力・空名エラー・Esc取消を確認し、ダウンロード名とXLSX内容の一致はモックの回帰テストで検証しました。ブラウザーでの保存完了とSafari実機は未確認です。ダウンロード開始だけでは未保存状態を解除しません。詳細とCI結果は [PROJECT_STATUS.md §18](../../PROJECT_STATUS.md)を参照してください。
+
+以下のEXCEL.2 ZIPはItem 17〜20の配布物で、Item 21を含みません。新しい出力を確認するときは、上記のフォルダを使用してください。
+
 ## Item 17〜20を含む確認用バンドル（EXCEL.2、2026-10-25）
 
 今回のローカル配布物は `dist/gridcraft-web-0.11.1-excel2-20261025.zip` です。元のWASM出力は `dist/web-functions-20261025` で、`dev` プロファイル（optimized + debuginfo）です。releaseビルドや上流の公式リリースではありません。

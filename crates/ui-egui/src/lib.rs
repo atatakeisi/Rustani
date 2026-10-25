@@ -30,6 +30,7 @@ pub mod paper_view;
 pub mod pivot_pane;
 pub mod printing;
 pub mod ribbon;
+mod save_as;
 pub mod selection_glide;
 pub mod tabs;
 pub mod text_box;
@@ -665,6 +666,7 @@ impl SheetApp {
     /// UI-only commands (dialogs, view toggles that aren't saved in the file).
     fn run_ui_command(&mut self, id: &str, p: &Json) -> Option<Result<Json, String>> {
         let r = match id {
+            "ui.saveAsDownload" => save_as::download(self, p),
             "ui.printSettings" => printing::settings(&mut self.printing, p, self.services.printers.as_ref()),
             "ui.printSubmit" => self.submit_print(p.clone()),
             "ui.ribbonTab" => {
@@ -852,19 +854,17 @@ impl SheetApp {
                 }
             }
             "saveAs" => {
+                if !self.commit_edit(0, 0, false, false) {
+                    return;
+                }
                 let suggested = self.session.active().map(|d| d.display_title()).unwrap_or_else(|| "Book1".into());
                 if let Some(pick) = &self.services.pick_save {
                     if let Some(path) = pick(&suggested) {
                         let path = if std::path::Path::new(&path).extension().is_none() { format!("{path}.xlsx") } else { path };
                         self.run_or_alert("file.save", json!({"path": path}));
                     }
-                } else if self.services.download.is_some()
-                    && let Ok(r) = self.run("file.saveBytes", json!({"format": "xlsx"}))
-                    && let Some(dl) = &self.services.download
-                    && let Some(b) = r.get("base64").and_then(Json::as_str).and_then(gridcraft_engine::io::base64_decode)
-                {
-                    let name = r.get("name").and_then(Json::as_str).unwrap_or("Book.xlsx").to_string();
-                    dl(&name, &b);
+                } else if self.services.download.is_some() {
+                    self.dialog = dialogs::Dialog::open(self, "saveAs", params);
                 }
             }
             // File › Options (`file.options`) and the File tab itself open the Backstage view.

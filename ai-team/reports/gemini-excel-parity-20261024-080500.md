@@ -333,3 +333,28 @@ Investigating the architecture across `crates/engine` and `crates/ui-egui` revea
   - However, in `ribbon.rs:1958`, selecting a function from any Ribbon category dropdown (`Financial`, `Logical`, `Text`, `Date & Time`, `Lookup & Reference`, `Math & Trig`, `More Functions`) calls `formulas.insertFunction`, which unconditionally sends `UiRequest::EditCell(Some("=NAME("))` (`formulas.rs:170`), wiping out the user's in-progress formula in `app.editor`.
 - **Fix**:
   - When `app.editor` is already active and editing a formula (`e.text.starts_with('=')`), selecting a function from a Ribbon category dropdown (or `UiRequest::EditCell` when `formulas.insertFunction` is called) should insert `NAME(` at the current cursor/caret position (or append if at the end) rather than overwriting the entire formula text with `=NAME(`.
+
+### 21. [HIGH] Web/デスクトップでの「名前を付けて保存 (Save As)」時にファイル名入力ダイアログを表示する (`crates/ui-egui/src/dialogs.rs`, `crates/ui-egui/src/lib.rs`, `crates/ui-egui/src/backstage.rs`)
+- **Location**:
+  - `crates/ui-egui/src/lib.rs:854-870` (`open_dialog("saveAs", ...)`)
+  - `crates/ui-egui/src/dialogs.rs` (`save_as` / 新規 `Dialog::SaveAs` またはファイル名プロンプト)
+  - `crates/ui-egui/src/backstage.rs:360-390` (`Backstage::show` -> Save As ページ)
+- **What the User Noticed**:
+  - Web版（Safari等）において、Backstage（「ファイル」タブ）やリボンから「名前を付けて保存（Save As）」をクリックすると、ファイル名を入力・変更する余地がなく、現在のブック名（`Book1.xlsx` や `Quarterly Sales Dashboard.xlsx`）のまま即座に自動ダウンロードされてしまう。
+  - ユーザーが任意のファイル名（例: `PWGridCraft.xlsx` や `2026年度売上.xlsx`）に変更して保存できない。
+- **Root Cause**:
+  - `crates/ui-egui/src/lib.rs:854-870` の `match name { "saveAs" => ... }` において、`services.pick_save` が存在しない環境（Web/WASM版）では、ダイアログを出さずに即座に `file.saveBytes` を呼び出し、`services.download(&name, &b)` を実行してしまっている。
+  - また、Backstage の `Save As` 画面でもファイル名入力フィールドが存在しない、あるいはダイアログ連携が不足している。
+- **Fix**:
+  1. **ファイル名入力ダイアログ（Save As Dialog）の実装**:
+     - `services.pick_save` が利用できない環境（Web環境）、あるいは「名前を付けて保存」が呼び出された際、モーダルダイアログ（例: `Dialog::SaveAs`）を表示する。
+     - ダイアログ内には以下を配置：
+       - 現在のファイル名（`.xlsx` 拡張子付きまたは拡張子なしの入力欄、初期値はアクティブなブック名、例: `Book1`）。入力欄に初期フォーカスを当てる。
+       - ファイル形式（`Excel ワークブック (*.xlsx)` / 将来拡張用の選択、または固定表示）。
+       - 「保存 (Save)」ボタン（Enterキー対応）および「キャンセル (Cancel)」ボタン（Escキー対応）。
+     - 保存ボタン押下時：
+       - 入力されたファイル名が空でないことを確認し、拡張子 `.xlsx` がなければ自動補完する。
+       - 確定したファイル名で `file.saveBytes`（Web版なら `services.download(custom_name, bytes)`、デスクトップなら指定パスへの保存）を実行する。
+       - ドキュメントのアクティブタイトル（`d.title` や表示名）を入力された名称に更新する。
+  2. **回帰テスト**:
+     - Web環境（`download` サービスモック）において、「名前を付けて保存」をトリガーした際にダイアログが開き、任意のファイル名を入力して確定すると、そのカスタムファイル名でダウンロードペイロードが発行されることを検証するユニット/UIテストを追加する。

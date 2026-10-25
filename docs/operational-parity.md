@@ -1,6 +1,6 @@
 # Operational parity verification
 
-> **Last updated:** 2026-10-25 · Items 17–20 implemented; final integration CI, refreshed Web build and Chrome checks passed.
+> **Last updated:** 2026-10-25 · Item 21 Web Save As verified: 2,363 tests and all eight CI gates passed; refreshed Web and Chrome dialog checks complete.
 
 Source: `ai-team/reports/gemini-excel-parity-20261024-080500.md` (read in full).
 
@@ -43,6 +43,7 @@ language and executable-project work is collected in `PROJECT_STATUS.md` §14.
 | 18 | More Functions category submenus and category-prefiltered Insert Function dialog | `function_library.rs`: seven tests cover all 13 category footers, seven More Functions submenus, Japanese labels and live category/search filtering |
 | 19 | The same complete AutoSum menu on Home and Formulas | `function_library.rs` and `keytips.rs`: both tabs, five functions and evaluated results, More Functions route and all 12 HU/MU choices |
 | 20 | Insert a selected function at the formula caret/selection and preserve TextEdit Undo | `function_insertion.rs`: nine tests cover both editors, Unicode selection replacement, one-step Undo/Redo, dialog confirmation, captured locale and origin cell |
+| 21 | Web Save As filename dialog and custom XLSX download name; preserve native picker and unacknowledged-save state | Complete: 35 targeted passes, 2,363 full-suite passes, all eight CI gates; refreshed WASM and Chrome dialog checks. Browser OS-write completion and Safari remain unverified |
 
 The source report permits unsupported recorded commands to remain explicit VBA comments. The
 stop result must expose these commands, and generated source must compile; a compilable comment
@@ -133,9 +134,41 @@ one Undo restoring the original draft and Redo restoring the insertion. Browser 
 were empty. Screenshot: `../outputs/GridCraft-Items17-20-Chrome-20261025.jpg`.
 Safari live revalidation remains incomplete.
 
+## 2026-10-25 Web Save As follow-up (item 21)
+
+With no native `pick_save` and an available download service, Save As now opens a modal
+filename dialog. The native picker path is retained.
+
+| Contract | Verification |
+|---|---|
+| Current name suggested; initial filename focus/selection; fixed XLSX format | UI tests and Chrome Japanese-name replacement |
+| Save/Enter confirms; Cancel/Escape cancels; IME boundary guard | Mock download, both IME/key event orders, composition cancellation and Chrome Esc |
+| Empty/invalid names retain the dialog; missing `.xlsx` is completed | UI and engine regressions; Chrome Japanese empty-name error |
+| Final name reaches encoder and download; document UID checked | Mock name/content match, PivotChart internal-link name and stale-document rejection |
+| Title changes after dispatch; standalone dirty/saved/path retained | UI state assertions and unchanged engine-query state; native picker regression |
+
+The targeted run passed 31 UI tests across five suites, including ten new `web_save_as`
+regressions, plus four engine save tests. Final `cargo xtask ci` passed all eight gates:
+**2,363 passed, zero failed, one existing ignored test** across 161 suites.
+Log: `../outputs/GridCraft-Item21-CI-20261025.log`.
+
+Trunk built `dist/web-save-as-20261025` (dev, optimized + debuginfo); it now serves port 8784.
+WASM: `gridcraft-web-200576538cd14828_bg.wasm`; HTML asset/SRI checks passed. Chrome confirmed
+Japanese filename input, empty-name validation and Esc cancellation with zero error logs.
+Screenshot: `../outputs/GridCraft-Item21-SaveAs-Chrome-20261025.jpg`.
+
+Download names and payloads are verified with mocks. Browser OS-picker/write completion,
+Safari live behavior and real OS IME candidate conversion are not verified. Existing host
+synchronization still receives the same download service call; it was not separately live-tested.
+A standalone download dispatch has no save-completion acknowledgement and does not clear dirty
+state or create a local path. This adds XLSX naming, not executable VBA-project writing.
+The report body is retained, with only its trailing blank line normalized. `EXCEL.3` is the
+integration unit; the preceding item 17–20 figures remain historical evidence.
+
 ## Revision history
 
 | Date | Change |
 |---|---|
+| 2026-10-25 | Implement item 21 Web Save As filename dialog and custom-name XLSX dispatch with keyboard/IME/document guards; 35 targeted tests and all eight CI gates passed (2,363 tests), refreshed WASM and Chrome dialog checks complete. Preserve native picker, existing host synchronization and standalone dirty/saved/path state; no browser save-completion claim |
 | 2026-10-25 | Complete items 18–20 and retain item 17's guards; 438 targeted passes and final eight-step CI passed with 2,349 tests across 160 suites. Refreshed Web deployed on 8784 and Chrome checked categories and insertion/Undo/Redo; preserve item 17's historical 2,328-test evidence and unresolved Safari live verification |
 | 2026-10-25 | Record item 17's stable editor ID, scoped async Paste, caught browser exceptions, isolated draft Undo and eight VBA regressions; full CI passed 2,328 tests |

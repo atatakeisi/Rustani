@@ -10,6 +10,7 @@
 | `GEMINI_VBA_REVIEW.md` | VBA I/Oレビューは完了。`../reports/gemini-vba-io-20261024-064100.md` をCodexが照合・修正し、保存/再読込回帰試験・CI成功。実Excelは未検証。詳細はPROJECT_STATUS.md §11 |
 | Excel操作差異監査（0〜16の履歴） | `../reports/gemini-excel-parity-20261024-080500.md` の当初の項目0〜16を実装・回帰確認した時点の記録。CI全8項目・2,321件成功。この統合について、ユーザーからAntigravity/Geminiのコード・テストレビュー完了の報告を受領。統合範囲と残課題はPROJECT_STATUS.md §13–14 / docs/operational-parity.md |
 | 同レポート追記 Item 17〜20 | CodexがVBA貼り付け対策と関数メニュー・編集中の関数挿入を実装。最終CI全8項目成功、2,349件成功・0失敗・既存ignore 1件。新WASMを8784番へ反映し、Chromeで関数分類・AutoSum・途中挿入とUndo/Redoを確認。Safari実機は未再確認。詳細はPROJECT_STATUS.md §15–16 / docs/operational-parity.md。追記分のAntigravity/Geminiコードレビュー完了は未確認 |
+| 同レポート追記 Item 21 | CodexがWebのファイル名入力付きSave Asを実装。重点35件と全体CI全8項目成功（2,363件成功・0失敗・既存ignore 1件）。新WASMを8784番へ反映し、Chromeで日本語名入力・空名エラー・Esc取消を確認。ブラウザーのOS保存完了とSafari実機は未確認。詳細はPROJECT_STATUS.md §18。追記分のAntigravity/Geminiコードレビュー完了は未確認 |
 | `JAPANESE_REGRESSION.md` | Codexからの指定待ち。再依頼時も静的レビューだけを行う |
 | `CLAUDE.md` | 休止中の参考資料。実行しない |
 

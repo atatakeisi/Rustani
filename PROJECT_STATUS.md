@@ -1,6 +1,8 @@
 # GridCraft 現状共有シート
 
-更新日: 2026-10-25（日本時間）。最新の統合は「16」の `EXCEL.2: stabilize VBA paste and function-library editing`（Item 17〜20、比較基点 `dc6d1cae`）。CI全8項目・2,349テスト成功。新WASMを8784番へ反映し、Chromeで関数メニュー・途中挿入・Undo/Redoを確認済み。配布用ZIPとビルド情報は「17」を参照。Safari実機の再検証は画面取得エラーで未完了。Item 17のSafari VBA右クリック貼付け対策は「15」を参照。直前の `EXCEL.1` は `dc6d1cae` として `origin/main` へ送信済み。飛び地貼り付けは「12」、IME/VBAレビューは「11」、Excel操作差異の統合は「13」〜「14」を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
+更新日: 2026-10-25（日本時間）。最新の統合単位は「18」の `EXCEL.3: prompt for Web Save As filenames`（Item 21、比較基点 `8bbfe9a9`）。CI全8項目・161 suite・2,363テスト成功、0失敗・既存ignore 1件。新WASMを8784番へ反映し、Chromeで日本語名入力・空名エラー・Esc取消を確認した。Safari実機とブラウザーのOS保存完了は未確認。直前のItem 17〜20は「16」、その配布ZIPは「17」の履歴を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
+
+前回の統合は「16」の `EXCEL.2: stabilize VBA paste and function-library editing`（Item 17〜20、比較基点 `dc6d1cae`）。CI全8項目・2,349テスト成功。新WASMを8784番へ反映し、Chromeで関数メニュー・途中挿入・Undo/Redoを確認済み。配布用ZIPとビルド情報は「17」を参照。Safari実機の再検証は画面取得エラーで未完了。Item 17のSafari VBA右クリック貼付け対策は「15」を参照。直前の `EXCEL.1` は `dc6d1cae` として `origin/main` へ送信済み。飛び地貼り付けは「12」、IME/VBAレビューは「11」、Excel操作差異の統合は「13」〜「14」を参照。実際のHEADと同期状態は `git log -1 --oneline` / `git status -sb` で確認する。
 
 現在の体制は **Codex + Antigravity上のGemini**。ユーザー指定でGemini CLI・Claude CLIは使用しない。Geminiは `ai-team/tasks/` を直接読み、`ai-team/reports/` に新規レポートを保存する。コード編集・Cargo等の実行はCodexが担当する。
 
@@ -352,3 +354,23 @@ Item 17の8件のVBAテストと非同期貼付け対策も維持する。Item 1
 - サーバー設定例・HOSTING.md・README・MIT/Apacheライセンス・NOTICE・ATTRIBUTION・埋込BIZ UDPGothicのOFLを同梱する。`BUILD_INFO.json` にビルド元・ソースの指紋・検証記録・ファイルSHA-256を記録し、`SHA256SUMS` とZIP CRCも検査する。
 - `dist/` は既存のGit除外対象。Gitにはソース・テスト・レポート・再現手順を保存し、生成物はこのMacの配布成果物として保持する。既存ディレクトリやZIPを削除・上書きせず、新しい名前で作成する。環境変数を変更しない。
 - コミット直前のCIログ: `../outputs/GridCraft-EXCEL2-Precommit-CI-20261025.log`。先行する全8項目・2,349件成功の記録と、Chrome確認の証拠は「16」を参照する。
+
+## 18. Web版「名前を付けて保存」のファイル名入力（Item 21、2026-10-25、EXCEL.3）
+
+ユーザー追記のItem 21を読み、WebのSave Asが現在名のまま即時ダウンロードする経路に、ファイル名入力ダイアログを追加した。レポート本文を維持し、末尾の余分な空行だけ整形した。以下は新しい操作仕様と検証記録である。
+
+- `services.pick_save` がなく `services.download` がある環境で、新しいSave Asを開く。ネイティブのファイル選択ダイアログは維持する。
+- 現在のブック名から候補を作り、入力欄へ初期フォーカスを当てて全選択する。形式はExcelワークブック（`.xlsx`）固定。保存はSave/Enter、取消はCancel/Escape。IMEの候補確定などと同じフレームのEnter/Escapeで誤確定・取消しないよう境界を処理する。
+- 空または不正なファイル名は保存せず入力ダイアログに残す。有効な名前に`.xlsx`がなければ補完し、その名前をエンコーダーとダウンロードの両方へ渡す。`file.saveBytes` 側でbasename・制御文字・255 UTF-8 bytes・拡張子も検査する。
+- UIコマンドは `ui.saveAsDownload({name, document?})`。`document` 指定時は元のブックを確認し、ダイアログを開いた後に別ブックへ切り替わった場合の誤保存を防ぐ。ダウンロードのdispatch後にドキュメントのタイトルを確定名へ更新する。
+- ブラウザーの保存完了ackはない。standalone版はダウンロードのdispatchだけでdirty/saved状態やローカルpathを変更せず、保存完了とは表示しない。組込みhostの既存の同期・保存通知は維持する。
+
+重点検証: `web_save_as` 10件を含むUI 5 suite・31件が成功（`../outputs/GridCraft-SaveAs-Regression-v3-20261025.log`）。日本語名とXLSXペイロード、初期フォーカス/全選択、保存/取消とEnter/Escape、IME境界、空・不正名、拡張子、ブック切替、dirty/saved/path維持、native pickerを確認した。engineの追加4件も成功（`../outputs/GridCraft-SaveAs-Engine-20261025.log`）。指定名とPivotChart内部リンクの一致、入力拒否、旧形式呼出し、既存VBAバイナリ保持を検証した。`cargo xtask ci` 全8項目成功。161 suite・2,363件成功・0失敗・既存ignore 1件。ログ: `../outputs/GridCraft-Item21-CI-20261025.log`。WASMの既存 `backstage.rs` dead_code警告1件は継続する。新WASMとChrome画面確認は以下に記録する。hostは既存サービス経路を使い、別途実機の保存完了を確認したものではない。Item 17〜20の2,349件成功と既存WASM/Chrome証跡は「16」の履歴であり、Item 21の検証結果ではない。
+
+Safari実機・実OS IME候補変換と実Excelでの保存物確認は引き続き未確認。`.xlsx`固定であり、Excel実行可能VBAプロジェクトの生成・書換えを追加するものではない。
+
+Item 21のWebビルド・画面確認:
+
+- Trunk 0.22.0のbuild成功。新規出力は `dist/web-save-as-20261025`、dev（optimized + debuginfo）。WASMは `gridcraft-web-200576538cd14828_bg.wasm`（37,288,192 bytes）、SHA-256は `adeba994e0b5269391697d2e0e26ecfb75fcc6717f80123b34117ac4493ca68a`。HTML相対参照とSRI 3件の照合成功。ビルドログ: `../outputs/GridCraft-Item21-Web-20261025.log`。既存出力は保持した。
+- 8784番の配信を新出力へ切替済み。再開コマンド: `python3 -u -m http.server 8784 --bind 127.0.0.1 --directory dist/web-save-as-20261025`。URLは `http://127.0.0.1:8784/?sample=sales&lang=ja`。
+- Chromeで「ファイル→名前を付けて保存→名前を付けて保存…」からダイアログが開き、初期名の全選択を `2026年度売上` へ置換できること、空の名前+Enterで日本語エラーが出て継続すること、Escで元のタイトルのシートへ戻ることを確認。errorログ0件。証跡: `../outputs/GridCraft-Item21-SaveAs-Chrome-20261025.jpg`。ブラウザーのOS保存ダイアログから実ファイルへの保存完了、Safari実機、実OS IME候補変換は未検証。

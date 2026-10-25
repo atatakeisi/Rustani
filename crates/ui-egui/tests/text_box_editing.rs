@@ -1,6 +1,7 @@
 //! Text-box editing through real pointer and keyboard input, including document boundaries.
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, pos2, vec2};
+use egui_kittest::kittest::Queryable as _;
 use gridcraft_engine::Session;
 use gridcraft_engine::core::{CellRef, Value};
 use gridcraft_engine::model::{Shape, Workbook};
@@ -199,6 +200,9 @@ fn saving_and_switching_context_commit_to_the_original_text_box() {
         edit_box(&mut h, id);
         replace(&mut h, "Saved from the text editor");
         key(&mut h, Key::S, modifiers);
+        assert!(downloaded.lock().unwrap().is_empty(), "the shortcut opens Save As before downloading");
+        h.get_by_role_and_label(egui::accesskit::Role::Button, "Save").click();
+        h.run_steps(3);
         let (saved, _) = gridcraft_engine::io::open_bytes("shortcut.xlsx", &downloaded.lock().unwrap()).unwrap();
         assert_eq!(shape_text(&saved, 0, id), "Saved from the text editor");
         downloaded.lock().unwrap().clear();

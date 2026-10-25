@@ -677,9 +677,15 @@ fn save_as(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcom
         });
     });
     ui.add_space(14.0);
-    // Desktop: the system Save dialog. Web: the file downloads.
+    // Desktop opens the system picker; a Web workbook first asks for its download name.
     let web = app.services.pick_save.is_none() && app.services.download.is_some();
-    let label = if web { format!("{} (.{fmt})", lang.tr("Download")) } else { lang.tr("Browse…").to_string() };
+    let label = if web && fmt == "xlsx" {
+        lang.tr("Save As…").to_string()
+    } else if web {
+        format!("{} (.{fmt})", lang.tr("Download"))
+    } else {
+        lang.tr("Browse…").to_string()
+    };
     if square_button(ui, Icon::OpenFolder, &label).clicked() && app.commit_edit(0, 0, false, false) {
         if fmt == "xlsx" {
             let before = app.session.active().map(|d| (d.path.clone(), d.is_dirty()));

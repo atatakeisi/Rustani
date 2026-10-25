@@ -984,6 +984,20 @@ pub(super) const DIALOGS: &[(&str, &str)] = &[
 /// Editor, function-library and macro strings beyond the shared reference catalog.
 /// Source identifiers and user program output are intentionally absent: translations apply only to interface text.
 pub(super) const VBA: &[(&str, &str)] = &[
+    ("File name:", "ファイル名:"),
+    ("Save As…", "名前を付けて保存…"),
+    ("Save As|Save", "保存"),
+    ("Enter a file name.", "ファイル名を入力してください。"),
+    ("File name must not be empty.", "ファイル名を入力してください。"),
+    ("File name must be a basename without folders or control characters.", "フォルダーの区切りや制御文字を含まないファイル名を入力してください。"),
+    ("File name must be at most 255 UTF-8 bytes, including the extension.", "ファイル名は拡張子を含めて UTF-8 で 255 バイト以内にしてください。"),
+    ("File name extension must match the requested format.", "ファイル名の拡張子を保存形式と一致させてください。"),
+    (
+        "Return to the original workbook to save it, or cancel and open Save As again.",
+        "元のブックに戻って保存するか、キャンセルして名前を付けて保存を開き直してください。",
+    ),
+    ("File downloads are unavailable in this window.", "このウィンドウではファイルをダウンロードできません。"),
+    ("Couldn't decode the workbook.", "保存するブックを読み出せませんでした。"),
     ("More Functions…", "その他の関数…"),
     ("Count Numbers", "数値の個数"),
     (
