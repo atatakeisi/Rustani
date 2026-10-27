@@ -1,17 +1,10 @@
 # Excel VBA compatibility
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (recording integration and explicit remaining language/project-writing work) · **Target:** Microsoft Excel (Microsoft 365), including Windows VBA features
+> **Last reviewed:** 2026-10-27 · **Last updated:** 2026-10-27 · **Change:** policy (sandboxed Mini-VBA; full Excel VBA is outside scope) · **Target:** Rustani
 
-**Full compatibility with macros authored in the commercial version of Excel is the final
-requirement. It has not been achieved.** The current local implementation provides source
-import, an editor and a bounded interpreter for a small subset of VBA and the Excel object
-model. These are implementation stages toward that requirement, not a reduction of its scope.
+**Rustani's target is a sandboxed Mini-VBA with an integrated editor, not full Excel VBA compatibility.** The existing interpreter runs a bounded subset against the current workbook, with no automatic execution or VBA access to external files, networking, processes or COM. Loaded workbooks containing scripts or VBA require explicit session trust. Source is saved as Rustani metadata; executable Excel projects are neither generated nor rewritten.
 
-This inventory is based on source inspection through 2026-10-24. The local validation below covers
-CI and selected Chrome editor workflows, not an Excel-authored macro corpus or full compatibility.
-Readiness percentages in the existing parity documents have not been raised. Their historical
-hour estimates do not include the newly required full VBA compatibility; that work is **not yet
-estimated**.
+These restrictions reduce exposure, but do not constitute a guarantee that opening arbitrary files is safe. Excel workbook fidelity and imported source coverage remain limited; keep an original copy. A saved original `.xlsm` binary can still execute when later opened in Excel. This is a policy clarification, not a new engine implementation or a security certification.
 
 ## Implemented foundation
 
@@ -61,33 +54,9 @@ that module can prevent a selected procedure from compiling. A module with a com
 can still be saved for further editing. Unsupported code must be diagnosed rather than
 silently skipped.
 
-## Known missing compatibility
+## Deliberate scope and compatibility boundaries
 
-The remaining requirement includes the complete language and standard library; parameterized
-procedures, `Function`, `ByRef`/`ByVal`, optional/named arguments, module/global state,
-arrays and `ReDim`, `For Each`, `Select Case`, `On Error`/`Err`/`Resume`, full type/coercion
-and date/currency semantics, class/property modules, events, references and cross-module calls.
-The current subset is not enough to run arbitrary Excel VBA unchanged.
-
-The Excel object model still lacks most properties, methods and collections, multi-workbook
-workflows, workbook/worksheet events, macro UDF integration, UserForms and their controls,
-interactive `MsgBox`/`InputBox`, and the VBE debugger/designer. Add-in lifecycle support for
-`.xlam`/`.xla`, COM/ActiveX automation, `CreateObject`, external DLL/Windows API calls,
-file/process/network operations and trusted-location/signature policy are not implemented.
-Excel 4.0 macro sheets are a separate unimplemented execution format.
-
-Full compatibility also requires writing edited source back into an Excel VBA project and
-verifying the resulting workbook in Excel. Existing preservation and source extraction do
-not satisfy that requirement. Windows-dependent macros will require an explicit execution
-architecture for the native dependencies; the current browser interpreter supplies none.
-The choice and its compatibility tests remain design work, not a promise that a browser-only
-runtime can reproduce every Windows feature.
-
-The next language stage is parameterized `Sub`, `Function` return values and `ByRef`/`ByVal`
-argument passing, with explicit coercion, aliasing and call-depth tests. This is remaining
-implementation work, not covered by the recording feature. Separately, executable project
-creation and rewriting must be validated by opening and running the edited output in Excel;
-passing GridCraft source-metadata round trips does not complete that stage.
+The sandbox supports the subset listed above, not arbitrary Excel macros. Parameterized procedures, `Function`, `ByRef`/`ByVal`, forms, events and many Excel objects remain unsupported. COM/ActiveX, DLL/OS calls, external file and network access, automatic events, and generation or rewriting of executable `vbaProject.bin` are outside the Rustani target. Unsupported operations should continue to produce explicit diagnostics. Excel 4.0 macros are not executed.
 
 ## Execution, trust and current safety limits
 
@@ -192,16 +161,13 @@ will accept the metadata or execute edited source.
   `Function`, `ByRef`/`ByVal`, executable `vbaProject.bin` writing and Excel round trips remain
   open; this integration does not claim them.
 
-Next development should establish the remaining baselines, expand language and object-model coverage
-against reproducible Excel observations, implement project writing and form/event support,
-and decide how native Windows dependencies execute. Every supported stage must retain explicit
-diagnostics and the final full compatibility requirement. Completion criteria and effort for
-the whole requirement remain to be measured.
+Future verification should focus on the stated sandbox and trust boundaries, safe source handling, browser save/reopen flows, and clear compatibility diagnostics. External Excel output and real-browser tests remain useful for workbook fidelity; they do not imply a full-VBA-compatibility goal.
 
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | major | Adopt bounded sandboxed Mini-VBA as Rustani policy; full Excel VBA and executable project writing are outside scope |
 | 2026-10-24 | minor | Reconcile recording and review evidence; distinguish supported parameterless recording from missing Sub/Function arguments and ByRef/ByVal; retain metadata-only save and executable-project/Excel-round-trip requirements |
 | 2026-10-24 | minor | Preserve imported module identity when saving source overlays; accept final raw-source padding and named control-reference compatibility input; reuse CFB mini-stream storage. Validation details: PROJECT_STATUS.md §11. Full compatibility and Excel handoff remain unverified |
 | 2026-10-23 | major | Created from the local source: full VBA compatibility required but unmet; source preservation/import, partial interpreter/editor, trust, limits, metadata-only source save; recorded passing CI and selected Chrome workflows while retaining Excel verification gaps |

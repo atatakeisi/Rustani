@@ -279,6 +279,9 @@ impl VbaEditor {
             ui.colored_label(tokens.danger, lang.tr("Return to the original workbook to edit or run this module."));
         }
         ui.label(lang.tr("Edit or paste VBA, then choose a procedure and Run. Unsupported code reports an error."));
+        ui.weak(
+            lang.tr("Macros do not run automatically. Rustani supports a limited, sandboxed subset; see File → Home for the compatibility guide."),
+        );
         ui.weak(lang.tr("Only a subset of VBA is supported. Full Excel VBA compatibility has not been achieved."));
         if self.preserved_vba {
             ui.weak(lang.tr("The original VBA project is preserved in .xlsm files. Excel VBA compatibility is still incomplete."));

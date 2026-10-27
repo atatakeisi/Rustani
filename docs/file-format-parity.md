@@ -1,13 +1,12 @@
 # File-format parity
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (VBA source overlay identity and OVBA/CFB boundary fixes) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-27 · **Last updated:** 2026-10-27 · **Change:** policy (sandboxed Mini-VBA; full Excel VBA is outside scope) · **Target:** Rustani
 
 Every format Excel opens or saves, with GridCraft's read and write support, fidelity and tests.
 Part of [target-app-parity.md](target-app-parity.md). **File formats: ~50% ready, 80–120 h**
 (estimated).
 
-The existing readiness score is unchanged. Historical hours exclude the newly required full
-Excel VBA compatibility, which is not yet estimated. See [vba-compatibility.md](vba-compatibility.md)
+The existing readiness score is unchanged. Rustani targets sandboxed Mini-VBA, not full Excel VBA compatibility. See [vba-compatibility.md](vba-compatibility.md)
 for the distinction between retained project bytes, editable source and executable Excel code.
 
 Excel's list comes from Microsoft's public "File formats that are supported in Excel"
@@ -114,6 +113,7 @@ refresh. Counted under features (Get & Transform, ~10% ready), not here.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | policy | Adopt sandboxed Mini-VBA as Rustani scope; retain historical scores and earlier entries |
 | 2026-10-24 | minor | Source overlays retain imported module kind/name/order while the project is present; final raw module padding and named control-reference input accepted; CFB mini-stream shared. PROJECT_STATUS.md §11 records validation. Scores unchanged; Excel project writing remains missing |
 | 2026-10-23 | minor | VBA: original project preservation plus partial source extraction/execution/editor; source edits remain GridCraft metadata and full Excel project/add-in compatibility is unmet; scores unchanged |
 | 2026-10-21 | minor | HTML (Save as Web Page) writes pictures (`data:` URI `<img>`) and charts (inline SVG from the chart crate's drawing primitives, text included) at their anchors; the table uses the sheet's column widths and row heights when the sheet has either, and output for sheets without pictures or charts is unchanged |

@@ -1,6 +1,6 @@
 # Rustani 現状共有シート
 
-更新日: 2026-10-25（日本時間）。**最新作業は「23」の新Rustaniアイコン・商標画像除去・依存告知の整備。現在の公開構成は「22」。** ユーザーが旧 `atatakeisi/gridcraft` を `atatakeisi/Rustani` へ改名し公開した。正式URLは `https://atatakeisi.github.io/Rustani/`。GitHub ActionsのPages成功、HTTP 200、Chromeで日本語サンプルの描画とerrorログ0件を確認した公開版は `5f06251b` に基づく旧版である。開発ソース・履歴も公開中であり、「非公開開発＋配布用だけ公開」という「21」の案は現行構成ではない。
+更新日: 2026-10-27（日本時間）。**現行方針は箱庭型ミニVBA。Excel VBA完全互換、外部I/O、自動実行、実行可能プロジェクトの生成・書換えは目標外。ホーム画面の案内とPWA設定を追加。** 2026-10-25時点の記録: **最新作業は「23」の新Rustaniアイコン・商標画像除去・依存告知の整備。現在の公開構成は「22」。** ユーザーが旧 `atatakeisi/gridcraft` を `atatakeisi/Rustani` へ改名し公開した。正式URLは `https://atatakeisi.github.io/Rustani/`。`0a8ad16b` のGitHub ActionsのCI・Pages成功、HTTP 200、Chromeでの描画・入力・計算とerrorログ0件を確認した。今回の更新結果は同じコミットのActions runで確認する。開発ソース・履歴も公開中であり、「非公開開発＋配布用だけ公開」という「21」の案は現行構成ではない。
 
 今回のアイコン・商標画像除去・告知・CI対策は「23」の `BRAND.2` 統合対象。最終ローカルCIは全8項目・2,367件成功（0失敗・既存ignore 1件）。releaseビルドとローカルHTTP全12件・SRI整合、Chromeでセル入力と参照計算を確認した。8784番は `dist/web-rustani-icon-20261025`。確定コミットとorigin同期は `git log -1 --oneline` / `git status -sb`、公開更新の結果は同じSHAのPages runで確認する。
 
@@ -15,6 +15,12 @@
 現在の体制は **Codex + Antigravity上のGemini**。ユーザー指定でGemini CLI・Claude CLIは使用しない。Geminiは `ai-team/tasks/` を直接読み、`ai-team/reports/` に新規レポートを保存する。コード編集・Cargo等の実行はCodexが担当する。
 
 この文書はAIの初回引き継ぎ用です。実装・資料・未確認事項を区別しています。全機能の動作保証ではありません。作業開始時に `git status --short` と担当ソースを再確認してください。
+
+## 24. 箱庭型ミニVBA方針・ホーム案内・PWA設定（2026-10-27）
+
+ローカルのAntigravityレポート `ai-team/reports/gemini-rustani-direction-20261027-172500.md` に沿い、Excel VBA完全互換の目標を撤回。既存の対応構文、信頼確認、ステップ制限、トランザクションとソースmetadataを維持する。外部ファイル・ネットワーク・OS/COM操作、マクロ自動実行、Excel実行可能な `vbaProject.bin` の生成・書換えは対象外。Excelへの書き戻しでは元のバイナリが実行されうるため、無毒化や完全な安全性を保証しない。Safari実機・実OS IME・実Excelファイルの検証は引き続き必要。
+
+ホーム画面に日英の4ケースの互換性・安全性案内とWebファイルのドラッグ＆ドロップ案内を追加。VBAエディタからもホームの案内へ誘導する。Web manifestとホーム画面アイコンを相対パスで配布し、サブパス上でも使えるようにする。オフライン対応・ファイル関連付けは追加していない。既存のVBAエンジンは変更しない。対象テスト `cargo test -p gridcraft-ui-egui --test file_menu` 15件、`cargo fmt --all -- --check`、`cargo clippy -p gridcraft-ui-egui -- -D warnings`、`cargo run -p xtask -- keytips --check` と `assets` が成功。Trunk releaseを `dist/web-rustani-direction-20261027` に一度生成し、manifestと各アイコンの相対パスを確認。Chromeで日本語ホームの表示を確認しエラーログ0件。全ワークスペースCIはユーザー指定により実行しない。実際のコミット・公開状態は `git status -sb` とGitHub Actionsで確認する。
 
 ## 1. 最初に読むものと作業ルール
 
@@ -135,7 +141,7 @@ M  crates/xlsx/Cargo.toml, crates/xlsx/src/cfb.rs, lib.rs
 ?? crates/xlsx/src/vba.rs
 ```
 
-VBAは部分的なローカル実装です。ソース抽出、エディタ、協調実行、実行停止、成功時の一括Undo、失敗時の変更破棄、信頼確認を追加しています。Excel VBA完全互換は最終要件であり未達です。詳細は `docs/vba-compatibility.md`。保存する編集ソースはGridCraft metadataで、`vbaProject.bin`の書換え・生成ではありません。ビルドとテストの確認範囲は本書末尾の再開後検証へ追記します。
+VBAは部分的なローカル実装です。ソース抽出、エディタ、協調実行、実行停止、成功時の一括Undo、失敗時の変更破棄、信頼確認を追加しています。Excel VBA完全互換は現在のRustani方針では目標外です。詳細は `docs/vba-compatibility.md`。保存する編集ソースはGridCraft metadataで、`vbaProject.bin`の書換え・生成ではありません。ビルドとテストの確認範囲は本書末尾の再開後検証へ追記します。
 
 ## 6. このMacの準備状況と検証コマンド
 
@@ -310,9 +316,9 @@ Git送信記録: `dc6d1caee303259378b714285c61f52013cf8568` / `EXCEL.1: integrat
 | 残課題 | 現在の状態 | 次の完了条件 |
 |---|---|---|
 | Safari・実OS日本語IME | 合成IMEイベントとChromeの選択操作は回帰確認済み。Safari実機とOS候補変換は未検証 | Safari/Chromeで候補確定・取消・Enter/Tab/Escape・スクロールを実機比較し、再現した差異を修正して回帰試験へ追加 |
-| VBA言語の拡張 | 引数なしSubの部分実装。引数付きSub、Function、ByRef/ByVal、optional/named arguments等は未実装 | 引数/戻り値/参照渡しと呼出し規則を実装し、再現可能なExcel観察と境界試験で比較。詳細は `docs/vba-compatibility.md` |
-| Excel実行可能VBAの保存 | 元のbinary project保持とGridCraft metadataへのソース保存のみ。編集を実行可能な `vbaProject.bin` へ反映できない | 新規project生成・既存project書換えを実装し、Excelで保存物を開く→編集したマクロを実行→再保存・再読込まで検証 |
-| その他の互換性 | VBA events/UserForms/Windows依存実行、実Excelコーパス、WebGPU/WebGL性能比較等は未完了 | `docs/vba-compatibility.md` / `docs/gaps.md` / `docs/roadmap.md` の境界を維持し、対象を絞って順に検証。過去の工数・readinessを完了率と読み替えない |
+| VBA言語の範囲 | 引数なしSubなどの対応範囲は限定的 | 箱庭の制約と既存機能を維持し、対応外は明示する。詳細は `docs/vba-compatibility.md` |
+| Excel実行可能VBAの保存 | 元のbinary project保持とGridCraft metadataへのソース保存のみ | `vbaProject.bin` の新規生成・書換えは現行方針の対象外。元ファイルとExcel側での実行リスクに注意 |
+| その他の互換性 | VBA events/UserForms/Windows依存実行は未対応。実Excelコーパス、WebGPU/WebGL性能比較等は未検証 | VBAの仕様境界を維持し、対象内のファイル・ブラウザー検証を進める。過去の工数・readinessを完了率と読み替えない |
 
 ## 15. Safari VBA右クリック貼付け対策（2026-10-25）
 

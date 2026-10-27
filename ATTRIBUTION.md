@@ -26,6 +26,10 @@ Chinese/Korean coverage or every Japanese Unicode glyph. See [the integration no
 | Asset | Author | Source | Licence | Notes |
 |---|---|---|---|---|
 | `docs/brand/LICENSE-brand.txt` | (licence text) | craftrules | — | |
+| `apps/gridcraft-web/pwa/apple-touch-icon.png` | atatakeisi | Resized from `assets/app-icon/rustani-hicolor/512x512/apps/ai.storyteller.gridcraft.png` | MIT OR Apache-2.0 (`assets/app-icon/LICENSE-rustani.txt`) | 180px Apple touch icon |
+| `apps/gridcraft-web/pwa/icon-192.png` | atatakeisi | Resized from `assets/app-icon/rustani-hicolor/512x512/apps/ai.storyteller.gridcraft.png` | MIT OR Apache-2.0 (`assets/app-icon/LICENSE-rustani.txt`) | 192px Web app icon |
+| `apps/gridcraft-web/pwa/icon-256.png` | atatakeisi | Copy of `assets/app-icon/rustani-hicolor/256x256/apps/ai.storyteller.gridcraft.png` | MIT OR Apache-2.0 (`assets/app-icon/LICENSE-rustani.txt`) | Web app icon |
+| `apps/gridcraft-web/pwa/icon-512.png` | atatakeisi | Copy of `assets/app-icon/rustani-hicolor/512x512/apps/ai.storyteller.gridcraft.png` | MIT OR Apache-2.0 (`assets/app-icon/LICENSE-rustani.txt`) | Web app icon |
 | `assets/app-icon/rustani-source.png` | atatakeisi (owner-supplied design) | Gemini-generated bird-and-gear JPEG; cleaned with OpenAI image generation; platform exports by `packaging/rustani-icons.sh` | MIT OR Apache-2.0 (`assets/app-icon/LICENSE-rustani.txt`) | Rustani app icon; not an ArtCraft trademark |
 | `assets/app-icon/rustani-1024.png` | atatakeisi (owner-supplied design) | Gemini-generated bird-and-gear JPEG; cleaned with OpenAI image generation; platform exports by `packaging/rustani-icons.sh` | MIT OR Apache-2.0 (`assets/app-icon/LICENSE-rustani.txt`) | Rustani app icon; not an ArtCraft trademark |
 | `assets/app-icon/rustani-macos-512.png` | atatakeisi (owner-supplied design) | Gemini-generated bird-and-gear JPEG; cleaned with OpenAI image generation; platform exports by `packaging/rustani-icons.sh` | MIT OR Apache-2.0 (`assets/app-icon/LICENSE-rustani.txt`) | Rustani app icon; not an ArtCraft trademark |

@@ -1,6 +1,6 @@
 # Gaps
 
-> **Last reviewed:** 2026-10-24 (operational-parity and remaining-work reconciliation) · **Last updated:** 2026-10-24 · **Change:** minor (remove obsolete implementation gaps; retain browser and VBA verification requirements) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-27 · **Last updated:** 2026-10-27 · **Change:** policy (sandboxed Mini-VBA; full Excel VBA is outside scope) · **Target:** Rustani
 
 Ranked shortfalls against Excel. Check the current source and PR status before starting work;
 the inherited issue references, numerical estimates and readiness assessments below have not
@@ -19,8 +19,7 @@ Chrome live checks ([PROJECT_STATUS.md §13](../PROJECT_STATUS.md)). They are no
 features. Remaining validation includes **Safari on a real browser**, **real OS Japanese IME
 candidate conversion**, browser permission/file-save paths, WebGPU/WebGL comparisons and
 Windows/Linux hardware checks. Synthetic input and WASM compilation do not establish those
-results. **Full Excel VBA compatibility remains unmet**; see §21 for language and project-writing
-work rather than interpreting the operational fixes as completion of that requirement.
+results. Rustani uses a deliberately limited sandboxed Mini-VBA; see §21 for its boundaries and remaining verification.
 
 ## Beta blockers
 
@@ -181,23 +180,10 @@ not a new whole-product readiness assessment.
   [hardware-parity.md](hardware-parity.md)
 
 ### 21. Automation and add-ins (F)
-- **Required:** full compatibility with Excel-authored VBA, including the language, object
-  model, events, UserForms and native Windows dependencies. This requirement is not met.
-- **Present locally:** original VBA project bytes retained for `.xlsm`/`.xltm`; bounded source
-  extraction; partial cooperative VM and Excel object adapter; source editor, run/stop, output
-  and line diagnostics. Loaded VBA/script content needs explicit trust; edits are staged and commit
-  only after success. Macro controls and recording generate valid supported VBA into a standard
-  module, with unsupported operations explicitly reported. Source edits save in GridCraft metadata.
-- **Missing:** parameterized `Sub`, `Function`, `ByRef`/`ByVal` and broader language/library/
-  object-model coverage; **generating or rewriting an executable Excel `vbaProject.bin`**;
-  events/forms, native execution architecture, macro UDFs and add-in lifecycle.
-- **Verification remaining:** Excel-authored macro corpus tests and **open/edit/save/reopen in
-  real Excel**, including edited executable projects. Retaining original project bytes and
-  passing local CI/Chrome editor tests do not establish this round-trip compatibility.
-  Office Scripts compatibility and a plugin/custom-function API also remain absent.
-- **Estimate:** full VBA compatibility **not yet estimated**. The historical 25–40 h covers
-  the plugin/custom-function API only and must not be read as an estimate for complete VBA.
-  Existing readiness scores are unchanged. [vba-compatibility.md](vba-compatibility.md)
+- **Policy:** bounded sandboxed Mini-VBA and an integrated editor, not full Excel VBA compatibility. No external file/network/OS/COM access or automatic macro execution; executable `vbaProject.bin` generation and rewriting are out of scope.
+- **Present:** source import, trust checks, a bounded interpreter and transactional workbook changes. Source edits use Rustani metadata; original `.xlsm` project bytes can be preserved on macro-enabled desktop export.
+- **Limits:** arbitrary Excel VBA, parameters/functions, forms/events and many object members are unsupported. An original binary project can still run in Excel; keep the original file and treat compatibility separately from security.
+- **Verification:** maintain sandbox and trust regressions, and validate supported Web save/reopen and real-browser workflows. Office Scripts and a plugin/custom-function API remain separate work. Historical scores and estimates have not been remeasured. [vba-compatibility.md](vba-compatibility.md)
 
 ### 22. AI features (F)
 - No in-app assistant, natural-language formulas or Analyze Data; agent control via MCP is
@@ -214,6 +200,7 @@ not a new whole-product readiness assessment.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | policy | Adopt sandboxed Mini-VBA as Rustani scope; retain historical scores and earlier entries |
 | 2026-10-24 | minor | Reconcile operational implementation with CI/Chrome evidence; remove obsolete resize/Home-only KeyTips/no-localization/no-cell-picture claims and contradictory inherited entries; keep historical estimates separate from Safari/real-OS IME and full VBA/project-writing verification gaps |
 | 2026-10-23 | minor | §21: replace obsolete VBA exclusion/drop claim with the full requirement, local partial implementation and unestimated remaining scope; readiness unchanged |
 | 2026-10-20 | minor | §11: the Japanese catalog covers the dialogs, messages and menus — 943 keys (~43%), matching the pt-BR coverage; a test keeps the two catalogs in step |

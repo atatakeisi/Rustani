@@ -1,13 +1,12 @@
 # Roadmap detail
 
-> **Last reviewed:** 2026-10-24 (operational-parity and remaining-work reconciliation) · **Last updated:** 2026-10-24 · **Change:** minor (current operational evidence, browser validation and VBA remainder) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-27 · **Last updated:** 2026-10-27 · **Change:** policy (sandboxed Mini-VBA; full Excel VBA is outside scope) · **Target:** Rustani
 
 Forward-looking plan. The one-page summary is [`ROADMAP.md`](../ROADMAP.md); the ranked work
 list is [`gaps.md`](gaps.md); numbers and method are in
 [`target-app-parity.md`](target-app-parity.md). The agent-hour estimates, readiness percentages
 and release/issue references below are inherited assessments, not a fresh project-wide audit or
-delivery forecast. Full Excel VBA compatibility is required and is not included in those
-historical estimates; its remaining scope has not yet been estimated.
+delivery forecast. Rustani targets a bounded sandboxed Mini-VBA, not full Excel VBA compatibility; historical estimates have not been recalculated.
 
 ## Current focus
 
@@ -23,12 +22,7 @@ The next work is:
 1. **Browser and input validation:** Safari in a real browser, real OS Japanese IME candidate
    conversion, browser clipboard permissions/file-save flows, WebGPU/WebGL comparison, and
    Windows/Linux platform checks. Selected Chrome checks and synthetic IME tests do not replace them.
-2. **Full Excel-authored VBA compatibility:** implement parameterized `Sub`, `Function`,
-   `ByRef`/`ByVal`, broader language/object-model behavior, events/forms and the runtime for
-   Windows dependencies. **Generate and rewrite executable Excel `vbaProject.bin`**, then verify
-   Excel-authored workbooks through open/edit/save/reopen in real Excel. Source extraction,
-   partial execution and recording currently save source in GridCraft metadata; preserving an
-   original project is not executable-project editing. See [vba-compatibility.md](vba-compatibility.md).
+2. **Sandboxed Mini-VBA:** maintain the existing limited interpreter, trust checks, bounded execution and source metadata. Verify supported workbook and browser workflows; full Excel VBA, external I/O and executable-project writing are outside the Rustani target. See [vba-compatibility.md](vba-compatibility.md).
 3. **XLSX fidelity and performance:** real-file corpus and Excel output verification (gaps #1,
    #3), large workbooks and multi-threaded recalc (gap #2). Recheck the source and current PR
    queue before scheduling inherited issues; the old 2026-10-10 queue is not a current backlog.
@@ -73,7 +67,7 @@ removed from the remaining-work labels, so the historical hours must be re-estim
 | **Total** | | **~165–255 (≈160–240 after overlap with the PR queue)** |
 
 The former multi-agent wall-clock forecast is not a current estimate. Real Excel and platform/
-hardware validation remain necessary; full VBA compatibility is outside the historical total.
+hardware validation remain necessary; historical totals have not been recalculated for the Mini-VBA policy.
 
 ## Milestones
 
@@ -90,7 +84,7 @@ hardware validation remain necessary; full VBA compatibility is outside the hist
 | M8 | Insert & Review | partial; ink, icons, comments pane and pictures in cells implemented; remaining objects/fidelity in gaps §17 |
 | M9 | Page layout & print | Page Layout view and ruler margin editing implemented; print/PDF polish remains |
 | M10 | PivotTables, Solver, Analysis ToolPak | implementations present; slicers, calculated items, remaining tools/reports and Excel verification remain |
-| M11 | Automation (record actions, scripts, Excel VBA compatibility) | controls and recording-to-VBA implemented; source import, partial VM/editor present; parameterized procedures/Function/ByRef/ByVal and executable-project writing/Excel round trips remain |
+| M11 | Automation (recorded scripts and sandboxed Mini-VBA) | bounded interpreter/editor and source import present; preserve trust and safety limits; full Excel VBA and executable-project writing are outside scope |
 | M12 | Performance, accessibility, i18n | partial; i18n catalogs and switching implemented, wider language/locale and script support remain |
 | M13 | Release & polish | historical releases exist; current release/signing status not audited here |
 | M14 | **Beta gates** (table above) | remaining gates require current evidence and re-estimation; no fresh readiness score |
@@ -111,11 +105,9 @@ hardware validation remain necessary; full VBA compatibility is outside the hist
 | Page Layout view, print polish | #14 | 12–20 |
 | Mobile layout | #23 | 30–60 |
 | AI features with local models | #22 | 30–50 |
-| Plugin / custom-function API (separate from full VBA) | #21 | 25–40 |
+| Plugin / custom-function API (separate from Mini-VBA) | #21 | 25–40 |
 
-Full VBA compatibility is an active requirement rather than an optional post-beta exclusion.
-Its remaining implementation and verification work is not included in the table totals above
-and must be estimated separately before those totals describe the complete target.
+Full Excel VBA compatibility is not a Rustani requirement. Historical estimates and readiness scores have not been recalculated for the sandboxed Mini-VBA policy.
 
 ## Measuring
 
@@ -135,6 +127,7 @@ and must be estimated separately before those totals describe the complete targe
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | policy | Adopt sandboxed Mini-VBA as Rustani scope; retain historical scores and earlier entries |
 | 2026-10-24 | minor | Reconcile implemented operational/UI/localization/picture features; prioritize Safari/real-OS IME and parameterized VBA/executable-project/Excel round-trip work; label inherited gate scores, estimates and PR/release references as historical |
 | 2026-10-23 | minor | Add the active full VBA compatibility track, partial local foundation and metadata-save gap; historical hours exclude the unestimated VBA requirement |
 | 2026-10-11 | minor | PivotTable calculated fields landed |

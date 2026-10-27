@@ -1,6 +1,6 @@
 # Target-app parity: GridCraft vs Microsoft Excel
 
-> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (full VBA requirement and partial local foundation; readiness scores unchanged) · **Target:** Microsoft Excel (Microsoft 365)
+> **Last reviewed:** 2026-10-27 · **Last updated:** 2026-10-27 · **Change:** policy (sandboxed Mini-VBA; full Excel VBA is outside scope) · **Target:** Rustani
 
 This is the authoritative parity assessment. [`ROADMAP.md`](../ROADMAP.md) summarizes it,
 [`gaps.md`](gaps.md) lists every shortfall, and the area checklists hold the detail:
@@ -8,10 +8,7 @@ This is the authoritative parity assessment. [`ROADMAP.md`](../ROADMAP.md) summa
 [UI](ui-parity.md), [hardware](hardware-parity.md), [localization](localization-parity.md). The
 generated ribbon checklist is [`parity-checklist.md`](parity-checklist.md).
 
-The 2026-10-23 update inventories the local VBA foundation from source. Full Excel VBA
-compatibility is now required and remains unmet; the inherited readiness percentages below
-have not been re-scored. Historical full-parity hours exclude that requirement and are not a
-complete estimate of the current target. See [vba-compatibility.md](vba-compatibility.md).
+The 2026-10-27 Rustani policy targets sandboxed Mini-VBA rather than full Excel VBA. The inherited readiness percentages and historical estimates below have not been re-scored for that policy. See [vba-compatibility.md](vba-compatibility.md).
 
 ## Summary
 
@@ -99,7 +96,7 @@ performance 8, stability 8, localization 4, hardware 2, platforms 2, ecosystem 2
 | Get & Transform, external data, data model | 5 | ~15% | ~10% | 60–100 | Import of CSV/TSV, JSON, HTML. No Power Query editor, no From Web, database or folder sources, no connections or refresh, no relationships or data model, no external workbook links (dropped with a warning) |
 | Insert objects | 3 | ~55% | ~45% | 25–40 | Pictures, 8 shape kinds (Excel has ~170), text boxes, own icon set, ink with Ink to Shape, hyperlinks, checkboxes. Missing: SmartArt, WordArt, equations, signature line, objects, 3-D models, screenshot, pictures in cells (PR #105) |
 | Review, comments, protection, collaboration | 4 | ~55% | ~40% | 35–55 | Threaded comments, notes, spelling (system dictionary), thesaurus, sheet and workbook protection, Allow Edit Ranges with Excel-compatible password hashes (#307). Missing: comment navigation, Show Changes, notes-to-comments conversion, accessibility checker, co-authoring, opening password-encrypted files (refused with a message since #17) |
-| Automation | 4 | ~30% | ~20% | 12–20 historical; full VBA not yet estimated | Recorded, editable GridCraft scripts plus local VBA source import, partial VM/object adapter and editor. Original VBA project bytes are preserved; source edits save in GridCraft metadata, not in `vbaProject.bin`. Full Excel VBA compatibility is required and unmet. No Office Scripts compatibility. [vba-compatibility.md](vba-compatibility.md) |
+| Automation | 4 | ~30% | ~20% | 12–20 historical; full VBA not yet estimated | Recorded, editable GridCraft scripts plus local VBA source import, partial VM/object adapter and editor. Original VBA project bytes are preserved; source edits save in GridCraft metadata, not in `vbaProject.bin`. Full Excel VBA compatibility is outside the Rustani target. No Office Scripts compatibility. [vba-compatibility.md](vba-compatibility.md) |
 | **Weighted** | 100 | **~75%** | **~59%** | **300–485** | |
 
 ## Dimensions
@@ -237,13 +234,11 @@ Linux, BSD and RISC-V, where Excel doesn't run.
 
 - **Add-ins:** Excel has Office JavaScript add-ins, COM/XLL add-ins, VBA, Office Scripts and
   Power Automate. GridCraft has its own recorded scripts, plus a control channel, MCP server and
-  CLI that reach every command. Full compatibility with Excel-authored VBA is now an explicit
-  requirement and remains unmet. The local source-import/partial interpreter/editor foundation
+  CLI that reach every command. Rustani deliberately targets a bounded sandboxed subset rather than full Excel VBA compatibility. The local source-import/partial interpreter/editor foundation
   preserves original project bytes and stores source edits separately in GridCraft metadata;
   it has no full VBE, form/event, executable project-writing or native Windows dependency support.
   See [vba-compatibility.md](vba-compatibility.md). A plugin/custom-function API remains separate
-  work (historical estimate: 25–40 h); it is not a replacement for VBA compatibility. Full VBA
-  effort has not been estimated.
+  work (historical estimate: 25–40 h); it is separate from Mini-VBA.
 - **AI:** Excel has Copilot, the COPILOT() function, Analyze Data, Python in Excel and Flash
   Fill. GridCraft has Flash Fill and best-in-class agent control (any MCP client can drive every
   command headless or live), but no in-app assistant, no natural-language formulas and no
@@ -263,10 +258,7 @@ Hours are **Opus 5.5 agent wall-clock hours**, one agent working sequentially, i
 and verification.
 
 The tables retain their historical readiness percentages and hour totals; no score increase is
-claimed for the local VBA foundation. **Full Excel VBA compatibility is now required but was
-excluded from those totals and is not yet estimated.** The historic “full parity” totals therefore
-do not estimate the complete current target. The audience scores that explicitly exclude VBA
-also do not measure readiness for a macro-dependent user.
+claimed for the local VBA foundation. Full Excel VBA compatibility is outside the Rustani target. The historical totals have not been recalibrated for the sandboxed Mini-VBA policy; audience scores do not measure readiness for arbitrary Excel macros.
 
 Calibrated against this repo's history:
 
@@ -351,6 +343,7 @@ The inventory carried over from the 2026-10-07 ROADMAP.md, updated for what land
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | policy | Adopt sandboxed Mini-VBA as Rustani scope; retain historical scores and earlier entries |
 | 2026-10-23 | minor | Replace obsolete VBA exclusion/drop claims with the full requirement and partial local import/runtime/editor; explain metadata-only save and historical score/effort limits |
 | 2026-10-21 | minor | Page Setup paper sizes: `B4`/`B5`/`B6` are the JIS sizes Japanese Excel uses (ISO B4/B5/B6 by name), and Japanese Postcard, Japanese Double Postcard, the chou/kaku envelopes and A6 are added; PDF MediaBox and `file.print` follow, and the Size menu lists them |
 | 2026-10-18 | trivial | Stale chart notes: all chart kinds survive XLSX round-trip (PRs #158, #161) and trendlines landed |

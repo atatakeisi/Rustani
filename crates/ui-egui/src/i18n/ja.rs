@@ -984,6 +984,39 @@ pub(super) const DIALOGS: &[(&str, &str)] = &[
 /// Editor, function-library and macro strings beyond the shared reference catalog.
 /// Source identifiers and user program output are intentionally absent: translations apply only to interface text.
 pub(super) const VBA: &[(&str, &str)] = &[
+    ("Excel compatibility and macro safety", "Excel 互換性とマクロの安全設計"),
+    (
+        "Workbook features may differ from Excel; keep a copy of your original file.",
+        "ブックの機能は Excel と異なる場合があります。元のファイルはコピーを保管してください。",
+    ),
+    ("Excel file → Rustani", "Excel ファイル → Rustani"),
+    (
+        "Macros do not run automatically. Imported .xlsm source can be inspected when supported; trust scripts to run supported code.",
+        "マクロは自動実行されません。.xlsm のソースは対応する場合に閲覧でき、対応構文はスクリプトを信頼すると実行できます。",
+    ),
+    ("Rustani → Rustani", "Rustani → Rustani"),
+    (
+        "Saved .xlsx files can retain Rustani VBA source. Trust loaded scripts before running them.",
+        "保存した .xlsx には Rustani の VBA ソースを保持できます。再実行には読み込んだスクリプトの信頼が必要です。",
+    ),
+    ("Rustani → Excel", "Rustani → Excel"),
+    (
+        "Rustani source is not an executable Excel macro. Copy supported code into Excel's VBA editor if needed.",
+        "Rustani のソースは Excel で実行可能なマクロではありません。必要に応じてコードを Excel の VBA エディターにコピーしてください。",
+    ),
+    ("Excel .xlsm → Web Rustani", "Excel の .xlsm → Web 版 Rustani"),
+    (
+        "Web Save As downloads .xlsx without the original VBA project. Desktop .xlsm save retains the original project bytes.",
+        "Web 版の名前を付けて保存は、元の VBA プロジェクトを除いた .xlsx をダウンロードします。デスクトップ版の .xlsm 保存は元のプロジェクトを保持します。",
+    ),
+    (
+        "In the Web app, drag an .xlsx or .xlsm file from your computer onto this window to open it.",
+        "Web 版では、パソコン内の .xlsx / .xlsm ファイルをこの画面にドラッグ＆ドロップして開けます。",
+    ),
+    (
+        "Macros do not run automatically. Rustani supports a limited, sandboxed subset; see File → Home for the compatibility guide.",
+        "マクロは自動実行されません。Rustani は制限された箱庭内で一部の構文に対応します。互換性の案内は「ファイル」→「ホーム」をご覧ください。",
+    ),
     ("File name:", "ファイル名:"),
     ("Save As…", "名前を付けて保存…"),
     ("Save As|Save", "保存"),

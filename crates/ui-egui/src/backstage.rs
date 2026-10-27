@@ -554,6 +554,30 @@ fn home(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcome) 
             out.page = Some(Page::Open);
         }
     }
+    ui.add_space(22.0);
+    section(ui, lang, "Excel compatibility and macro safety");
+    ui.label(lang.tr("Workbook features may differ from Excel; keep a copy of your original file."));
+    for (title, detail) in [
+        (
+            "Excel file → Rustani",
+            "Macros do not run automatically. Imported .xlsm source can be inspected when supported; trust scripts to run supported code.",
+        ),
+        ("Rustani → Rustani", "Saved .xlsx files can retain Rustani VBA source. Trust loaded scripts before running them."),
+        ("Rustani → Excel", "Rustani source is not an executable Excel macro. Copy supported code into Excel's VBA editor if needed."),
+        (
+            "Excel .xlsm → Web Rustani",
+            "Web Save As downloads .xlsx without the original VBA project. Desktop .xlsm save retains the original project bytes.",
+        ),
+    ] {
+        ui.add_space(6.0);
+        ui.group(|ui| {
+            ui.set_width(ui.available_width());
+            ui.strong(lang.tr(title));
+            ui.label(lang.tr(detail));
+        });
+    }
+    ui.add_space(12.0);
+    ui.label(lang.tr("In the Web app, drag an .xlsx or .xlsm file from your computer onto this window to open it."));
 }
 
 fn new_page(app: &mut SheetApp, ui: &mut Ui, out: &mut Outcome) {

@@ -40,6 +40,25 @@ fn page(h: &egui_kittest::Harness<'static, SheetApp>) -> Option<&'static str> {
 }
 
 #[test]
+fn home_explains_macro_compatibility_in_english_and_japanese() {
+    for (language, headings) in [
+        ("en", ["Excel compatibility and macro safety", "Excel file → Rustani", "Rustani → Rustani", "Rustani → Excel", "Excel .xlsm → Web Rustani"]),
+        (
+            "ja",
+            ["Excel 互換性とマクロの安全設計", "Excel ファイル → Rustani", "Rustani → Rustani", "Rustani → Excel", "Excel の .xlsm → Web 版 Rustani"],
+        ),
+    ] {
+        let mut h = harness(Services::default());
+        h.state_mut().run("app.language.set", serde_json::json!({"language": language})).unwrap();
+        h.state_mut().run("ui.backstage", serde_json::json!({"page": "home"})).unwrap();
+        h.run_steps(3);
+        for heading in headings {
+            assert!(h.query_by_label(heading).is_some(), "{language}: missing {heading}");
+        }
+    }
+}
+
+#[test]
 fn new_and_open_from_the_file_tab_keep_the_ribbon_as_it_was() {
     let opened = Arc::new(Mutex::new(0));
     let capture = opened.clone();
