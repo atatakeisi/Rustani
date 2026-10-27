@@ -31,20 +31,20 @@ embedded nulls remain errors. CFB small streams share a bounded, lazily read min
   exported module attributes, comments, line continuation, local scalar `Dim`, assignment,
   `Set`, same-module parameterless procedure calls, arithmetic/comparison/Boolean operators,
   string concatenation, `If`/`ElseIf`/`Else`, `For`/`Next`/`Step`, `Do`/`Loop`,
-  `While`/`Wend`, `With` and supported `Exit` statements.
+  `For Each` over a bounded Range, `While`/`Wend`, `With` and supported `Exit` statements.
 - Selected scalar types and built-ins: Variant, object references, String, Boolean, Double,
   Single, Integer, Long and Byte; `CStr`, `CDbl`, `CInt`, `CLng`, `CBool`, `Len`, `UCase`,
-  `LCase`, `Trim`, `Abs`, `Int`, `Fix`, `Sqr`, and selected `vb*` string constants.
-  These names do not imply complete VBA coercion, locale or numeric semantics.
+  `LCase`, `Trim`, `Abs`, `Int`, `Fix`, `Sqr`, `Round`, `Left`, `Right`, `Mid`, `Replace`, `InStr`, and selected `vb*` constants.
+  These names do not imply complete VBA coercion, locale or numeric semantics; string positions use Unicode scalar values and may differ from Excel for non-BMP characters.
 - `Application`, `ThisWorkbook`/`ActiveWorkbook`, `ActiveSheet`, `Worksheets`/`Sheets`
   indexing/count and argumentless `Add`, worksheet name/activation, `UsedRange`, `Selection`
   and `ActiveCell`. Only the current workbook is exposed.
 - `Range`, `Cells`, row/column access and counts, `Offset`, `Resize`, `End`, `Address`,
   `Value`/`Value2`, `Formula`/`Formula2`, `NumberFormat`, `ClearContents`, `Clear`, selection,
-  row/column `AutoFit`, argumentless `EntireRow`/`EntireColumn` `Insert`/`Delete`, selected font properties, fill colour and `RGB`. Argument variants,
+  row/column `AutoFit`, argumentless `EntireRow`/`EntireColumn` `Insert`/`Delete`, selected font properties, fill colour, bounded `Range.Copy`, basic borders and horizontal alignment, and `RGB`. Argument variants,
   mixed formats, default properties and array assignments are only partially represented.
 - `WorksheetFunction` calls use GridCraft's formula evaluator; `Calculate` and `Debug.Print`
-  are available. `Debug.Print` writes to the editor output, rather than an external console.
+  are available. `Debug.Print` writes to the editor output, rather than an external console. `MsgBox` also logs its prompt without opening a dialog and always returns `vbOK` (1), even for button combinations such as `vbYesNo`; it must not be used to obtain user confirmation.
 - A limited new-chart path: `ChartObjects.Add`, `Chart.SetSourceData` from the same worksheet,
   column/bar/line/pie `ChartType`, `HasTitle` and `ChartTitle.Text`. Existing chart indexing,
   repeated source changes, other chart types and the complete chart object model are missing.

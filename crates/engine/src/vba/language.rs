@@ -149,6 +149,8 @@ enum Instruction {
     JumpIfFalse(Expr, usize),
     ForStart { name: String, from: Expr, to: Expr, step: Expr, exit: usize },
     ForNext { name: String, body: usize },
+    EachStart { name: String, collection: Expr, exit: usize },
+    EachNext { name: String, body: usize },
     LeaveLoop { target: usize, with_depth: usize, for_start: Option<usize>, for_depth: usize },
     WithStart(Expr),
     WithEnd,
@@ -180,6 +182,8 @@ struct ForState {
     name: String,
     end: f64,
     step: f64,
+    collection: Option<Value>,
+    index: u64,
 }
 
 #[derive(Debug)]
@@ -205,7 +209,7 @@ pub struct Execution {
 #[derive(Debug)]
 enum Block {
     If { pending: Option<usize>, ends: Vec<usize>, had_else: bool },
-    For { start: usize, name: String, exits: Vec<usize>, with_depth: usize },
+    For { start: usize, name: String, exits: Vec<usize>, with_depth: usize, each: bool },
     Do { start: usize, condition: Option<usize>, exits: Vec<usize>, with_depth: usize, for_depth: usize },
     While { start: usize, condition: usize },
     With,
@@ -576,7 +580,7 @@ fn patch(code: &mut [Located], at: usize, target: usize) -> Result<(), Error> {
     let located = code.get_mut(at).ok_or_else(|| Error::new(0, "Invalid compiler jump"))?;
     match &mut located.instruction {
         Instruction::Jump(to) | Instruction::JumpIfFalse(_, to) => *to = target,
-        Instruction::ForStart { exit, .. } => *exit = target,
+        Instruction::ForStart { exit, .. } | Instruction::EachStart { exit, .. } => *exit = target,
         Instruction::LeaveLoop { target: to, .. } => *to = target,
         _ => return Err(Error::new(located.line, "Invalid compiler jump target")),
     }
@@ -900,7 +904,17 @@ fn compile_statement(tokens: &[Token], line: usize, code: &mut Vec<Located>, blo
         }
     } else if is_at(tokens, 0, "for") {
         if is_at(tokens, 1, "each") {
-            return Err(Error::new(line, "For Each is not supported yet"));
+            let name = key(&word_at(tokens, 2, line)?);
+            if blocks.iter().any(|block| matches!(block, Block::For { name: active, .. } if *active == name)) {
+                return Err(Error::new(line, "For control variable is already in use"));
+            }
+            if !is_at(tokens, 3, "in") {
+                return Err(Error::new(line, "Expected In after For Each variable"));
+            }
+            let collection = expression(slice(tokens, 4, tokens.len()), line)?;
+            let start = emit(code, line, Instruction::EachStart { name: name.clone(), collection, exit: 0 });
+            blocks.push(Block::For { start, name, exits: Vec::new(), with_depth, each: true });
+            return Ok(());
         }
         let name = key(&word_at(tokens, 1, line)?);
         if blocks.iter().any(|block| matches!(block, Block::For { name: active, .. } if *active == name)) {
@@ -919,15 +933,23 @@ fn compile_statement(tokens: &[Token], line: usize, code: &mut Vec<Located>, blo
             None => Expr::Literal(Value::Number(1.0)),
         };
         let start = emit(code, line, Instruction::ForStart { name: name.clone(), from, to, step, exit: 0 });
-        blocks.push(Block::For { start, name, exits: Vec::new(), with_depth });
+        blocks.push(Block::For { start, name, exits: Vec::new(), with_depth, each: false });
     } else if is_at(tokens, 0, "next") {
-        let Some(Block::For { start, name, exits, .. }) = blocks.pop() else {
+        let Some(Block::For { start, name, exits, each, .. }) = blocks.pop() else {
             return Err(Error::new(line, "Next without a matching For"));
         };
         if tokens.len() > 2 || (tokens.len() == 2 && !word_at(tokens, 1, line)?.eq_ignore_ascii_case(&name)) {
             return Err(Error::new(line, "Next variable does not match For"));
         }
-        emit(code, line, Instruction::ForNext { name, body: start.saturating_add(1) });
+        emit(
+            code,
+            line,
+            if each {
+                Instruction::EachNext { name, body: start.saturating_add(1) }
+            } else {
+                Instruction::ForNext { name, body: start.saturating_add(1) }
+            },
+        );
         let target = code.len();
         patch(code, start, target)?;
         for at in exits {
@@ -1370,7 +1392,36 @@ impl Execution {
                 if (step > 0.0 && from > end) || (step < 0.0 && from < end) {
                     self.jump(exit)?;
                 } else {
-                    self.frame_mut()?.loops.push(ForState { start: pc, name, end, step });
+                    self.frame_mut()?.loops.push(ForState { start: pc, name, end, step, collection: None, index: 0 });
+                }
+            }
+            Instruction::EachStart { name, collection, exit } => {
+                let collection = self.eval(host, &collection, 0)?;
+                let count = value_number(host.get(Some(&collection), "__each_count", &[])?)?;
+                if count == 0.0 {
+                    self.jump(exit)?;
+                } else {
+                    let value = host.get(Some(&collection), "__each_item", &[Value::Number(1.0)])?;
+                    self.assign_variable(&name, value)?;
+                    self.frame_mut()?.loops.push(ForState { start: pc, name, end: count, step: 0.0, collection: Some(collection), index: 1 });
+                }
+            }
+            Instruction::EachNext { name, body } => {
+                let state = self.frame()?.loops.last().ok_or_else(|| Error::new(0, "No active For loop"))?;
+                if state.name != name {
+                    return Err(Error::new(0, "For loop state mismatch"));
+                }
+                let collection = state.collection.clone().ok_or_else(|| Error::new(0, "For Each collection missing"))?;
+                let next = state.index.saturating_add(1);
+                if (next as f64) <= state.end {
+                    let value = host.get(Some(&collection), "__each_item", &[Value::Number(next as f64)])?;
+                    self.assign_variable(&name, value)?;
+                    if let Some(state) = self.frame_mut()?.loops.last_mut() {
+                        state.index = next;
+                    }
+                    self.jump(body)?;
+                } else {
+                    self.frame_mut()?.loops.pop();
                 }
             }
             Instruction::ForNext { name, body } => {
@@ -1569,6 +1620,82 @@ impl Execution {
 
 fn builtin(host: &mut impl Host, name: &str, args: &[Value]) -> Result<Option<Value>, Error> {
     let name = key(name);
+    if matches!(name.as_str(), "round" | "left" | "right" | "mid" | "replace" | "instr") {
+        let args = args.iter().cloned().map(|arg| scalar(host, arg)).collect::<Result<Vec<_>, _>>()?;
+        let at = |i: usize| args.get(i).cloned().ok_or_else(|| Error::new(0, "Missing function argument"));
+        let result = match name.as_str() {
+            "round" => {
+                if !(1..=2).contains(&args.len()) {
+                    return Err(Error::new(0, "Round requires one or two arguments"));
+                }
+                let n = value_number(at(0)?)?;
+                let digits = if args.len() == 2 { integer(at(1)?)? } else { 0 };
+                if !(0..=15).contains(&digits) {
+                    return Err(Error::new(0, "Round digits must be between 0 and 15"));
+                }
+                let factor = 10_f64.powi(digits);
+                checked_number((n * factor).round_ties_even() / factor)?
+            }
+            "left" | "right" | "mid" => {
+                if (name == "mid" && !(2..=3).contains(&args.len())) || (name != "mid" && args.len() != 2) {
+                    return Err(Error::new(0, "Invalid string function argument count"));
+                }
+                let text = value_text(at(0)?)?;
+                let count = integer(at(1)?)?;
+                if count < 0 || (name == "mid" && count == 0) {
+                    return Err(Error::new(0, "Invalid string position or length"));
+                }
+                let chars: Vec<char> = text.chars().collect();
+                let (start, len) = match name.as_str() {
+                    "left" => (0, count as usize),
+                    "right" => (chars.len().saturating_sub(count as usize), count as usize),
+                    _ => {
+                        let len = if args.len() == 3 { integer(at(2)?)? } else { i32::MAX };
+                        if len < 0 {
+                            return Err(Error::new(0, "Invalid string position or length"));
+                        }
+                        ((count - 1) as usize, len as usize)
+                    }
+                };
+                Value::Text(chars.into_iter().skip(start).take(len).collect())
+            }
+            "replace" => {
+                if args.len() != 3 {
+                    return Err(Error::new(0, "Replace requires three arguments"));
+                }
+                let source = value_text(at(0)?)?;
+                let find = value_text(at(1)?)?;
+                let replacement = value_text(at(2)?)?;
+                if find.is_empty() {
+                    Value::Text(source)
+                } else {
+                    let count = source.matches(&find).count();
+                    let size = source.len().saturating_sub(count.saturating_mul(find.len())).saturating_add(count.saturating_mul(replacement.len()));
+                    if size > MAX_TEXT {
+                        return Err(Error::new(0, "Text exceeds the 1 MiB limit"));
+                    }
+                    Value::Text(source.replace(&find, &replacement))
+                }
+            }
+            _ => {
+                if !(2..=3).contains(&args.len()) {
+                    return Err(Error::new(0, "InStr requires two or three arguments"));
+                }
+                let (start, text_arg, pattern_arg) = if args.len() == 3 { (integer(at(0)?)?, 1, 2) } else { (1, 0, 1) };
+                if start < 1 {
+                    return Err(Error::new(0, "Invalid string position or length"));
+                }
+                let source = value_text(at(text_arg)?)?;
+                let pattern = value_text(at(pattern_arg)?)?;
+                let char_start = (start - 1) as usize;
+                let offset =
+                    source.char_indices().nth(char_start).map(|(i, _)| i).or_else(|| (char_start == source.chars().count()).then_some(source.len()));
+                let found = offset.and_then(|offset| source.get(offset..).and_then(|s| s.find(&pattern)).map(|i| offset + i));
+                Value::Number(found.map_or(0.0, |i| source[..i].chars().count() as f64 + 1.0))
+            }
+        };
+        return Ok(Some(result));
+    }
     if !matches!(name.as_str(), "cstr" | "cdbl" | "cint" | "clng" | "len" | "ucase" | "lcase" | "trim" | "abs" | "int" | "fix" | "sqr" | "cbool") {
         return Ok(None);
     }
@@ -1720,12 +1847,8 @@ mod tests {
 
     #[test]
     fn unsupported_syntax_and_deep_inputs_fail_without_execution() {
-        for source in [
-            "Sub Main()\nOn Error Resume Next\nEnd Sub",
-            "Sub Main()\nFor Each x In Range(\"A1\")\nNext\nEnd Sub",
-            "Sub Main(x As Long)\nEnd Sub",
-            "Sub Main()\nSelect Case x\nEnd Select\nEnd Sub",
-        ] {
+        for source in ["Sub Main()\nOn Error Resume Next\nEnd Sub", "Sub Main(x As Long)\nEnd Sub", "Sub Main()\nSelect Case x\nEnd Select\nEnd Sub"]
+        {
             assert!(Program::compile(source).is_err());
         }
         let source = format!("Sub Main()\na = {}1{}\nEnd Sub", "(".repeat(1000), ")".repeat(1000));

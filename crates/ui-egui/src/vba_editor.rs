@@ -8,7 +8,9 @@ use serde_json::{Value as Json, json};
 
 use crate::{SheetApp, i18n::Language, theme};
 
-const SAMPLE: &str = "Sub MakeSummary()\n    Range(\"E1\").Value = \"Summary\"\n    Range(\"E2\").Formula = \"=SUM(B2:B10)\"\n    Range(\"E1\").Font.Bold = True\n    Debug.Print \"Summary created in E1:E2\"\nEnd Sub\n";
+const SAMPLE: &str = "Sub MakeSummary()\n    Dim chart As Object\n    Range(\"E1\").Value = \"Summary\"\n    Range(\"E2\").Formula = \"=SUM(B2:B10)\"\n    Range(\"E1\").Font.Bold = True\n    Set chart = ActiveSheet.ChartObjects.Add(300, 20, 360, 220)\n    chart.Chart.ChartType = xlColumnClustered\n    chart.Chart.SetSourceData Range(\"A1:B10\")\n    Debug.Print \"Summary created in E1:E2; chart created\"\nEnd Sub\n";
+const FORMAT_SAMPLE: &str = "Sub FormatTableReport()\n    Range(\"A1:C1\").Font.Bold = True\n    Range(\"A1:C1\").Interior.Color = RGB(210, 230, 255)\n    Range(\"A1:C10\").Borders.LineStyle = xlContinuous\n    Range(\"B2:C10\").NumberFormat = \"0.00\"\n    Range(\"A1:C10\").Columns.AutoFit\n    MsgBox \"Formatting complete\"\nEnd Sub\n";
+const HIGHLIGHT_SAMPLE: &str = "Sub HighlightTopRows()\n    Dim i As Long\n    For i = 2 To 10\n        If Round(Cells(i, 2).Value, 0) >= 100 Then\n            Range(Cells(i, 1), Cells(i, 3)).Interior.Color = RGB(255, 240, 180)\n        End If\n        Cells(i, 4).Formula = \"=RANK(B\" & CStr(i) & \",$B$2:$B$10,0)\"\n    Next i\n    Debug.Print UCase(\"highlight and ranking complete\")\nEnd Sub\n";
 const SOURCE_LIMIT: usize = 1_048_576;
 
 #[derive(Clone, Debug)]
@@ -398,8 +400,19 @@ impl VbaEditor {
                     self.source = SAMPLE.into();
                     self.procedure = "MakeSummary".into();
                 }
-                ui.weak(lang.tr("The example writes to E1:E2 only when you press Run."));
+                for (label, source, procedure) in
+                    [("Format table example", FORMAT_SAMPLE, "FormatTableReport"), ("Highlight rows example", HIGHLIGHT_SAMPLE, "HighlightTopRows")]
+                {
+                    if ui.add_enabled(self.source.trim().is_empty(), egui::Button::new(lang.tr(label))).clicked() {
+                        self.clipboard_scope = Arc::new(());
+                        self.reset_text_state = true;
+                        self.source = source.into();
+                        self.procedure = procedure.into();
+                    }
+                }
+                ui.weak(lang.tr("Examples change the workbook only when you press Run."));
             });
+            ui.weak(lang.tr("MsgBox writes to the execution log and always returns OK; it does not ask for confirmation."));
             let height = (ui.ctx().content_rect().height() * 0.32).clamp(130.0, 300.0);
             let line_count = self.source.lines().count().saturating_add(usize::from(self.source.ends_with('\n'))).max(1);
             let mut numbers = String::new();
@@ -561,11 +574,28 @@ mod tests {
     }
 
     #[test]
+    fn all_example_macros_run_in_the_sandbox() {
+        for (source, procedure) in [(SAMPLE, "MakeSummary"), (FORMAT_SAMPLE, "FormatTableReport"), (HIGHLIGHT_SAMPLE, "HighlightTopRows")] {
+            let mut app = app();
+            let start = app.session.execute("automate.startVba", json!({"source":source,"procedure":procedure})).unwrap();
+            assert_eq!(start["state"], "running", "{start}");
+            let mut result = start;
+            for _ in 0..100 {
+                result = app.session.execute("automate.pollVba", json!({"budget":1000})).unwrap();
+                if result["state"] != "running" {
+                    break;
+                }
+            }
+            assert_eq!(result["state"], "completed", "{procedure}: {result}");
+        }
+    }
+
+    #[test]
     fn status_and_diagnostic_chrome_follow_the_language_without_changing_source_text() {
         assert_eq!(state_label(Language::Ja, "running"), "実行中");
         assert_eq!(state_label(Language::En, "running"), "running");
         let error = json!({"line": 7, "message": "Unsupported member MyProcedure"});
-        assert_eq!(diagnostic(Language::Ja, &error), "7 行目: Unsupported member MyProcedure");
+        assert_eq!(diagnostic(Language::Ja, &error), "7 行目: 未対応のメンバー: MyProcedure");
         assert_eq!(diagnostic(Language::En, &error), "Line 7: Unsupported member MyProcedure");
         let mut app = app();
         app.ui.language = Language::Ja;

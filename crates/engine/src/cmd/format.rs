@@ -333,12 +333,15 @@ fn font_size(s: &mut Session, p: &Json) -> Result<Json> {
     apply_style(s, p, |st| st.font.size = size)
 }
 
-const SIZES: [f32; 16] = [8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 24.0, 28.0, 36.0, 48.0, 72.0, 96.0, 409.0];
+const SIZES: [f32; 15] = [8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 24.0, 28.0, 36.0, 48.0, 72.0, 96.0];
 
 fn step_font(s: &mut Session, p: &Json, up: bool) -> Result<Json> {
     let cur = active_style(s)?.font.size;
-    let next =
-        if up { SIZES.iter().copied().find(|x| *x > cur).unwrap_or(409.0) } else { SIZES.iter().rev().copied().find(|x| *x < cur).unwrap_or(1.0) };
+    let next = if up {
+        SIZES.iter().copied().find(|x| *x > cur).unwrap_or(cur.max(96.0))
+    } else {
+        SIZES.iter().rev().copied().find(|x| *x < cur).unwrap_or(1.0)
+    };
     apply_style(s, p, |st| st.font.size = next)?;
     Ok(json!({"size": next}))
 }

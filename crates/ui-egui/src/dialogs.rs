@@ -2813,21 +2813,29 @@ fn command_search(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confirm
         )
     });
     let width = ui.available_width();
-    let r = ui.add(egui::TextEdit::singleline(&mut d.search).desired_width(width).hint_text("Type a command, e.g. freeze, chart, bold…"));
+    let lang = app.ui.language;
+    let r = ui.add(egui::TextEdit::singleline(&mut d.search).desired_width(width).hint_text(lang.tr("Type a command, e.g. freeze, chart, bold…")));
 
     if !d.focus_initialized {
         r.request_focus();
         d.focus_initialized = true;
     }
 
-    let q = d.search.to_ascii_lowercase();
+    let q = d.search.to_lowercase();
     let cmds: Vec<(String, String, String)> = app
         .session
         .commands()
         .into_iter()
         .filter(|c| c.enabled)
-        .filter(|c| q.is_empty() || c.label.to_ascii_lowercase().contains(&q) || c.id.to_ascii_lowercase().contains(&q))
-        .map(|c| (c.id.to_string(), c.label.to_string(), c.menu.join(" › ")))
+        .filter(|c| palette_dialog(c.id).is_some() || palette_optional_params(c.params))
+        .filter(|c| {
+            q.is_empty()
+                || c.label.to_lowercase().contains(&q)
+                || c.id.to_lowercase().contains(&q)
+                || lang.tr(c.label).to_lowercase().contains(&q)
+                || c.menu.iter().any(|m| lang.tr(m).to_lowercase().contains(&q))
+        })
+        .map(|c| (c.id.to_string(), lang.tr(c.label).to_owned(), c.menu.iter().map(|m| lang.tr(m)).collect::<Vec<_>>().join(" › ")))
         .take(40)
         .collect();
 
@@ -2884,8 +2892,36 @@ fn command_search(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confirm
     if *confirm && let Some((id, ..)) = cmds.get(d.list_index) {
         let id = id.clone();
         app.dialog = None;
-        app.run_or_alert(&id, json!({}));
+        if let Some((dialog, tab)) = palette_dialog(&id) {
+            app.open_dialog(dialog, if let Some(tab) = tab { json!({"tab":tab}) } else { json!({}) });
+        } else {
+            app.run_or_alert(&id, json!({}));
+        }
     }
+}
+
+pub(crate) fn palette_dialog(id: &str) -> Option<(&'static str, Option<&'static str>)> {
+    match id {
+        "home.fontName" | "home.fontSize" | "home.fontColor" => Some(("formatCells", Some("Font"))),
+        "home.fillColor" => Some(("formatCells", Some("Fill"))),
+        "home.numberFormat" => Some(("formatCells", Some("Number"))),
+        "data.sort" => Some(("sort", None)),
+        "data.validation" => Some(("dataValidation", None)),
+        "data.textToColumns" => Some(("textToColumns", None)),
+        "data.subtotal" => Some(("subtotal", None)),
+        "data.goalSeek" => Some(("goalSeek", None)),
+        "data.solver" => Some(("solver", None)),
+        "sheet.rename" => Some(("renameSheet", None)),
+        "home.rowHeight" => Some(("rowHeight", None)),
+        "home.columnWidth" => Some(("columnWidth", None)),
+        _ => None,
+    }
+}
+
+pub(crate) fn palette_optional_params(params: &str) -> bool {
+    let Some(body) = params.trim().strip_prefix('{').and_then(|s| s.strip_suffix('}')) else { return false };
+    body.trim().is_empty()
+        || body.split(',').all(|field| field.trim().split_once(':').map_or(field.trim().ends_with('?'), |(name, _)| name.trim().ends_with('?')))
 }
 
 fn goal_seek(app: &mut SheetApp, ui: &mut egui::Ui, d: &mut Dialog, confirm: &mut bool) {

@@ -1,13 +1,17 @@
 # Localization parity
 
-> **Last reviewed:** 2026-10-23 (Japanese edition changes only) · **Last updated:** 2026-10-23 · **Change:** minor (Japanese startup, VBA editor and README) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-27 (Japanese edition changes only) · **Last updated:** 2026-10-27 · **Change:** minor (additional VBA and spreadsheet diagnostics) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Per-language status against Excel, which ships its UI in dozens of languages (Windows language
 packs cover 100+), with localized function names, argument separators, number and date formats,
 right-to-left sheets and full complex-script support. Part of
 [target-app-parity.md](target-app-parity.md). **Localization: ~10% ready, 100–165 h** (estimated).
 
-## 日本語版の更新（2026-10-23）
+## 日本語版の更新（2026-10-27）
+
+VBA と編集・書式エラーの定型文および一部の可変診断を追加翻訳し、画面カスタマイズ設定とマクロの動作説明も日本語化しました。未網羅のエラーや他画面の英語は残るため、全画面の完全日本語化は未検証です。以下は 2026-10-23 時点の記録です。
+
+### 2026-10-23
 
 この独自開発版は、日本語をアプリの初期言語にします。Web版は外部craft-fontsの日本語フォントが利用可能な場合に日本語で起動し、フォントがない場合は英語を使います。保存済みの言語選択を優先し、Webの `lang=ja` / `lang=en` は明示指定として保存済み設定より優先します。
 

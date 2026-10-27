@@ -2,6 +2,7 @@
 //! an item, presses Escape or clicks elsewhere.
 
 use egui::{Event, Modifiers, PointerButton, Pos2};
+use egui_kittest::kittest::Queryable;
 use gridcraft_engine::Session;
 use gridcraft_engine::core::CellRef;
 use gridcraft_ui_egui::{SheetApp, grid};
@@ -99,4 +100,18 @@ fn a_quick_right_click_between_pixels_keeps_the_menu_open_on_retina() {
     button(&mut h, pos, false);
     h.run_steps(4);
     assert!(h.state().grid.context_menu.is_some(), "the menu stays open");
+}
+
+#[test]
+fn hidden_ribbon_context_menu_restores_the_standard_view() {
+    let mut h = harness();
+    h.state_mut().ui.ribbon_mode = gridcraft_ui_egui::RibbonMode::ContextMenuOnly;
+    h.state_mut().ui.hidden_ribbon_groups.push("font".into());
+    h.run_steps(2);
+    quick_right_click(&mut h, "C5");
+    assert!(h.query_by_label("Ribbon commands").is_some());
+    h.get_all_by_label("Restore Normal View").max_by(|a, b| a.rect().center().y.total_cmp(&b.rect().center().y)).unwrap().click();
+    h.run_steps(3);
+    assert!(!h.state().ui.is_customized_view());
+    assert!(h.state().grid.context_menu.is_none());
 }

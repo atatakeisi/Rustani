@@ -175,8 +175,16 @@ pub(crate) fn safe_render_font_size(ctx: &egui::Context, requested: f32) -> f32 
     let atlas_side = ctx.input(|i| i.max_texture_side).min(16 * 1024) as f32;
     let pixels_per_point = ctx.pixels_per_point();
     let pixels_per_point = if pixels_per_point.is_finite() && pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
-    let max_points = ((atlas_side * 0.25).min(512.0) / pixels_per_point).max(f32::MIN_POSITIVE);
-    if requested.is_finite() { requested.max(0.1).min(max_points) } else { 1.0_f32.min(max_points) }
+    let max_points = ((atlas_side * 0.1).min(128.0) / pixels_per_point).max(f32::MIN_POSITIVE);
+    let points = if requested.is_finite() { requested.max(0.1).min(max_points) } else { 1.0_f32.min(max_points) };
+    let quantized = if points > 48.0 {
+        (points / 2.0).round() * 2.0
+    } else if points > 24.0 {
+        points.round()
+    } else {
+        points
+    };
+    quantized.min(max_points).max(f32::MIN_POSITIVE)
 }
 
 /// The font family to use for a cell font name and weight.
@@ -909,6 +917,17 @@ mod font_binding_tests {
 mod tests {
     use super::*;
     use crate::i18n::Language;
+
+    #[test]
+    fn font_raster_size_is_bounded_and_large_sizes_are_quantized() {
+        let ctx = egui::Context::default();
+        for requested in [0.0, 24.1, 24.9, 48.1, 49.1, 127.9, 100_000.0, f32::INFINITY, f32::NAN] {
+            let size = safe_render_font_size(&ctx, requested);
+            assert!(size.is_finite() && size > 0.0 && size * ctx.pixels_per_point() <= 128.0);
+        }
+        assert_eq!(safe_render_font_size(&ctx, 30.2), 30.0);
+        assert_eq!(safe_render_font_size(&ctx, 49.1), 50.0);
+    }
 
     #[test]
     fn fallback_faces_are_appended_to_every_family() {

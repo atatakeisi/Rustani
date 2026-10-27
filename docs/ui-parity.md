@@ -1,6 +1,6 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** minor (item 21 Web Save As verified; CI passed 2,363 tests; Web refreshed and Chrome dialog checked; items 17–20 evidence retained) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-27 · **Last updated:** 2026-10-27 · **Change:** minor (display customization, ribbon visibility, and restore view) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
 The application display name is now **Rustani** (item 22); internal crate and file names retain `gridcraft`. The Account/About page credits the upstream GridCraft project in plain text. Build and Pages publication status are recorded in [PROJECT_STATUS.md §19](../PROJECT_STATUS.md).
@@ -22,16 +22,16 @@ context, not evidence that every original platform-specific report has been rete
 |---|---|---|---|
 | Title bar, Quick Access Toolbar, AutoSave toggle | yes | yes | Earlier macOS window-control alignment (#170) and Dock icon-size (#169) reports have not been rechecked in this audit |
 | Ribbon: tabs, groups, split buttons, galleries, contextual tabs | yes | yes; contextual Table Design, Chart Design and Header & Footer tabs; colour pickers include Recent Colors and More Colors… (#928) | Dedicated contextual tabs for pictures, shapes, sparklines and slicers are missing; no contextual Format or PivotTable tab is currently added by `contextual_tabs` |
-| Ribbon collapse, simplified ribbon, customize ribbon/QAT | yes | partial | Collapse exists; full ribbon/QAT customization is missing |
+| Ribbon collapse, simplified ribbon, customize ribbon/QAT | yes | partial | Home groups can be hidden or pinned; compact Home and context-menu modes have a restore action. Other tabs retain their full controls in compact mode; full QAT customization is missing |
 | Key tips (Alt / F10 then letters) | yes, every ribbon control | 367-sequence table across the ribbon tabs, with control badges, prefix waiting and dropdown editing; left-Alt-held sequences work | Some bindings are pending their commands; complete QAT/Backstage coverage is missing |
 | Formula bar with Name Box, expand, function hints | yes | yes | Dynamic-array spill children show the source formula muted and read-only using current spill ownership; expansion exists, but Ctrl+Shift+U is unbound |
 | Sheet tabs: rename, reorder, colour, hide, scroll | yes | yes | Ctrl-drag (Cmd or Option on macOS) copies (#971); active tabs are revealed on navigation/resize; manual wheel/trackpad browsing is preserved; New sheet (+) follows the last tab within the 60% strip cap. Navigation skips Hidden/VeryHidden sheets and retains the selection if no visible destination exists. Earlier macOS rename-focus report (#145) remains unverified |
 | Sheet groups | yes | yes | Shift and Cmd/Ctrl tab selection, group highlighting, [Group] title, Select All Sheets and Ungroup; supported edits apply atomically to the selected sheets with Undo. Ctrl+Shift+Page Up/Down is not bound to grouping |
-| Macros and Record/Stop | yes | both controls in QAT, View, Automate and status bar | Stopping commits a pending cell edit, appends valid VBA to a safe standard module and opens the VBA editor. Alt+F8 opens Macros; WMR starts/stops recording. Recording/replay and unsupported-command limits are documented in [operational-parity.md](operational-parity.md) and [vba-compatibility.md](vba-compatibility.md) |
+| Macros and Record/Stop | yes | Macros and recording controls in View, Automate and status bar; Stop is shown in the title bar while recording | Stopping commits a pending cell edit, appends valid VBA to a safe standard module and opens the VBA editor. Alt+F8 opens Macros; WMR starts/stops recording. Recording/replay and unsupported-command limits are documented in [operational-parity.md](operational-parity.md) and [vba-compatibility.md](vba-compatibility.md) |
 | Status bar: statistics, view buttons, zoom, macro controls | yes | yes | Customizable statistics remain partial; Macros and Record/Stop are available at the left |
 | Task panes (Format Chart, Comments, Watch, Selection, PivotTable fields) | yes | yes; the PivotTable source-field scrollbar sits at the right edge | Element-level Format pane for shapes and pictures is missing |
 | Backstage (File): Info, New, Open recent, Save, Print, Export, Options | yes | yes; includes blank/sample workbooks, file properties/protection, page preview and existing application settings | Account shows Rustani, version, license and About; Share and a template gallery beyond the samples remain missing. Options applies immediately without OK/Cancel and exposes only the app's settings, not the full Excel Options dialog |
-| Dark mode, system appearance | yes | yes | Follows the system on first run; title-bar switch and File › Display theme (#194, #239) |
+| Dark mode, system appearance | yes | yes | Follows the system on first run; Home/Options display customization and View theme control (#194, #239) |
 | Page Layout view (paper view with rulers and header editing) | yes | yes; per-sheet view saved in XLSX, print pagination, rulers and in-place header/footer editing | Ruler margins can be dragged (#792); header/footer pictures and Different First Page / Odd & Even remain missing |
 | Multiple windows per workbook | yes | partial | `view.newWindow` is a linked document copy, not simultaneous views of one shared workbook; see [hardware-parity.md](hardware-parity.md) |
 
@@ -131,7 +131,7 @@ match physical keys (e.g. Ctrl+Shift+4 regardless of the character printed on th
 | Shift+F3, Ctrl+F3, Ctrl+Shift+F3 | Shift+F3, Cmd+F3 (Define Name), Cmd+Shift+F3 | Insert Function, Name Manager, Create from Selection | present |
 | F5, Shift+F5, F7, Shift+F9, Ctrl+Alt+F9, F12, Ctrl+F4 | corresponding Mac mappings | Go To, Find, Spelling, calculate sheet/all, Save As, close | present |
 | Shift+F10, Alt+Shift+F10, Ctrl+F1 | Shift+F10, Cmd+Option+R for ribbon | context menu, Error Checking, ribbon collapse | present |
-| Alt+F8 | same key event | Macros dialog | present; QAT/View/Automate/status controls also exist |
+| Alt+F8 | same key event | Macros dialog | present; View/Automate/status controls also exist; the title bar shows Stop while recording |
 | Ctrl+Shift+A after function name | Control+Shift+A | insert argument names and closing parenthesis; add `(` if absent | present, one editor Undo |
 | Ctrl+8 | same | toggle outline symbols | shortcut missing; row/column outline UI exists |
 | Ctrl+Shift+U | same | expand/collapse formula bar | shortcut missing; formula-bar expansion control exists |

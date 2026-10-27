@@ -87,6 +87,12 @@ fn font_and_paste_boundaries_reject_atomically() {
     let mut s = Session::new();
     s.new_workbook();
     run(&mut s, "cell.set", json!({"cell":"A1", "input":"9"}));
+    run(&mut s, "home.fontSize", json!({"range":"A1", "size":72}));
+    for _ in 0..120 {
+        assert_eq!(run(&mut s, "home.increaseFontSize", json!({"range":"A1"}))["size"], 96.0);
+    }
+    run(&mut s, "home.fontSize", json!({"range":"A1", "size":100}));
+    assert_eq!(run(&mut s, "home.increaseFontSize", json!({"range":"A1"}))["size"], 100.0);
     for size in [0.0, -1.0, 409.5, 1e100] {
         let before = s.doc().unwrap().wb.clone();
         assert!(s.execute("home.fontSize", json!({"range":"A1", "size":size})).is_err());

@@ -21,6 +21,7 @@ enum Object {
     Columns(usize, RangeRef),
     Font(usize, RangeRef),
     Interior(usize, RangeRef),
+    Borders(usize, RangeRef),
     WorksheetFunction,
     Debug,
     ChartObjects(usize),
@@ -48,6 +49,7 @@ pub(super) struct ExcelHost {
     charts: Vec<PendingChart>,
     operations: u64,
     cell_value_bytes: u64,
+    border_options: std::collections::HashMap<(usize, RangeRef), (bool, &'static str, String)>,
 }
 
 fn err(message: impl Into<String>) -> Error {
@@ -134,6 +136,7 @@ impl ExcelHost {
             charts: vec![],
             operations: 0,
             cell_value_bytes: 0,
+            border_options: std::collections::HashMap::new(),
         }
     }
     fn doc(&self) -> Result<&crate::DocState, Error> {
@@ -453,7 +456,69 @@ impl Host for ExcelHost {
                     }
                     return Ok(Value::Number(f64::from(n)));
                 }
-                "msgbox" => return Err(err("interactive MsgBox is not implemented; use Debug.Print for execution output")),
+                "msgbox" => {
+                    if !(1..=3).contains(&args.len()) {
+                        return Err(err("MsgBox requires one to three arguments"));
+                    }
+                    self.log(format!("[MsgBox] {}", text(arg(args, 0)?)?))?;
+                    return Ok(Value::Number(1.0));
+                }
+                "vbok" | "xlcontinuous" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(1.0));
+                }
+                "vbokonly" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(0.0));
+                }
+                "vbyesno" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(4.0));
+                }
+                "vbcritical" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(16.0));
+                }
+                "vbexclamation" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(48.0));
+                }
+                "vbinformation" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(64.0));
+                }
+                "xlnone" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(-4142.0));
+                }
+                "xlcenter" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(-4108.0));
+                }
+                "xlleft" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(-4131.0));
+                }
+                "xlright" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(-4152.0));
+                }
+                "xlhairline" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(1.0));
+                }
+                "xlthin" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(2.0));
+                }
+                "xlmedium" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(-4138.0));
+                }
+                "xlthick" => {
+                    no_args(args, name)?;
+                    return Ok(Value::Number(4.0));
+                }
                 "array" => return Ok(Value::Array(vec![args.to_vec()])),
                 "xlup" => return Ok(Value::Number(-4162.0)),
                 "xldown" => return Ok(Value::Number(-4121.0)),
@@ -645,6 +710,17 @@ impl Host for ExcelHost {
                     self.command("home.numberFormat", json!({"sheet":si,"range":r.a1(),"code":code}))?;
                     Ok(())
                 }
+                "horizontalalignment" => {
+                    self.check_range(r)?;
+                    let command = match number(&value)? {
+                        -4108.0 => "home.alignCenter",
+                        -4131.0 => "home.alignLeft",
+                        -4152.0 => "home.alignRight",
+                        _ => return Err(err("unsupported horizontal alignment")),
+                    };
+                    self.command(command, json!({"sheet":si,"range":r.a1()}))?;
+                    Ok(())
+                }
                 _ => Err(err(format!("Range.{name} assignment is not implemented"))),
             },
             Some(Object::Font(si, r)) => {
@@ -679,6 +755,36 @@ impl Host for ExcelHost {
             Some(Object::Interior(si, r)) if key == "color" => {
                 self.check_range(r)?;
                 self.command("home.fillColor", json!({"sheet":si,"range":r.a1(),"color":color(&value)?}))?;
+                Ok(())
+            }
+            Some(Object::Borders(si, r)) => {
+                self.check_range(r)?;
+                let mut options = self.border_options.get(&(si, r)).cloned().unwrap_or((true, "thin", "auto".to_owned()));
+                match key.as_str() {
+                    "linestyle" => {
+                        options.0 = match number(&value)? {
+                            1.0 => true,
+                            0.0 | -4142.0 => false,
+                            _ => return Err(err("unsupported border line style")),
+                        }
+                    }
+                    "weight" => {
+                        options.1 = match number(&value)? {
+                            1.0 => "hair",
+                            2.0 => "thin",
+                            -4138.0 => "medium",
+                            4.0 => "thick",
+                            _ => return Err(err("unsupported border weight")),
+                        }
+                    }
+                    "color" => options.2 = color(&value)?,
+                    _ => return Err(err(format!("Borders.{name} assignment is not implemented"))),
+                }
+                self.command(
+                    "home.borders",
+                    json!({"sheet":si,"range":r.a1(),"preset":if options.0 {"all"} else {"none"},"style":options.1,"color":options.2}),
+                )?;
+                self.border_options.insert((si, r), options);
                 Ok(())
             }
             Some(Object::Chart(i)) if key == "charttype" => {
@@ -875,6 +981,7 @@ impl ExcelHost {
                     | "countlarge"
                     | "font"
                     | "interior"
+                    | "borders"
                     | "clearcontents"
                     | "clear"
                     | "select"
@@ -889,6 +996,20 @@ impl ExcelHost {
             return Err(err(format!("Range.{key} arguments are not implemented")));
         }
         match key {
+            "__each_count" => {
+                no_args(args, "For Each")?;
+                self.check_range(r)?;
+                Ok(Value::Number(r.count() as f64))
+            }
+            "__each_item" => {
+                self.check_range(r)?;
+                if args.len() != 1 {
+                    return Err(err("For Each requires one index"));
+                }
+                let i = index(args, 0, r.count() as u32)?;
+                let cell = r.start.offset(i64::from(i / r.width()), i64::from(i % r.width())).ok_or_else(|| err("For Each leaves worksheet"))?;
+                self.wrap(Object::Range(si, RangeRef::cell(cell)))
+            }
             "parent" | "worksheet" => self.wrap(Object::Worksheet(si)),
             "" if args.is_empty() => self.read(si, r, false),
             "value" | "value2" => self.read(si, r, false),
@@ -913,6 +1034,32 @@ impl ExcelHost {
             "entirecolumn" => self.wrap(Object::Columns(si, RangeRef::cols(r.start.col, r.end.col))),
             "font" => self.wrap(Object::Font(si, r)),
             "interior" => self.wrap(Object::Interior(si, r)),
+            "borders" => self.wrap(Object::Borders(si, r)),
+            "copy" => {
+                if args.len() > 1 {
+                    return Err(err("Range.Copy accepts at most one destination"));
+                }
+                self.check_range(r)?;
+                // Check the source's expanded text payload before the clipboard serializes it.
+                self.read(si, r, false)?;
+                let destination = args.first().map(|value| self.object(value)).transpose()?;
+                if let Some(ref dest) = destination
+                    && !matches!(dest, Object::Range(_, _))
+                {
+                    return Err(err("Range.Copy requires a range destination"));
+                }
+                self.command("edit.copy", json!({"sheet":si,"range":r.a1()}))?;
+                if let Some(Object::Range(target_sheet, target)) = destination {
+                    self.check_range(target)?;
+                    let end = target
+                        .start
+                        .offset(i64::from(r.height()) - 1, i64::from(r.width()) - 1)
+                        .ok_or_else(|| err("copy destination leaves worksheet"))?;
+                    self.check_range(RangeRef::new(target.start, end))?;
+                    self.command("edit.paste", json!({"sheet":target_sheet,"at":target.start.a1()}))?;
+                }
+                Ok(Value::Empty)
+            }
             "rows" => {
                 if args.is_empty() {
                     self.wrap(Object::Rows(si, r))

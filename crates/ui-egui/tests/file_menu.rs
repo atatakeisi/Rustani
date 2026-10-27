@@ -59,6 +59,19 @@ fn home_explains_macro_compatibility_in_english_and_japanese() {
 }
 
 #[test]
+fn home_customization_controls_apply_and_restore_the_view() {
+    let mut h = harness(Services::default());
+    h.state_mut().run("ui.backstage", serde_json::json!({"page":"home"})).unwrap();
+    h.run_steps(2);
+    h.get_by_label("Compact ribbon").click();
+    h.run_steps(2);
+    assert_eq!(h.state().ui.ribbon_mode, gridcraft_ui_egui::RibbonMode::Compact);
+    h.get_all_by_label("Restore Normal View").max_by(|a, b| a.rect().center().y.total_cmp(&b.rect().center().y)).unwrap().click();
+    h.run_steps(2);
+    assert!(!h.state().ui.is_customized_view());
+}
+
+#[test]
 fn new_and_open_from_the_file_tab_keep_the_ribbon_as_it_was() {
     let opened = Arc::new(Mutex::new(0));
     let capture = opened.clone();

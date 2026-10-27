@@ -15,6 +15,105 @@ fn session() -> Session {
     session
 }
 
+#[test]
+fn sandbox_string_functions_alignment_and_msgbox_run_together() {
+    let mut session = session();
+    let result = completed(
+        &mut session,
+        r#"
+Sub Main()
+    Range("A1").Value = Round(2.555, 2)
+    Range("A2").Value = Left("Rustani", 4) & Right("Rustani", 3)
+    Range("A3").Value = Mid("Rustani", 2, 3)
+    Range("A4").Value = Replace("a-b-a", "a", "x")
+    Range("A5").Value = InStr(2, "abcabc", "bc")
+    Range("A1:A5").HorizontalAlignment = xlCenter
+    Range("A1:A5").Borders.LineStyle = xlContinuous
+    Range("A1:A5").Borders.Weight = xlMedium
+    Range("A1:A5").Borders.Color = RGB(255, 0, 0)
+    Range("A3:A4").Copy Range("C1")
+    Dim c As Range
+    For Each c In Range("C1:C2")
+        c.Font.Bold = True
+    Next c
+    Range("B1").Value = MsgBox("完成", vbInformation, "通知")
+End Sub
+"#,
+    );
+    assert_eq!(cell(&session, 0, "A2"), Value::text("Rustani"));
+    assert_eq!(cell(&session, 0, "A3"), Value::text("ust"));
+    assert_eq!(cell(&session, 0, "A4"), Value::text("x-b-x"));
+    assert_eq!(cell(&session, 0, "A5"), Value::number(2.0));
+    assert_eq!(cell(&session, 0, "B1"), Value::number(1.0));
+    assert_eq!(cell(&session, 0, "C1"), Value::text("ust"));
+    assert_eq!(cell(&session, 0, "C2"), Value::text("x-b-x"));
+    let doc = session.doc().unwrap();
+    let sheet = doc.wb.sheet(0).unwrap();
+    assert!(doc.wb.styles.get(sheet.style_id(CellRef::parse("C1").unwrap())).font.bold);
+    let style = doc.wb.styles.get(sheet.style_id(CellRef::parse("A1").unwrap()));
+    assert_eq!(style.borders.top.style, gridcraft_model::BorderStyle::Medium);
+    assert_eq!(style.borders.top.color, gridcraft_model::Color::rgb(255, 0, 0));
+    assert_eq!(style.align.h, gridcraft_model::HAlign::Center);
+    assert_eq!(result["log"], json!(["[MsgBox] 完成"]));
+}
+
+#[test]
+fn msgbox_and_string_errors_do_not_commit_prior_changes() {
+    for action in ["MsgBox()", "Range(\"A2\").Value = Mid(\"abc\", 0)", "Range(\"A2\").Value = Round(1, 100)"] {
+        let mut session = session();
+        let before = session.doc().unwrap().wb.clone();
+        let result = run(&mut session, &format!("Sub Main()\nRange(\"A1\").Value = 9\n{action}\nEnd Sub"));
+        assert_eq!(result["state"], "failed", "{result}");
+        assert!(Arc::ptr_eq(&session.doc().unwrap().wb, &before));
+    }
+}
+
+#[test]
+fn combined_sheet_array_format_chart_and_bounded_control_flow() {
+    let mut session = session();
+    let before = session.doc().unwrap().wb.clone();
+    let result = completed(
+        &mut session,
+        r#"
+Sub Main()
+    Dim c As Range, chart As Object
+    Worksheets.Add
+    Range("A1").Value = "Sales"
+    Range("B1").Value = 10
+    Range("A2").Value = "North"
+    Range("B2").Value = 20
+    Range("D1:E2").Value = Range("A1:B2").Value
+    Range("G1").Value = WorksheetFunction.Sum(Range("B1:B2"))
+    Range("G2").Value = Range("B1").End(xlDown).Value
+    Range("G3").Value = Range("A1").Offset(1, 0).Value
+    Range("G4").Value = Range("B1").Resize(2, 1).Count
+    Range("A1:B2").Font.Bold = True
+    Range("A1:B2").Interior.Color = RGB(240, 240, 210)
+    Range("A1:B2").Borders.LineStyle = xlContinuous
+    Range("A1:B2").HorizontalAlignment = xlCenter
+    Range("B1:B2").NumberFormat = "0.00"
+    Range("A1:B2").Columns.AutoFit
+    For Each c In Range("D1:D2")
+        c.Font.Italic = True
+    Next c
+    Range("G5").Value = Replace(Left("rustani", 4), "r", "R") & Mid("rustani", 5)
+    Range("G6").Value = Round(10.5, 0)
+    Set chart = ActiveSheet.ChartObjects.Add(10, 20, 300, 200)
+    chart.Chart.SetSourceData Range("A1:B2")
+    MsgBox "completed", vbInformation
+End Sub
+"#,
+    );
+    assert_eq!(result["log"], json!(["[MsgBox] completed"]));
+    let doc = session.doc().unwrap();
+    let sheet_index = doc.wb.active_sheet;
+    assert_eq!(cell(&session, sheet_index, "G1"), Value::number(30.0));
+    assert_eq!(cell(&session, sheet_index, "G5"), Value::text("Rustani"));
+    assert_eq!(doc.wb.sheet(sheet_index).unwrap().charts.len(), 1);
+    session.execute("edit.undo", json!({})).unwrap();
+    assert!(Arc::ptr_eq(&session.doc().unwrap().wb, &before));
+}
+
 fn cell(session: &Session, sheet: usize, address: &str) -> Value {
     session.doc().unwrap().wb.sheet(sheet).unwrap().value(CellRef::parse(address).unwrap())
 }
@@ -470,13 +569,9 @@ fn unreadable_original_project_keeps_saved_sources_available_and_preserves_its_b
 
 #[test]
 fn shell_createobject_and_unknown_members_fail_without_committing_prior_edits() {
-    for unsupported in [
-        "Shell \"echo should-not-run\"",
-        "CreateObject(\"WScript.Shell\")",
-        "Range(\"A1\").UnsupportedMember = 1",
-        "Application.Run \"anything\"",
-        "MsgBox \"unsupported prompt\"",
-    ] {
+    for unsupported in
+        ["Shell \"echo should-not-run\"", "CreateObject(\"WScript.Shell\")", "Range(\"A1\").UnsupportedMember = 1", "Application.Run \"anything\""]
+    {
         let mut session = session();
         let before = session.doc().unwrap().wb.clone();
         let source = format!("Sub Main()\nRange(\"A1\").Value = 99\n{unsupported}\nEnd Sub");

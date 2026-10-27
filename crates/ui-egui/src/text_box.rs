@@ -150,7 +150,7 @@ pub(crate) fn show(app: &mut SheetApp, ui: &mut egui::Ui, geo: &Geo, sh: &gridcr
         let response = ui.add(
             TextEdit::multiline(&mut ed.text)
                 .id(id)
-                .font(FontId::new(14.0 * geo.z, egui::FontFamily::Name(theme::CELL.into())))
+                .font(FontId::new(theme::safe_render_font_size(ui.ctx(), 14.0 * geo.z), egui::FontFamily::Name(theme::CELL.into())))
                 .text_color(Color32::BLACK)
                 .frame(egui::Frame::NONE)
                 .margin(egui::Margin::ZERO)

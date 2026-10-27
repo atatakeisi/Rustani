@@ -28,7 +28,7 @@ fn click_control(h: &Harness, label: &str, status: bool) {
 }
 
 #[test]
-fn quick_access_opens_macros_and_view_and_automate_have_recording_controls() {
+fn status_opens_macros_and_view_and_automate_have_recording_controls() {
     let mut h = harness();
     assert!(h.state_mut().session.execute("view.macros", json!({})).unwrap().is_array());
     assert!(h.state().dialog.is_none());
@@ -44,8 +44,8 @@ fn quick_access_opens_macros_and_view_and_automate_have_recording_controls() {
     for tab in ["View", "Automate"] {
         h.state_mut().ui.ribbon_tab = tab.into();
         h.run_steps(3);
-        assert!(h.query_all_by_label("Macros").count() >= 3, "quick access, status bar and {tab}");
-        assert!(h.query_all_by_label("Record Macro").count() >= 3, "quick access, status bar and {tab}");
+        assert!(h.query_all_by_label("Macros").count() >= 2, "status bar and {tab}");
+        assert!(h.query_all_by_label("Record Macro").count() >= 2, "status bar and {tab}");
     }
     h.get_by_label("VBA Editor").click();
     h.run_steps(3);
@@ -80,8 +80,8 @@ fn japanese_quick_access_and_status_record_controls_keep_the_same_actions() {
     let mut h = harness();
     h.state_mut().ui.language = gridcraft_ui_egui::i18n::Language::Ja;
     h.run_steps(3);
-    assert_eq!(h.query_all_by_label("マクロ").count(), 2);
-    assert_eq!(h.query_all_by_label("マクロの記録").count(), 2);
+    assert_eq!(h.query_all_by_label("マクロ").count(), 1);
+    assert_eq!(h.query_all_by_label("マクロの記録").count(), 1);
     click_control(&h, "マクロの記録", false);
     h.run_steps(2);
     assert!(h.state().session.recording.is_some());

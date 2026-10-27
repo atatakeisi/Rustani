@@ -59,6 +59,12 @@ pub struct UiState {
     pub system_theme: bool,
     pub ribbon_tab: String,
     pub ribbon_collapsed: bool,
+    #[serde(deserialize_with = "lenient_ribbon_mode")]
+    pub ribbon_mode: RibbonMode,
+    #[serde(deserialize_with = "lenient_ribbon_groups")]
+    pub hidden_ribbon_groups: Vec<String>,
+    #[serde(deserialize_with = "lenient_ribbon_groups")]
+    pub pinned_ribbon_groups: Vec<String>,
     pub formula_bar_expanded: bool,
     pub status_bar: bool,
     /// Motion in the UI: the selection outline glides to a new selection (View ▸ Animations).
@@ -90,6 +96,45 @@ pub struct UiState {
 pub const INTERFACE_SCALE_MIN: u16 = 75;
 pub const INTERFACE_SCALE_MAX: u16 = 200;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RibbonMode {
+    #[default]
+    Standard,
+    Compact,
+    ContextMenuOnly,
+}
+
+pub const HOME_GROUPS: &[(&str, &str)] = &[
+    ("clipboard", "Clipboard"),
+    ("font", "Font"),
+    ("alignment", "Alignment"),
+    ("number", "Number"),
+    ("styles", "Styles"),
+    ("cells", "Cells"),
+    ("editing", "Editing"),
+];
+
+fn lenient_ribbon_mode<'de, D: serde::Deserializer<'de>>(d: D) -> Result<RibbonMode, D::Error> {
+    let value = Json::deserialize(d)?;
+    Ok(serde_json::from_value(value).unwrap_or_default())
+}
+
+fn lenient_ribbon_groups<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    let value = Json::deserialize(d)?;
+    let mut groups = Vec::new();
+    if let Some(items) = value.as_array() {
+        for item in items {
+            if let Some(id) = item.as_str()
+                && HOME_GROUPS.iter().any(|(group, _)| *group == id)
+                && !groups.iter().any(|group| group == id)
+            {
+                groups.push(id.to_owned());
+            }
+        }
+    }
+    Ok(groups)
+}
+
 /// A requested interface size, rounded and clamped to the supported range; `None` when it isn't
 /// a finite number.
 pub fn clamp_interface_scale(percent: f64) -> Option<u16> {
@@ -108,6 +153,9 @@ impl Default for UiState {
             system_theme: false,
             ribbon_tab: "Home".into(),
             ribbon_collapsed: false,
+            ribbon_mode: RibbonMode::Standard,
+            hidden_ribbon_groups: vec![],
+            pinned_ribbon_groups: vec![],
             formula_bar_expanded: false,
             status_bar: true,
             animations: true,
@@ -122,6 +170,22 @@ impl Default for UiState {
 }
 
 impl UiState {
+    pub fn is_customized_view(&self) -> bool {
+        self.ribbon_collapsed
+            || self.ribbon_mode != RibbonMode::Standard
+            || !self.hidden_ribbon_groups.is_empty()
+            || !self.pinned_ribbon_groups.is_empty()
+            || self.interface_scale != 100
+    }
+
+    pub fn reset_view_customizations(&mut self) {
+        self.ribbon_collapsed = false;
+        self.ribbon_mode = RibbonMode::Standard;
+        self.hidden_ribbon_groups.clear();
+        self.pinned_ribbon_groups.clear();
+        self.interface_scale = 100;
+    }
+
     pub fn theme_preference(&self) -> egui::ThemePreference {
         if self.system_theme {
             egui::ThemePreference::System

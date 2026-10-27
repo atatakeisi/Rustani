@@ -5,6 +5,51 @@ use gridcraft_ui_egui::{SheetApp, UiState};
 use serde_json::json;
 
 #[test]
+fn ribbon_preferences_are_lenient_and_restore_the_standard_view() {
+    use gridcraft_ui_egui::RibbonMode;
+    let mut ui: UiState = serde_json::from_value(
+        json!({"dark": true, "ribbonMode": "unknown", "hiddenRibbonGroups": ["font", 4, "font", "unknown"], "pinnedRibbonGroups": false}),
+    )
+    .unwrap();
+    assert!(ui.dark);
+    assert_eq!(ui.ribbon_mode, RibbonMode::Standard);
+    assert_eq!(ui.hidden_ribbon_groups, ["font"]);
+    assert!(ui.is_customized_view());
+    ui.ribbon_mode = RibbonMode::ContextMenuOnly;
+    ui.ribbon_collapsed = true;
+    ui.pinned_ribbon_groups.push("font".into());
+    ui.interface_scale = 200;
+    let restored: UiState = serde_json::from_str(&serde_json::to_string(&ui).unwrap()).unwrap();
+    assert_eq!(restored.ribbon_mode, RibbonMode::ContextMenuOnly);
+    ui.reset_view_customizations();
+    assert!(!ui.is_customized_view());
+    assert!(ui.dark);
+}
+
+#[test]
+fn customized_ribbon_modes_render_and_return_to_standard() {
+    use gridcraft_ui_egui::{HOME_GROUPS, RibbonMode};
+    let mut session = Session::new();
+    session.new_workbook();
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+        |ui, app: &mut SheetApp| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        },
+        SheetApp::new(session, Default::default()),
+    );
+    for mode in [RibbonMode::Standard, RibbonMode::Compact, RibbonMode::ContextMenuOnly] {
+        h.state_mut().ui.ribbon_mode = mode;
+        h.state_mut().ui.hidden_ribbon_groups = HOME_GROUPS.iter().map(|(id, _)| (*id).to_owned()).collect();
+        h.state_mut().ui.pinned_ribbon_groups = vec!["font".into(), "editing".into()];
+        h.run_steps(2);
+    }
+    h.state_mut().ui.reset_view_customizations();
+    h.run_steps(2);
+    assert!(!h.state().ui.is_customized_view());
+}
+
+#[test]
 fn interface_size_applies_persists_and_clamps() {
     let mut session = Session::new();
     session.new_workbook();

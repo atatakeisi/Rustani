@@ -3350,6 +3350,40 @@ fn context_menu(app: &mut SheetApp, ui: &mut egui::Ui) {
     let resp = egui::Area::new(egui::Id::new("cell_context")).fixed_pos(at).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.set_min_width(200.0);
+            if app.ui.is_customized_view() {
+                if ui.horizontal_wrapped(|ui| crate::ribbon::compact_actions(app, ui)).inner {
+                    close = true;
+                }
+                ui.menu_button(app.ui.language.tr("Ribbon commands"), |ui| {
+                    let commands = app.session.commands();
+                    for tab in crate::ribbon::TABS {
+                        ui.menu_button(app.ui.language.tr(tab), |ui| {
+                            for command in commands.iter().filter(|c| {
+                                c.enabled
+                                    && c.menu.first() == Some(tab)
+                                    && (crate::dialogs::palette_dialog(c.id).is_some() || crate::dialogs::palette_optional_params(c.params))
+                            }) {
+                                if ui.button(app.ui.language.tr(command.label)).clicked() {
+                                    match command.id {
+                                        "edit.paste" => app.paste_from_clipboard(),
+                                        "edit.copy" | "edit.cut" => app.copy_to_clipboard(ui.ctx(), command.id),
+                                        id => {
+                                            if let Some((dialog, tab)) = crate::dialogs::palette_dialog(id) {
+                                                app.open_dialog(dialog, if let Some(tab) = tab { json!({"tab":tab}) } else { json!({}) });
+                                            } else {
+                                                app.run_or_alert(id, json!({}));
+                                            }
+                                        }
+                                    }
+                                    ui.close();
+                                    close = true;
+                                }
+                            }
+                        });
+                    }
+                });
+                ui.separator();
+            }
             let insert_copied = insert_copied_item(app);
             let mut items: Vec<(&str, &str)> = vec![
                 ("Cut", "edit.cut"),
@@ -3424,6 +3458,13 @@ fn context_menu(app: &mut SheetApp, ui: &mut egui::Ui) {
                         }
                         other => app.run_or_alert(other, json!({})),
                     }
+                }
+            }
+            if app.ui.is_customized_view() {
+                ui.separator();
+                if ui.button(app.ui.language.tr("Restore Normal View")).clicked() {
+                    app.ui.reset_view_customizations();
+                    close = true;
                 }
             }
         });

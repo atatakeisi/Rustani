@@ -222,6 +222,48 @@ impl Language {
     pub(crate) fn tr_error(self, message: &str) -> String {
         let message = if message.starts_with("command `") { crate::clean_error(message) } else { message.to_owned() };
         if self == Self::Ja {
+            if let Some((_, translated)) = ja::ERRORS.iter().find(|(source, _)| *source == message) {
+                return (*translated).to_owned();
+            }
+            for (prefix, suffix, label) in [
+                ("VBA member or function `", "` is not implemented", "VBA のメンバーまたは関数"),
+                ("VBA property `", "` assignment is not implemented", "VBA プロパティへの代入"),
+            ] {
+                if let Some(name) = message.strip_prefix(prefix).and_then(|s| s.strip_suffix(suffix)) {
+                    return format!("{label} `{name}` は箱庭型ミニVBAでは未対応です");
+                }
+            }
+            if let Some(name) = message.strip_prefix("mixed ").and_then(|s| s.strip_suffix(" values require VBA Null, which is not implemented")) {
+                return format!("{name} の値が混在しています。必要な VBA の Null は未対応です");
+            }
+            for (prefix, translation) in [
+                ("Variable not defined: ", "変数が定義されていません: "),
+                ("Procedure not found: ", "プロシージャが見つかりません: "),
+                ("Unsupported declaration type: ", "未対応の変数型です: "),
+                ("Unsupported character: ", "使用できない文字: "),
+                ("worksheet error: ", "ワークシート エラー: "),
+                ("worksheet not found: ", "シートが見つかりません: "),
+                ("invalid range: ", "範囲が正しくありません: "),
+                ("Unsupported member ", "未対応のメンバー: "),
+            ] {
+                if let Some(detail) = message.strip_prefix(prefix) {
+                    return format!("{translation}{detail}");
+                }
+            }
+            for (suffix, translation) in [
+                (" arguments are not implemented", "の引数は箱庭型ミニVBAでは未対応です"),
+                (" does not accept arguments", "に引数は指定できません"),
+                (" requires one argument", "には引数が 1 つ必要です"),
+                (" assignment is not implemented", "への代入は箱庭型ミニVBAでは未対応です"),
+                (" is not implemented", "は箱庭型ミニVBAでは未対応です"),
+            ] {
+                if let Some(name) = message.strip_suffix(suffix) {
+                    return format!("{name} {translation}");
+                }
+            }
+            if let Some(expected) = message.strip_prefix("Expected '").and_then(|s| s.strip_suffix('\'')) {
+                return format!("`{expected}` が必要です");
+            }
             if let Some(reason) = message.strip_prefix("There's a problem with this formula: ") {
                 return format!("この数式には問題があります: {}", japanese_formula_reason(reason));
             }
@@ -384,6 +426,9 @@ mod tests {
             ),
             ("IF has too many arguments. Use IF(test, a, b)", "この関数に対して、入力されている引数が多すぎます (IF)。使用方法: IF(test, a, b)"),
             ("There's a problem with this formula: unterminated text", "この数式には問題があります: 文字列が閉じられていません"),
+            ("VBA member or function `Foo` is not implemented", "VBA のメンバーまたは関数 `Foo` は箱庭型ミニVBAでは未対応です"),
+            ("Variable not defined: example", "変数が定義されていません: example"),
+            ("worksheet not found: 売上", "シートが見つかりません: 売上"),
         ] {
             assert_eq!(Language::Ja.tr_error(source), expected);
             assert_eq!(Language::En.tr_error(source), source);
