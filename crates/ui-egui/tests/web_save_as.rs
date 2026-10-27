@@ -56,6 +56,29 @@ fn confirm(h: &mut Harness) -> Json {
 }
 
 #[test]
+fn save_as_explains_browser_download_location_and_duplicate_names() {
+    for (language, location, duplicates) in [
+        (
+            "en",
+            "The file is usually saved in your browser's Downloads folder. Your browser may ask where to save it.",
+            "If a file with the same name exists, your browser may add a number to the new file name.",
+        ),
+        (
+            "ja",
+            "通常はブラウザの「ダウンロード」フォルダに保存されます。保存先の選択画面が表示される場合もあります。",
+            "同じ名前のファイルがある場合、新しいファイル名に番号が付くことがあります。",
+        ),
+    ] {
+        let (mut h, downloads) = fixture();
+        h.state_mut().run("app.language.set", json!({"language": language})).unwrap();
+        open(&mut h);
+        assert!(h.query_by_label(location).is_some(), "missing download location in {language}");
+        assert!(h.query_by_label(duplicates).is_some(), "missing duplicate-name guidance in {language}");
+        assert!(downloads.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
 fn initial_focus_replaces_the_name_and_enter_downloads_the_cell_draft_once() {
     let (mut h, downloads) = fixture();
     h.input_mut().events.push(Event::Text("123".into()));

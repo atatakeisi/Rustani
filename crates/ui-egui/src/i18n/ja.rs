@@ -1018,6 +1018,14 @@ pub(super) const VBA: &[(&str, &str)] = &[
         "マクロは自動実行されません。Rustani は制限された箱庭内で一部の構文に対応します。互換性の案内は「ファイル」→「ホーム」をご覧ください。",
     ),
     ("File name:", "ファイル名:"),
+    (
+        "The file is usually saved in your browser's Downloads folder. Your browser may ask where to save it.",
+        "通常はブラウザの「ダウンロード」フォルダに保存されます。保存先の選択画面が表示される場合もあります。",
+    ),
+    (
+        "If a file with the same name exists, your browser may add a number to the new file name.",
+        "同じ名前のファイルがある場合、新しいファイル名に番号が付くことがあります。",
+    ),
     ("Save As…", "名前を付けて保存…"),
     ("Save As|Save", "保存"),
     ("Enter a file name.", "ファイル名を入力してください。"),

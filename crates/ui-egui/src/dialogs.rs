@@ -1707,6 +1707,9 @@ fn save_as(ui: &mut egui::Ui, d: &mut Dialog, confirm: &mut bool, open: &mut boo
     ui.add_space(8.0);
     ui.label(lang.tr("Save as type"));
     ui.label(lang.tr("Excel Workbook (*.xlsx)"));
+    ui.add_space(8.0);
+    ui.label(lang.tr("The file is usually saved in your browser's Downloads folder. Your browser may ask where to save it."));
+    ui.label(lang.tr("If a file with the same name exists, your browser may add a number to the new file name."));
     if let Some(error) = d.result.as_ref().and_then(Json::as_str) {
         ui.colored_label(ui.visuals().error_fg_color, lang.tr_error(error));
     }
