@@ -202,7 +202,8 @@ pub fn paint_prims(p: &Painter, origin: Pos2, prims: &[Prim], z: f32) {
                 }
             }
             Prim::Text { x, y, text, size, color, bold, align, valign, rotation } => {
-                let font: FontId = if *bold { theme::ui_bold(size * z) } else { theme::ui_font(size * z) };
+                let size = theme::safe_render_font_size(p.ctx(), size * z);
+                let font: FontId = if *bold { theme::ui_bold(size) } else { theme::ui_font(size) };
                 let galley = p.layout_no_wrap(text.clone(), font, rgba(*color));
                 let sz = galley.size();
                 let ax = match align {
@@ -287,7 +288,7 @@ fn paint_shape_text(p: &Painter, wb: &Workbook, sp: &gridcraft_engine::model::Sh
     let default_color = if text_box { Color32::BLACK } else { Color32::WHITE };
     let color = f.text_color.and_then(|c| c.resolve(&wb.theme)).map(theme::color32).unwrap_or(default_color);
     // Default 14 px (as before); a set size is in points.
-    let size = f.font_size.map_or(14.0, |pt| pt * 96.0 / 72.0).clamp(1.0, 2000.0) * z;
+    let size = theme::safe_render_font_size(p.ctx(), f.font_size.map_or(14.0, |pt| pt * 96.0 / 72.0).clamp(1.0, 2000.0) * z);
     let family = theme::cell_family(f.font.as_deref().unwrap_or(""), f.bold, f.italic);
     let inset = 4.0;
     let width = (r.width() - 2.0 * inset).max(1.0);

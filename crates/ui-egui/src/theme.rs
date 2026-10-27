@@ -168,6 +168,17 @@ pub fn ui_bold(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name(UI_BOLD.into()))
 }
 
+/// Limit rasterized glyphs in physical pixels before handing user-controlled sizes to egui.
+/// A glyph can be wider or taller than its nominal font size, so leave atlas space for its
+/// bearings and other glyphs. Keep the workbook's actual font size unchanged.
+pub(crate) fn safe_render_font_size(ctx: &egui::Context, requested: f32) -> f32 {
+    let atlas_side = ctx.input(|i| i.max_texture_side).min(16 * 1024) as f32;
+    let pixels_per_point = ctx.pixels_per_point();
+    let pixels_per_point = if pixels_per_point.is_finite() && pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
+    let max_points = ((atlas_side * 0.25).min(512.0) / pixels_per_point).max(f32::MIN_POSITIVE);
+    if requested.is_finite() { requested.max(0.1).min(max_points) } else { 1.0_f32.min(max_points) }
+}
+
 /// The font family to use for a cell font name and weight.
 ///
 /// When the name is an installed font whose faces were bound by [`font_definitions`], that family
@@ -212,7 +223,7 @@ pub fn cell_family(name: &str, bold: bool, italic: bool) -> FontFamily {
 /// Context lock (`fonts_mut`): never call it, or run a command, while an egui lock is held.
 pub fn cell_text_width(ctx: &egui::Context, text: &str, font: &gridcraft_engine::model::Font, exact: bool) -> f32 {
     let family = cell_family(&font.name, font.bold, font.italic);
-    let id = FontId::new(font.size * 96.0 / 72.0, family);
+    let id = FontId::new(safe_render_font_size(ctx, font.size * 96.0 / 72.0), family);
     ctx.fonts_mut(|f| {
         f.families().contains(&id.family).then(|| {
             if exact {

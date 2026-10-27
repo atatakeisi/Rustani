@@ -1210,7 +1210,7 @@ pub(crate) fn paint_quadrant(
         let text_rect = Rect::from_min_max(rect.min, pos2((rect.right() - filter_space).max(rect.left()), rect.bottom()));
         let rect = &text_rect;
         let st = &lk.style;
-        let size = st.font.size * 96.0 / 72.0 * z;
+        let size = theme::safe_render_font_size(p.ctx(), st.font.size * 96.0 / 72.0 * z);
         let fam = theme::cell_family(&st.font.name, st.font.bold, st.font.italic);
         let font = FontId::new(size, fam);
         // Digits fit by the cell's own font and size, not the default 11pt (9pt marks in narrow columns).
@@ -3169,7 +3169,7 @@ fn in_cell_editor(app: &mut SheetApp, ui: &mut egui::Ui, geo: &Geo, sh: &Sheet, 
         None => geo.cell_rect(sh, cell),
     };
     let st = wb.styles.get(sh.style_id(cell)).clone();
-    let size = st.font.size * 96.0 / 72.0 * geo.z;
+    let size = theme::safe_render_font_size(ui.ctx(), st.font.size * 96.0 / 72.0 * geo.z);
     let font = FontId::new(size, theme::cell_family(&st.font.name, st.font.bold, st.font.italic));
     let lines = ed.text.lines().count().max(1) as f32 + if ed.text.ends_with('\n') { 1.0 } else { 0.0 };
     // Wrap Text: the editor keeps the column's width and wraps, growing down as Excel's does.

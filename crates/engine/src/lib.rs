@@ -519,9 +519,11 @@ impl Session {
             d.redo.clear();
             d.revision += 1;
             d.normalize_sheet_selection();
-            // A successful edit ends copy mode, while repeated pastes of a copied block keep it.
-            let repeated_copy = matches!(id, "edit.paste" | "edit.pasteSpecial") && self.clipboard.as_ref().is_some_and(|clip| !clip.cut);
-            if !repeated_copy {
+            // A successful edit ends copy mode; repeated copy-pastes and changes to the view's
+            // zoom do not alter the copied cells, so they must keep the pending clipboard.
+            let keep_copy = (matches!(id, "edit.paste" | "edit.pasteSpecial") && self.clipboard.as_ref().is_some_and(|clip| !clip.cut))
+                || matches!(id, "view.zoom" | "view.zoom100" | "view.zoomToSelection");
+            if !keep_copy {
                 self.clipboard = None;
             }
         }
