@@ -1364,7 +1364,14 @@ pub(super) const ERRORS: &[(&str, &str)] = &[
     ("Compact ribbon", "コンパクト（小アイコンのみ）"),
     ("Hide ribbon (use right-click menu)", "右クリックに収納（帯を非表示）"),
     ("Home ribbon groups", "ホーム帯のグループ表示調整"),
-    ("Pin first", "左端に寄せる（ピン留め）"),
+    ("Pin first", "★ 一番左へ移動（ピン留め）"),
+    ("Auto (match device Light/Dark)", "自動（端末のライト/ダーク設定に合わせる）"),
+    (
+        "Automatically switches between Light and Dark to match your device appearance.",
+        "端末の外観設定（ライト／ダーク）に合わせて自動で切り替わります。",
+    ),
+    ("Pin frequently used groups to gather them at the left end of the Home ribbon.", "よく使う枠をピン留めすると、ホーム帯の左端に集まります。"),
+    ("Pop up over sheet (adjust while viewing live changes)", "シート画面の前面にポップアップ表示（変化を見ながら調整）"),
     ("Restore Normal View", "標準画面に戻す"),
     (
         "You can restore the standard view from the title bar or the cell right-click menu.",

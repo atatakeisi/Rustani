@@ -217,7 +217,7 @@ pub fn show(app: &mut SheetApp, ui: &mut Ui) {
                     Page::SaveAs => save_as(app, ui, &mut bs, &mut out),
                     Page::Print => print(app, ui, &mut bs, &mut out),
                     Page::Export => export(app, ui, &mut out),
-                    Page::Options => options(app, ui),
+                    Page::Options => options(app, ui, &mut out),
                     Page::Account => account(app, ui),
                 }
             });
@@ -543,7 +543,9 @@ fn square_button(ui: &mut Ui, icon: Icon, label: &str) -> egui::Response {
 
 fn home(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcome) {
     let lang = app.ui.language;
-    display_customization(app, ui);
+    if display_customization(app, ui) {
+        out.close = true;
+    }
     ui.add_space(22.0);
     section(ui, lang, "New");
     new_tiles(app, ui, out);
@@ -967,21 +969,23 @@ pub fn export_as(app: &mut SheetApp, fmt: &str) -> bool {
     }
 }
 
-fn options(app: &mut SheetApp, ui: &mut Ui) {
+fn options(app: &mut SheetApp, ui: &mut Ui, out: &mut Outcome) {
     let lang = app.ui.language;
-    display_customization(app, ui);
+    if display_customization(app, ui) {
+        out.close = true;
+    }
     ui.add_space(18.0);
     section(ui, lang, "Options|General");
     egui::Grid::new("backstage_options_general").num_columns(2).spacing(vec2(18.0, 10.0)).show(ui, |ui| {
         ui.label(lang.tr("Display theme"));
         let mode = app.ui.theme_mode();
         let current = match mode {
-            "system" => "System",
+            "system" => "Auto (match device Light/Dark)",
             "dark" => "Dark",
             _ => "Light",
         };
         egui::ComboBox::from_id_salt("backstage_theme").width(160.0).selected_text(lang.tr(current)).show_ui(ui, |ui| {
-            for (value, label) in [("system", "System"), ("light", "Light"), ("dark", "Dark")] {
+            for (value, label) in [("system", "Auto (match device Light/Dark)"), ("light", "Light"), ("dark", "Dark")] {
                 if ui.selectable_label(mode == value, lang.tr(label)).clicked() {
                     app.run_or_alert("view.theme", json!({"mode": value}));
                 }
@@ -1038,64 +1042,91 @@ fn options(app: &mut SheetApp, ui: &mut Ui) {
     dim(ui, lang.tr("Calculation settings are saved with the workbook."));
 }
 
-fn display_customization(app: &mut SheetApp, ui: &mut Ui) {
+fn display_customization(app: &mut SheetApp, ui: &mut Ui) -> bool {
     let lang = app.ui.language;
     section(ui, lang, "Display and ribbon customization");
+    let mut open = false;
     ui.group(|ui| {
-        ui.set_width(ui.available_width());
-        ui.label(lang.tr("Display theme"));
-        ui.horizontal_wrapped(|ui| {
-            let current = app.ui.theme_mode();
-            for (mode, label) in [("light", "Light"), ("dark", "Dark"), ("system", "System")] {
-                if ui.radio(current == mode, lang.tr(label)).clicked() {
-                    app.run_or_alert("view.theme", json!({"mode":mode}));
-                }
-            }
-        });
-        ui.label(lang.tr("Ribbon display style"));
-        ui.horizontal_wrapped(|ui| {
-            for (mode, label) in [
-                (crate::RibbonMode::Standard, "Standard ribbon"),
-                (crate::RibbonMode::Compact, "Compact ribbon"),
-                (crate::RibbonMode::ContextMenuOnly, "Hide ribbon (use right-click menu)"),
-            ] {
-                if ui.radio(app.ui.ribbon_mode == mode, lang.tr(label)).clicked() {
-                    app.ui.ribbon_mode = mode;
-                }
-            }
-        });
-        ui.horizontal_wrapped(|ui| {
-            ui.label(lang.tr("Interface size"));
-            for percent in [75, 90, 100, 110, 125, 150, 200] {
-                if ui.selectable_label(app.ui.interface_scale == percent, format!("{percent}%")).clicked() {
-                    app.run_or_alert("view.interfaceScale", json!({"percent":percent}));
-                }
-            }
-        });
-        ui.label(lang.tr("Home ribbon groups"));
-        for (id, label) in crate::HOME_GROUPS {
-            ui.horizontal(|ui| {
-                let mut visible = !app.ui.hidden_ribbon_groups.iter().any(|group| group == id);
-                if ui.checkbox(&mut visible, lang.tr(label)).changed() {
-                    app.ui.hidden_ribbon_groups.retain(|group| group != id);
-                    if !visible {
-                        app.ui.hidden_ribbon_groups.push((*id).to_owned());
-                    }
-                }
-                let mut pinned = app.ui.pinned_ribbon_groups.iter().any(|group| group == id);
-                if ui.checkbox(&mut pinned, lang.tr("Pin first")).changed() {
-                    app.ui.pinned_ribbon_groups.retain(|group| group != id);
-                    if pinned {
-                        app.ui.pinned_ribbon_groups.push((*id).to_owned());
-                    }
-                }
-            });
+        if ui.button(lang.tr("Pop up over sheet (adjust while viewing live changes)")).clicked() {
+            app.open_dialog("displayCustomization", json!({}));
+            open = app.dialog.as_ref().is_some_and(|d| d.name() == "displayCustomization");
         }
-        ui.label(lang.tr("You can restore the standard view from the title bar or the cell right-click menu."));
-        if ui.button(lang.tr("Restore Normal View")).clicked() {
-            app.ui.reset_view_customizations();
+        display_customization_body(app, ui, false);
+    });
+    open
+}
+
+pub(crate) fn display_customization_body(app: &mut SheetApp, ui: &mut Ui, live: bool) {
+    let lang = app.ui.language;
+    ui.set_width(ui.available_width());
+    ui.label(lang.tr("Display theme"));
+    ui.horizontal_wrapped(|ui| {
+        let current = app.ui.theme_mode();
+        for (mode, label) in [("light", "Light"), ("dark", "Dark"), ("system", "Auto (match device Light/Dark)")] {
+            if ui.radio(current == mode, lang.tr(label)).clicked() {
+                app.run_or_alert("view.theme", json!({"mode":mode}));
+            }
         }
     });
+    ui.weak(lang.tr("Automatically switches between Light and Dark to match your device appearance."));
+    ui.label(lang.tr("Ribbon display style"));
+    ui.horizontal_wrapped(|ui| {
+        for (mode, label) in [
+            (crate::RibbonMode::Standard, "Standard ribbon"),
+            (crate::RibbonMode::Compact, "Compact ribbon"),
+            (crate::RibbonMode::ContextMenuOnly, "Hide ribbon (use right-click menu)"),
+        ] {
+            if ui.radio(app.ui.ribbon_mode == mode, lang.tr(label)).clicked() {
+                app.ui.ribbon_mode = mode;
+            }
+        }
+    });
+    ui.horizontal_wrapped(|ui| {
+        ui.label(lang.tr("Interface size"));
+        for percent in [75, 90, 100, 110, 125, 150, 200] {
+            if ui.selectable_label(app.ui.interface_scale == percent, format!("{percent}%")).clicked() {
+                app.run_or_alert("view.interfaceScale", json!({"percent":percent}));
+            }
+        }
+    });
+    ui.label(lang.tr("Home ribbon groups"));
+    ui.weak(lang.tr("Pin frequently used groups to gather them at the left end of the Home ribbon."));
+    for (id, label) in crate::HOME_GROUPS {
+        ui.horizontal(|ui| {
+            let mut visible = !app.ui.hidden_ribbon_groups.iter().any(|group| group == id);
+            if ui.checkbox(&mut visible, lang.tr(label)).changed() {
+                if live {
+                    app.ui.ribbon_tab = "Home".into();
+                    app.ui.ribbon_collapsed = false;
+                    if app.ui.ribbon_mode == crate::RibbonMode::ContextMenuOnly {
+                        app.ui.ribbon_mode = crate::RibbonMode::Standard;
+                    }
+                }
+                app.ui.hidden_ribbon_groups.retain(|group| group != id);
+                if !visible {
+                    app.ui.hidden_ribbon_groups.push((*id).to_owned());
+                }
+            }
+            let mut pinned = app.ui.pinned_ribbon_groups.iter().any(|group| group == id);
+            if ui.checkbox(&mut pinned, lang.tr("Pin first")).changed() {
+                if live {
+                    app.ui.ribbon_tab = "Home".into();
+                    app.ui.ribbon_collapsed = false;
+                    if app.ui.ribbon_mode == crate::RibbonMode::ContextMenuOnly {
+                        app.ui.ribbon_mode = crate::RibbonMode::Standard;
+                    }
+                }
+                app.ui.pinned_ribbon_groups.retain(|group| group != id);
+                if pinned {
+                    app.ui.pinned_ribbon_groups.push((*id).to_owned());
+                }
+            }
+        });
+    }
+    ui.label(lang.tr("You can restore the standard view from the title bar or the cell right-click menu."));
+    if ui.button(lang.tr("Restore Normal View")).clicked() {
+        app.ui.reset_view_customizations();
+    }
 }
 
 /// The platform the app was built for, e.g. "macOS (aarch64)"; the web build reports "Web".

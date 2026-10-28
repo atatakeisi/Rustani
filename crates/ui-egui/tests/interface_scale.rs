@@ -1,8 +1,40 @@
 //! Interface size preference (#230): a persistent zoom for the whole window, clamped.
 
+use egui_kittest::kittest::Queryable;
 use gridcraft_engine::Session;
 use gridcraft_ui_egui::{SheetApp, UiState};
 use serde_json::json;
+
+#[test]
+fn floating_customization_opens_from_home_and_pinning_previews_the_home_ribbon() {
+    let mut session = Session::new();
+    session.new_workbook();
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 1000.0)).build_ui_state(
+        |ui, app: &mut SheetApp| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        },
+        SheetApp::new(session, Default::default()),
+    );
+    h.state_mut().run("ui.backstage", json!({"page":"home"})).unwrap();
+    h.run_steps(3);
+    h.get_by_label("Pop up over sheet (adjust while viewing live changes)").click();
+    h.run_steps(3);
+    assert!(h.state().backstage.is_none());
+    assert_eq!(h.state().dialog.as_ref().map(|d| d.name()), Some("displayCustomization"));
+    h.state_mut().ui.ribbon_tab = "View".into();
+    h.state_mut().ui.ribbon_collapsed = true;
+    h.run_steps(3);
+    h.get_all_by_label("Pin first").last().unwrap().click();
+    h.run_steps(3);
+    assert_eq!(h.state().ui.ribbon_tab, "Home");
+    assert!(!h.state().ui.ribbon_collapsed);
+    assert_eq!(h.state().ui.pinned_ribbon_groups.first().map(String::as_str), Some("editing"));
+    assert!(h.state().grid.rect.is_some());
+    h.get_by_label("Close").click();
+    h.run_steps(2);
+    assert!(h.state().dialog.is_none());
+}
 
 #[test]
 fn ribbon_preferences_are_lenient_and_restore_the_standard_view() {

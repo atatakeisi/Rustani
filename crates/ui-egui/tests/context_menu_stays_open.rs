@@ -66,6 +66,16 @@ fn a_quick_right_click_keeps_the_menu_open() {
 }
 
 #[test]
+fn customization_opens_from_the_cell_context_menu() {
+    let mut h = harness();
+    quick_right_click(&mut h, "C5");
+    h.get_by_label("Display and ribbon customization").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog.as_ref().map(|d| d.name()), Some("displayCustomization"));
+    assert!(h.state().grid.context_menu.is_none());
+}
+
+#[test]
 fn a_slow_right_click_keeps_the_menu_open() {
     let mut h = harness();
     slow_right_click(&mut h, "C5");

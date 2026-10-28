@@ -3460,6 +3460,11 @@ fn context_menu(app: &mut SheetApp, ui: &mut egui::Ui) {
                     }
                 }
             }
+            ui.separator();
+            if ui.button(app.ui.language.tr("Display and ribbon customization")).clicked() {
+                app.open_dialog("displayCustomization", json!({}));
+                close = true;
+            }
             if app.ui.is_customized_view() {
                 ui.separator();
                 if ui.button(app.ui.language.tr("Restore Normal View")).clicked() {

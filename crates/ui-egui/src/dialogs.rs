@@ -781,6 +781,7 @@ impl Dialog {
             "nameManager" => Dialog::custom("nameManager", "Name Manager", json!({})),
             "manageRules" => Dialog::custom("manageRules", "Conditional Formatting Rules Manager", json!({})),
             "commandSearch" => Dialog::custom("commandSearch", "Search Commands", json!({})),
+            "displayCustomization" | "customizeView" => Dialog::custom("displayCustomization", "Display and ribbon customization", json!({})),
             "agents" => Dialog::custom("agents", "Agent Control", json!({})),
             "about" => {
                 let mut d = Dialog::custom("about", "About Rustani", json!({}));
@@ -1202,6 +1203,7 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
     let mut confirm = false;
     let width = match d.name.as_str() {
         "formatCells" => 560.0,
+        "displayCustomization" => (ctx.content_rect().width() - 40.0).clamp(240.0, 560.0),
         "about" => 660.0,
         "insertFunction" | "commandSearch" | "nameManager" | "manageRules" | "journal" | "agents" => 520.0,
         "macros" | "vbaEditor" => (ctx.content_rect().width() - 36.0).clamp(380.0, 780.0),
@@ -1222,6 +1224,9 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
         .default_pos(ctx.content_rect().center() + vec2(0.0, -40.0))
         .open(&mut win_open);
     let window = match d.name.as_str() {
+        "displayCustomization" => window
+            .pivot(egui::Align2::LEFT_TOP)
+            .default_pos(egui::pos2(ctx.content_rect().center().x - width / 2.0, ctx.content_rect().top() + 165.0)),
         "insertPicture" => window.default_height(240.0),
         "advancedFilter" => window.default_height(0.0),
         _ => window,
@@ -1229,6 +1234,15 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
     window.show(ctx, |ui| {
             ui.set_min_width(width - 20.0);
             match d.name.as_str() {
+                "displayCustomization" => {
+                    let height = (ctx.content_rect().height() - 220.0).max(80.0);
+                    egui::ScrollArea::vertical().max_height(height).show(ui, |ui| crate::backstage::display_customization_body(app, ui, true));
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button(app.ui.language.tr("Close")).clicked() { open = false; }
+                        });
+                    });
+                }
                 "formatCells" => format_cells(app, ui, &mut d, &mut confirm),
                 "dataValidation" => data_validation_form(ui, &mut d, &mut confirm, &mut open),
                 "advancedFilter" => advanced_filter_form(ui, &mut d, &mut confirm, &mut open),

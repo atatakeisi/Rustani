@@ -22,6 +22,7 @@ fn main() {
     let mut dialog: Option<String> = None;
     let mut language: Option<String> = None;
     let mut hf_edit: Option<String> = None;
+    let mut pinned_group: Option<String> = None;
     let mut out = "snapshot.png".to_string();
     let mut i = 0;
     while i < args.len() {
@@ -71,6 +72,10 @@ fn main() {
                 i += 1;
                 hf_edit = args.get(i).cloned();
             }
+            "--pin-group" => {
+                i += 1;
+                pinned_group = args.get(i).cloned();
+            }
             "--language" => {
                 i += 1;
                 language = args.get(i).cloned();
@@ -103,6 +108,9 @@ fn main() {
             {
                 let mut app = SheetApp::new(session, Default::default());
                 app.ui.dark = dark;
+                if let Some(group) = pinned_group {
+                    app.ui.pinned_ribbon_groups.push(group);
+                }
                 if let Some(code) = &language
                     && let Some(l) = gridcraft_ui_egui::i18n::Language::parse(code)
                 {

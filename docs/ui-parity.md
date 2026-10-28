@@ -1,6 +1,6 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-27 · **Last updated:** 2026-10-27 · **Change:** minor (display customization, ribbon visibility, and restore view) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-28 · **Last updated:** 2026-10-28 · **Change:** minor (live floating display customization) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
 The application display name is now **Rustani** (item 22); internal crate and file names retain `gridcraft`. The Account/About page credits the upstream GridCraft project in plain text. Build and Pages publication status are recorded in [PROJECT_STATUS.md §19](../PROJECT_STATUS.md).
@@ -15,6 +15,10 @@ Sources: `crates/ui-egui/src` (ribbon, grid, editor, formula bar, dialogs, panes
 `crates/engine/src/cmd` (shortcuts in command specs), the owner's black-box notes
 (`plan/excel/observed-ui.md`, local only) and user issues. Dated issue references below are
 context, not evidence that every original platform-specific report has been retested.
+
+## Live display customization (2026-10-28)
+
+A draggable, non-modal customization window opens over the worksheet from the title bar, View tab, cell context menu, and Home/Options pages. Theme, scale, ribbon mode and Home group choices apply immediately. Changing group visibility or pinning switches to Home and expands the ribbon; if it was stored in the context menu, the normal ribbon is restored so the change is visible. Existing limitations on compact mode outside Home remain. A local offscreen screenshot and automated UI regressions cover the live preview; actual Safari and Chrome interaction requires separate verification.
 
 ## Window and chrome
 

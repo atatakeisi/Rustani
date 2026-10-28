@@ -110,7 +110,7 @@ fn ribbon_selects_system_and_fixed_modes_ignore_subsequent_os_changes() {
     assert_appearance(&h, false);
     h.state_mut().run("ui.ribbonTab", json!({"tab": "View"})).unwrap();
     h.run_steps(2);
-    select_ribbon_theme(&mut h, "System");
+    select_ribbon_theme(&mut h, "Auto (match device Light/Dark)");
     assert_eq!(preferences(&h)["systemTheme"], true);
     assert_eq!(h.ctx.theme(), Theme::Dark);
     assert_appearance(&h, true);
@@ -182,7 +182,7 @@ fn home_and_options_customization_choose_the_theme() {
     // File opens Backstage; its Options page holds the Office Theme choice (#331).
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Options").click();
     h.run_steps(3);
-    h.get_by_label("System").click();
+    h.get_by_label("Auto (match device Light/Dark)").click();
     h.run_steps(3);
     assert_eq!(preferences(&h)["systemTheme"], true);
     system_theme(&mut h, Some(Theme::Dark));

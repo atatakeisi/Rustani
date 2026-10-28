@@ -99,6 +99,12 @@ pub fn title_bar(app: &mut SheetApp, ui: &mut Ui) {
             {
                 app.run_or_alert("edit.redo", json!({}));
             }
+            if icon_button(ui, Icon::Settings, t.text_dim, app.ui.language.tr("Display and ribbon customization"), vec2(26.0, ch)).clicked() {
+                app.open_dialog("displayCustomization", json!({}));
+                if app.dialog.as_ref().is_some_and(|d| d.name() == "displayCustomization") {
+                    app.backstage = None;
+                }
+            }
             if app.session.recording.is_some() {
                 record_macro_icon(app, ui, vec2(26.0, ch));
             }
@@ -2488,12 +2494,12 @@ fn view(app: &mut SheetApp, ui: &mut Ui) {
         ui.label(lang.tr("Display theme"));
         let mode = app.ui.theme_mode();
         let label = match mode {
-            "system" => "System",
+            "system" => "Auto (match device Light/Dark)",
             "dark" => "Dark",
             _ => "Light",
         };
-        egui::ComboBox::from_id_salt("display_theme").selected_text(lang.tr(label)).width(88.0).show_ui(ui, |ui| {
-            for (value, label) in [("system", "System"), ("light", "Light"), ("dark", "Dark")] {
+        egui::ComboBox::from_id_salt("display_theme").selected_text(lang.tr(label)).width(200.0).show_ui(ui, |ui| {
+            for (value, label) in [("system", "Auto (match device Light/Dark)"), ("light", "Light"), ("dark", "Dark")] {
                 if ui.selectable_label(mode == value, lang.tr(label)).clicked() {
                     act(app, "view.theme", json!({"mode": value}));
                 }
@@ -2506,7 +2512,7 @@ fn view(app: &mut SheetApp, ui: &mut Ui) {
         }
     });
     if small_button(ui, Icon::Settings, "", lang.tr("Display and ribbon customization"), false).clicked() {
-        app.open_backstage(crate::backstage::Page::Options);
+        app.open_dialog("displayCustomization", json!({}));
     }
     sep(ui);
     // Interface size (issue #230): scales the whole window on top of the desktop's scale.
