@@ -1124,6 +1124,13 @@ pub(super) const VBA: &[(&str, &str)] = &[
 /// Translates an interface label; `None` for a label the catalog does not know, so `i18n.rs` can
 /// fall back to English. The shared reference lists keep their original coverage contract.
 pub(super) const ERRORS: &[(&str, &str)] = &[
+    ("Sort Ascending", "昇順で並べ替え"),
+    ("Sort Descending", "降順で並べ替え"),
+    ("Search", "検索"),
+    ("(Select All)", "（すべて選択）"),
+    ("(Select All Search Results)", "（検索結果をすべて選択）"),
+    ("(Blanks)", "（空白セル）"),
+    ("Apply", "適用"),
     ("Solver|Add", "追加"),
     ("Integer constraint", "整数"),
     ("Binary constraint", "バイナリ"),

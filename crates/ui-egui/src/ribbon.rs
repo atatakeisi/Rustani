@@ -2808,6 +2808,14 @@ fn chart_design(app: &mut SheetApp, ui: &mut Ui) {
 
 /// Command-key shortcuts when the grid has focus.
 pub fn shortcut(app: &mut SheetApp, key: Key, m: Modifiers) {
+    // Extended combinations are handled by keymap::dispatch. Never reinterpret a browser/
+    // system chord such as Safari's Option+Command+T as plain Command+T (Insert Table).
+    if !m.command || m.alt || (m.mac_cmd && m.ctrl) {
+        return;
+    }
+    if m.shift && !matches!(key, Key::Z | Key::S | Key::F | Key::T | Key::Num9 | Key::Num0 | Key::Plus | Key::Equals) {
+        return;
+    }
     let shift = m.shift;
     let id: Option<(&str, serde_json::Value)> = match key {
         Key::B => Some(("home.bold", json!({}))),

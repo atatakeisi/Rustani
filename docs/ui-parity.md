@@ -83,6 +83,8 @@ this logic, with one undo step.
 
 ## Keyboard
 
+2026-10-28 follow-up: Safari Web App's Option+Command+T must remain a browser toolbar action. Extended modifier combinations no longer fall through to plain Command-letter commands; otherwise that chord created an empty table and generated `Column1` in the selected cell. Regression tests feed real egui key events, assert unchanged workbook/selection/history, and preserve plain Cmd/Ctrl+T and Windows AltGr input. The Japanese AutoFilter popup (sort/search/select all/blanks/apply) is translated, while worksheet values remain unchanged. Earlier combinatorial QA did not cover browser toolbar shortcut collisions.
+
 | Area | Excel | GridCraft |
 |---|---|---|
 | Shortcuts bound to commands | 200+ documented shortcuts per platform | Command, grid and editor bindings are audited below; implemented features and unbound shortcuts are listed separately |

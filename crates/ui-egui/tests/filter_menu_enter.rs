@@ -85,3 +85,58 @@ fn enter_with_nothing_checked_keeps_the_menu_open() {
     assert!(h.state().grid.filter_menu.is_some(), "the menu stays open");
     assert_eq!(active(&h), "A1");
 }
+
+fn japanese_menu_with_blanks() -> Harness {
+    let mut session = Session::new();
+    session.new_workbook();
+    session.execute("range.setValues", json!({"range":"A1", "values":[["見出し"],["Apply"],[null],["Banana"]]})).unwrap();
+    session.execute("data.filter", json!({"range":"A1:A4"})).unwrap();
+    let mut app = SheetApp::new(session, Default::default());
+    app.ui.language = gridcraft_ui_egui::i18n::Language::Ja;
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+        |ui, app: &mut SheetApp| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(3);
+    key(&mut h, Key::ArrowDown, Modifiers::ALT);
+    h
+}
+
+#[test]
+fn japanese_filter_controls_preserve_user_values_and_blank_filtering() {
+    let mut h = japanese_menu_with_blanks();
+    for label in ["↑  昇順で並べ替え", "↓  降順で並べ替え", "フィルター", "（すべて選択）", "（空白セル）", "フィルターのクリア", "適用"]
+    {
+        assert!(h.query_by_label(label).is_some(), "missing {label}");
+    }
+    for english in ["↑  Sort Ascending", "↓  Sort Descending", "Filter", "(Select All)", "(Blanks)", "Clear Filter"] {
+        assert!(h.query_by_label(english).is_none(), "untranslated control {english}");
+    }
+    // The same English word as a button key is user data here, not a label to translate.
+    assert!(h.query_by_label("Apply").is_some());
+    h.get_by_label("（空白セル）").click();
+    h.run_steps(2);
+    h.get_by_label("適用").click();
+    h.run_steps(2);
+    assert!(h.state().grid.filter_menu.is_none());
+    assert_eq!(hidden(&h), [false, true, false]);
+    assert_eq!(h.state().session.active().unwrap().wb.active().unwrap().value(gridcraft_engine::core::CellRef::new(1, 0)).display(), "Apply");
+}
+
+#[test]
+fn japanese_blank_search_and_enter_do_not_edit_the_worksheet() {
+    let mut h = japanese_menu_with_blanks();
+    h.input_mut().events.push(Event::Text("空白".into()));
+    h.run_steps(2);
+    assert!(h.query_by_label("（検索結果をすべて選択）").is_some());
+    assert!(h.query_by_label("（空白セル）").is_some());
+    assert!(h.query_by_label("Banana").is_none());
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert_eq!(hidden(&h), [true, false, true]);
+    assert!(h.state().grid.filter_menu.is_none());
+    assert!(h.state().editor.is_none());
+    assert_eq!(active(&h), "A1");
+}

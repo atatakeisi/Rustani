@@ -2,7 +2,7 @@
 //!
 //! `cargo run --release -p gridcraft-ui-egui --example snapshot -- [--sample sales] [--in file.xlsx]
 //!  [--size 1440x900] [--scale 2] [--cmd 'id={json}']... [--tab Insert] [--dark] [--language en|es|zh|ja|ko|ru|pt|de|cs|fr|tr]
-//!  [--dialog 'name={json}'] [--hf-edit header|footer] out.png`
+//!  [--dialog 'name={json}'] [--filter-menu] [--hf-edit header|footer] out.png`
 
 use gridcraft_engine::Session;
 use gridcraft_ui_egui::SheetApp;
@@ -23,6 +23,7 @@ fn main() {
     let mut language: Option<String> = None;
     let mut hf_edit: Option<String> = None;
     let mut pinned_group: Option<String> = None;
+    let mut filter_menu = false;
     let mut out = "snapshot.png".to_string();
     let mut i = 0;
     while i < args.len() {
@@ -56,6 +57,7 @@ fn main() {
                 tab = args.get(i).cloned();
             }
             "--dark" => dark = true,
+            "--filter-menu" => filter_menu = true,
             "--pane" => {
                 i += 1;
                 pane = args.get(i).cloned();
@@ -136,6 +138,16 @@ fn main() {
             },
         );
     harness.run_steps(8);
+    if filter_menu {
+        harness.input_mut().events.push(egui::Event::Key {
+            key: egui::Key::ArrowDown,
+            physical_key: Some(egui::Key::ArrowDown),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::ALT,
+        });
+        harness.run_steps(3);
+    }
     let img = harness.render().expect("render");
     img.save(&out).expect("save png");
     eprintln!("wrote {out} ({}x{})", img.width(), img.height());
