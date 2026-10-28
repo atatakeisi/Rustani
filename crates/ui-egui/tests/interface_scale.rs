@@ -6,7 +6,7 @@ use gridcraft_ui_egui::{SheetApp, UiState};
 use serde_json::json;
 
 #[test]
-fn floating_customization_opens_from_home_and_pinning_previews_the_home_ribbon() {
+fn floating_customization_opens_from_options_and_pinning_previews_the_home_ribbon() {
     let mut session = Session::new();
     session.new_workbook();
     let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 1000.0)).build_ui_state(
@@ -16,7 +16,7 @@ fn floating_customization_opens_from_home_and_pinning_previews_the_home_ribbon()
         },
         SheetApp::new(session, Default::default()),
     );
-    h.state_mut().run("ui.backstage", json!({"page":"home"})).unwrap();
+    h.state_mut().run("ui.backstage", json!({"page":"options"})).unwrap();
     h.run_steps(3);
     h.get_by_label("Pop up over sheet (adjust while viewing live changes)").click();
     h.run_steps(3);

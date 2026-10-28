@@ -543,10 +543,6 @@ fn square_button(ui: &mut Ui, icon: Icon, label: &str) -> egui::Response {
 
 fn home(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcome) {
     let lang = app.ui.language;
-    if display_customization(app, ui) {
-        out.close = true;
-    }
-    ui.add_space(22.0);
     section(ui, lang, "New");
     new_tiles(app, ui, out);
     ui.add_space(22.0);

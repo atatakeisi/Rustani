@@ -59,9 +59,22 @@ fn home_explains_macro_compatibility_in_english_and_japanese() {
 }
 
 #[test]
-fn home_customization_controls_apply_and_restore_the_view() {
+fn home_keeps_compatibility_information_and_title_button_opens_customization() {
     let mut h = harness(Services::default());
     h.state_mut().run("ui.backstage", serde_json::json!({"page":"home"})).unwrap();
+    h.run_steps(3);
+    assert!(h.query_by_label("Excel compatibility and macro safety").is_some());
+    assert!(h.query_by_label("Pop up over sheet (adjust while viewing live changes)").is_none());
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Customize View").click();
+    h.run_steps(3);
+    assert!(h.state().backstage.is_none());
+    assert_eq!(h.state().dialog.as_ref().map(|dialog| dialog.name()), Some("displayCustomization"));
+}
+
+#[test]
+fn options_customization_controls_apply_and_restore_the_view() {
+    let mut h = harness(Services::default());
+    h.state_mut().run("ui.backstage", serde_json::json!({"page":"options"})).unwrap();
     h.run_steps(2);
     h.get_by_label("Compact ribbon").click();
     h.run_steps(2);

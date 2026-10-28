@@ -164,11 +164,13 @@ fn invalid_mode_preserves_preferences_and_legacy_overrides_leave_system_mode() {
 }
 
 #[test]
-fn home_and_options_customization_choose_the_theme() {
+fn options_customization_chooses_the_theme() {
     let mut h = harness(UiState::default());
     system_theme(&mut h, Some(Theme::Light));
     assert_appearance(&h, false);
     h.get_by_label("File").click();
+    h.run_steps(3);
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Options").click();
     h.run_steps(3);
     h.get_by_label("Dark").click();
     h.run_steps(2);
@@ -179,9 +181,6 @@ fn home_and_options_customization_choose_the_theme() {
     h.run_steps(2);
     assert_appearance(&h, false);
 
-    // File opens Backstage; its Options page holds the Office Theme choice (#331).
-    h.get_by_role_and_label(egui::accesskit::Role::Button, "Options").click();
-    h.run_steps(3);
     h.get_by_label("Auto (match device Light/Dark)").click();
     h.run_steps(3);
     assert_eq!(preferences(&h)["systemTheme"], true);

@@ -99,7 +99,9 @@ pub fn title_bar(app: &mut SheetApp, ui: &mut Ui) {
             {
                 app.run_or_alert("edit.redo", json!({}));
             }
-            if icon_button(ui, Icon::Settings, t.text_dim, app.ui.language.tr("Display and ribbon customization"), vec2(26.0, ch)).clicked() {
+            let customize = small_button(ui, Icon::Settings, "Customize View", "Display and ribbon customization", false);
+            customize.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), app.ui.language.tr("Customize View")));
+            if customize.clicked() {
                 app.open_dialog("displayCustomization", json!({}));
                 if app.dialog.as_ref().is_some_and(|d| d.name() == "displayCustomization") {
                     app.backstage = None;

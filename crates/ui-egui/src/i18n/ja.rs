@@ -1359,6 +1359,7 @@ pub(super) const ERRORS: &[(&str, &str)] = &[
     ),
     ("macro exceeded the execution limit of 1,000,000 instructions", "実行ステップ数の上限（100万ステップ）を超えたため安全停止しました"),
     ("Display and ribbon customization", "画面・帯（リボン）のカスタマイズ"),
+    ("Customize View", "画面調整"),
     ("Ribbon display style", "帯（リボン）の表示モード"),
     ("Standard ribbon", "標準（アイコン＋文字）"),
     ("Compact ribbon", "コンパクト（小アイコンのみ）"),
@@ -1368,7 +1369,7 @@ pub(super) const ERRORS: &[(&str, &str)] = &[
     ("Auto (match device Light/Dark)", "自動（端末のライト/ダーク設定に合わせる）"),
     (
         "Automatically switches between Light and Dark to match your device appearance.",
-        "端末の外観設定（ライト／ダーク）に合わせて自動で切り替わります。",
+        "※端末本体（システム設定 ＞ 外観）のライト／ダーク設定に連動します（カメラ等は使用しません）。",
     ),
     ("Pin frequently used groups to gather them at the left end of the Home ribbon.", "よく使う枠をピン留めすると、ホーム帯の左端に集まります。"),
     ("Pop up over sheet (adjust while viewing live changes)", "シート画面の前面にポップアップ表示（変化を見ながら調整）"),

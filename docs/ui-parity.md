@@ -18,7 +18,7 @@ context, not evidence that every original platform-specific report has been rete
 
 ## Live display customization (2026-10-28)
 
-A draggable, non-modal customization window opens over the worksheet from the title bar, View tab, cell context menu, and Home/Options pages. Theme, scale, ribbon mode and Home group choices apply immediately. Changing group visibility or pinning switches to Home and expands the ribbon; if it was stored in the context menu, the normal ribbon is restored so the change is visible. Existing limitations on compact mode outside Home remain. A local offscreen screenshot and automated UI regressions cover the live preview; actual Safari and Chrome interaction requires separate verification.
+A draggable, non-modal customization window opens over the worksheet from the title bar, View tab, cell context menu, and the Options page. Theme, scale, ribbon mode and Home group choices apply immediately. Changing group visibility or pinning switches to Home and expands the ribbon; if it was stored in the context menu, the normal ribbon is restored so the change is visible. Existing limitations on compact mode outside Home remain. A local offscreen screenshot and automated UI regressions cover the live preview; actual Safari and Chrome interaction requires separate verification.
 
 ## Window and chrome
 
@@ -35,7 +35,7 @@ A draggable, non-modal customization window opens over the worksheet from the ti
 | Status bar: statistics, view buttons, zoom, macro controls | yes | yes | Customizable statistics remain partial; Macros and Record/Stop are available at the left |
 | Task panes (Format Chart, Comments, Watch, Selection, PivotTable fields) | yes | yes; the PivotTable source-field scrollbar sits at the right edge | Element-level Format pane for shapes and pictures is missing |
 | Backstage (File): Info, New, Open recent, Save, Print, Export, Options | yes | yes; includes blank/sample workbooks, file properties/protection, page preview and existing application settings | Account shows Rustani, version, license and About; Share and a template gallery beyond the samples remain missing. Options applies immediately without OK/Cancel and exposes only the app's settings, not the full Excel Options dialog |
-| Dark mode, system appearance | yes | yes | Follows the system on first run; Home/Options display customization and View theme control (#194, #239) |
+| Dark mode, system appearance | yes | yes | Follows the system on first run; Options display customization and View theme control (#194, #239) |
 | Page Layout view (paper view with rulers and header editing) | yes | yes; per-sheet view saved in XLSX, print pagination, rulers and in-place header/footer editing | Ruler margins can be dragged (#792); header/footer pictures and Different First Page / Odd & Even remain missing |
 | Multiple windows per workbook | yes | partial | `view.newWindow` is a linked document copy, not simultaneous views of one shared workbook; see [hardware-parity.md](hardware-parity.md) |
 

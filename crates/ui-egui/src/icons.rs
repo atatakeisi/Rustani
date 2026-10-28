@@ -635,8 +635,10 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, c: Color32) {
             g.line(&[(5.5, 5.0), (8.0, 2.5), (10.5, 5.0)], c, 1.2);
         }
         Icon::Settings => {
-            g.circle(8.0, 8.0, 5.0, None, Some(c));
-            g.circle(8.0, 8.0, 2.0, Some(c), None);
+            for (y, knob_x) in [(4.5, 5.5), (8.0, 10.5), (11.5, 6.5)] {
+                g.stroke(&[(2.5, y), (13.5, y)], light);
+                g.circle(knob_x, y, 1.7, Some(BLUE), Some(c));
+            }
         }
         Icon::Appearance => {
             g.circle(8.0, 8.0, 5.5, None, Some(c));
