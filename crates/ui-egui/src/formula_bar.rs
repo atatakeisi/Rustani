@@ -713,10 +713,12 @@ mod spill_tests {
         check(&mut app, "E1", "", false);
         let sh = app.session.active().unwrap().wb.active().unwrap();
         assert!(sh.cell(gridcraft_engine::core::CellRef::parse("A2").unwrap()).and_then(|c| c.formula.as_ref()).is_none());
-        // Intentional grid replacement retains the existing entry behavior.
+        // Direct grid/IME entry also refuses a spill child and keeps the computed array.
         select(&mut app, "A2");
         app.begin_edit(Some("replacement".into()), false);
-        assert!(app.editor.is_some());
+        assert!(app.editor.is_none());
+        assert_eq!(app.message.as_ref().map(|(_, message)| message.as_str()), Some("You can't change part of an array."));
+        assert_eq!(app.session.active().unwrap().wb.active().unwrap().value(gridcraft_engine::core::CellRef::new(1, 0)).display(), "20");
     }
 
     #[test]

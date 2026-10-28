@@ -1,6 +1,6 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-28 · **Last updated:** 2026-10-28 · **Change:** minor (live floating display customization) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-28 · **Last updated:** 2026-10-28 · **Change:** minor (Japanese dialogs and combinatorial QA) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Interaction, controls and feel, against Excel. Part of [target-app-parity.md](target-app-parity.md).
 The application display name is now **Rustani** (item 22); internal crate and file names retain `gridcraft`. The Account/About page credits the upstream GridCraft project in plain text. Build and Pages publication status are recorded in [PROJECT_STATUS.md §19](../PROJECT_STATUS.md).
@@ -10,6 +10,8 @@ Ribbon command coverage is measured separately in [parity-checklist.md](parity-c
 compatibility. Current behavior and regression evidence are in
 [operational-parity.md](operational-parity.md) and [PROJECT_STATUS.md §13](../PROJECT_STATUS.md).
 Safari and real OS IME behavior still require live verification.
+
+2026-10-28: the audited custom dialogs and error/notice rendering now use Japanese translations, including dynamic counts, protection/printing errors and a logged fallback for unknown English errors. Ten distinct UI/engine combinations cover recalculation, selection/paste/zoom, validation/protection, merged/spill cells, display customization, dialogs, Mini VBA, XLSX/XLSM and rendered popups. Direct input into a spill child is refused; cut moves that split a merged area are refused before mutation, while moving a whole merge (including onto its old footprint) remains allowed. See [localization-parity.md](localization-parity.md) and [QA report](../ai-team/reports/codex-final-combinatorial-qa-20261028-163600.md).
 
 Sources: `crates/ui-egui/src` (ribbon, grid, editor, formula bar, dialogs, panes),
 `crates/engine/src/cmd` (shortcuts in command specs), the owner's black-box notes

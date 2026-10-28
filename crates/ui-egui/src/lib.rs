@@ -1073,9 +1073,12 @@ impl SheetApp {
 
     /// Starts editing the active cell. `text` replaces the content (typing) or pre-fills it.
     pub fn begin_edit(&mut self, text: Option<String>, from_formula_bar: bool) {
-        // The source formula is display-only on spill children. Grid replacement keeps its
-        // existing behavior, but no formula-bar entry path may edit that displayed formula.
-        if from_formula_bar && formula_bar::active_spill_anchor(self).is_some() {
+        // A spill child belongs to its anchor formula. Keep the formula bar read-only and
+        // explain refused keyboard/IME edits instead of turning the array into #SPILL!.
+        if formula_bar::active_spill_anchor(self).is_some() {
+            if !from_formula_bar {
+                self.message = Some(("Rustani".into(), "You can't change part of an array.".into()));
+            }
             return;
         }
         if let Err(e) = self.commit_text_box_edit() {
@@ -1582,7 +1585,9 @@ impl SheetApp {
 
 /// Strips the engine's error prefixes for message boxes.
 pub fn clean_error(e: &str) -> String {
-    if let Some(rest) = e.split_once("`: ").map(|(_, r)| r) {
+    if (e.starts_with("command `") || e.starts_with("invalid parameters for `"))
+        && let Some(rest) = e.split_once("`: ").map(|(_, r)| r)
+    {
         return rest.to_string();
     }
     e.to_string()

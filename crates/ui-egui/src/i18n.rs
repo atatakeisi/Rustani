@@ -219,11 +219,48 @@ impl Language {
         translated.unwrap_or_else(|| text.rsplit_once('|').map_or(text, |(_, label)| label))
     }
 
-    pub(crate) fn tr_error(self, message: &str) -> String {
-        let message = if message.starts_with("command `") { crate::clean_error(message) } else { message.to_owned() };
+    /// Localizes user-facing errors, retaining identifiers and logging unknown Japanese keys.
+    /// Command/API results remain untouched; apply this only at the presentation boundary.
+    pub fn tr_error(self, message: &str) -> String {
+        self.tr_error_nested(message, 0)
+    }
+
+    fn tr_error_nested(self, message: &str, depth: u8) -> String {
+        let message = crate::clean_error(message);
         if self == Self::Ja {
+            if depth >= 4 {
+                return japanese_unknown_error(&message);
+            }
+            if let Some((_, detail)) = message.strip_prefix("internal error in `").and_then(|s| s.split_once("` (the workbook was kept as it was): "))
+            {
+                log::warn!("Internal command error: {detail}");
+                return "内部エラーのため操作を中止しました。ブックは操作前の状態に保たれています。".into();
+            }
             if let Some((_, translated)) = ja::ERRORS.iter().find(|(source, _)| *source == message) {
                 return (*translated).to_owned();
+            }
+            if let Some(what) = message.strip_suffix(" isn't allowed on this protected sheet (Review › Unprotect Sheet).") {
+                let operation = self.tr(what);
+                let operation = if has_japanese(operation) { operation } else { "選択した操作" };
+                return format!("保護されたシート上では{operation}は許可されていません（「校閲」＞「シート保護の解除」）。");
+            }
+            if let Some(name) = message
+                .strip_prefix("The range \"")
+                .and_then(|s| s.strip_suffix("\" needs its password before it can be changed (Review › Allow Edit Ranges)."))
+            {
+                return format!("範囲 \"{name}\" を変更するにはパスワードが必要です（「校閲」＞「範囲の編集を許可」）。");
+            }
+            if let Some(name) = message.strip_prefix("no sheet named `").and_then(|s| s.strip_suffix('`')) {
+                return format!("シート `{name}` が見つかりません。");
+            }
+            if let Some((reference, _)) = message.strip_prefix("invalid cell reference `").and_then(|s| s.split_once("` for `")) {
+                return format!("セル参照 `{reference}` が正しくありません。");
+            }
+            if let Some(range) = message.strip_prefix("invalid range `").and_then(|s| s.strip_suffix('`')) {
+                return format!("セル範囲 `{range}` の指定が正しくありません。");
+            }
+            if message.starts_with("command `") && message.contains("` is not available right now:") {
+                return "現在の選択範囲やブックの状態では、この操作を実行できません。".into();
             }
             for (prefix, suffix, label) in [
                 ("VBA member or function `", "` is not implemented", "VBA のメンバーまたは関数"),
@@ -241,7 +278,6 @@ impl Language {
                 ("Procedure not found: ", "プロシージャが見つかりません: "),
                 ("Unsupported declaration type: ", "未対応の変数型です: "),
                 ("Unsupported character: ", "使用できない文字: "),
-                ("worksheet error: ", "ワークシート エラー: "),
                 ("worksheet not found: ", "シートが見つかりません: "),
                 ("invalid range: ", "範囲が正しくありません: "),
                 ("Unsupported member ", "未対応のメンバー: "),
@@ -249,6 +285,9 @@ impl Language {
                 if let Some(detail) = message.strip_prefix(prefix) {
                     return format!("{translation}{detail}");
                 }
+            }
+            if let Some(detail) = message.strip_prefix("worksheet error: ") {
+                return format!("ワークシート エラー: {}", self.tr_error_nested(detail.trim_start_matches("worksheet error: "), depth + 1));
             }
             for (suffix, translation) in [
                 (" arguments are not implemented", "の引数は箱庭型ミニVBAでは未対応です"),
@@ -278,7 +317,11 @@ impl Language {
         let translated = self.tr(&message);
         let fallback = message.rsplit_once('|').map_or(message.as_str(), |(_, label)| label);
 
-        if translated == fallback { message } else { translated.to_owned() }
+        let result = if translated == fallback { message } else { translated.to_owned() };
+        if self == Self::Ja && !has_japanese(&result) && result.chars().any(|c| c.is_ascii_alphabetic()) {
+            return japanese_unknown_error(&result);
+        }
+        result
     }
 
     /// A worksheet function's description in this language, looked up by the English text of the
@@ -300,6 +343,15 @@ impl Language {
             _ => None,
         }
     }
+}
+
+fn has_japanese(text: &str) -> bool {
+    text.chars().any(|c| matches!(c, '\u{3040}'..='\u{30ff}' | '\u{3400}'..='\u{9fff}' | '\u{ff66}'..='\u{ff9f}'))
+}
+
+fn japanese_unknown_error(message: &str) -> String {
+    log::warn!("Untranslated Japanese notification: {message}");
+    "この操作を実行できませんでした。入力内容や選択範囲を確認してください。".into()
 }
 
 fn japanese_formula_reason(reason: &str) -> String {
@@ -336,7 +388,8 @@ fn japanese_formula_reason(reason: &str) -> String {
     if let Some(rest) = reason.strip_prefix("array constants may only contain constants, found ") {
         return format!("配列定数に指定できるのは定数だけです: {}", token(rest));
     }
-    reason.into()
+    log::warn!("Untranslated Japanese formula error: {reason}");
+    "数式の構文を確認してください".into()
 }
 
 /// English text and its translation, sorted by the English.
@@ -411,6 +464,44 @@ fn name_sort_key(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn japanese_error_wrappers_preserve_identifiers_and_recovery_advice() {
+        assert_eq!(Language::Ja.tr_error("invalid parameters for `cell.set`: no such sheet"), "指定されたシートが見つかりません。");
+        assert_eq!(
+            Language::Ja.tr_error("internal error in `edit.paste` (the workbook was kept as it was): failed invariant"),
+            "内部エラーのため操作を中止しました。ブックは操作前の状態に保たれています。"
+        );
+        assert_eq!(Language::Ja.tr_error("invalid cell reference `ZZ0` for `cell`"), "セル参照 `ZZ0` が正しくありません。");
+        assert_eq!(Language::Ja.tr_error("invalid range `A0:B1`"), "セル範囲 `A0:B1` の指定が正しくありません。");
+        assert_eq!(
+            Language::Ja.tr_error("The range \"売上|East\" needs its password before it can be changed (Review › Allow Edit Ranges)."),
+            "範囲 \"売上|East\" を変更するにはパスワードが必要です（「校閲」＞「範囲の編集を許可」）。"
+        );
+        assert_eq!(crate::clean_error("User text `key`: keep this"), "User text `key`: keep this");
+        assert_eq!(Language::En.tr_error("Printer Office: permission denied"), "Printer Office: permission denied");
+        // Successful notifications must retain their meaning, never turn into generic failures.
+        assert_eq!(
+            Language::Ja.tr_error("Solver found an optimal solution. All constraints are satisfied."),
+            "最適解が見つかりました。すべての制約を満たしています。"
+        );
+    }
+
+    #[test]
+    fn japanese_fallback_is_bounded_and_fullwidth_punctuation_is_not_translation() {
+        let fallback = "この操作を実行できませんでした。入力内容や選択範囲を確認してください。";
+        assert_eq!(Language::Ja.tr_error("Future error！"), fallback);
+        assert_eq!(Language::Ja.tr_error("Future error|detail"), fallback);
+        let nested = "worksheet error: command `nested`: ".repeat(32) + "Future error";
+        let result = Language::Ja.tr_error(&nested);
+        assert!(result.ends_with(fallback));
+        assert!(result.len() < 400, "nested wrappers must not cause unbounded recursion or output");
+        assert_eq!(Language::Ja.tr_error("worksheet error: no workbook open"), "ワークシート エラー: ブックが開かれていません。");
+        assert_eq!(
+            Language::Ja.tr_error("There's a problem with this formula: future parser reason"),
+            "この数式には問題があります: 数式の構文を確認してください"
+        );
+    }
 
     #[test]
     fn japanese_formula_errors_translate_structure_without_losing_parameters() {

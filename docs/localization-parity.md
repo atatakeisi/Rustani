@@ -1,13 +1,21 @@
 # Localization parity
 
-> **Last reviewed:** 2026-10-27 (Japanese edition changes only) · **Last updated:** 2026-10-27 · **Change:** minor (additional VBA and spreadsheet diagnostics) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
+> **Last reviewed:** 2026-10-28 (Japanese edition changes only) · **Last updated:** 2026-10-28 · **Change:** minor (Japanese dialogs, notifications and combinatorial QA) · **Target:** Microsoft Excel (Microsoft 365), Excel for Mac 16.113.4
 
 Per-language status against Excel, which ships its UI in dozens of languages (Windows language
 packs cover 100+), with localized function names, argument separators, number and date formats,
 right-to-left sheets and full complex-script support. Part of
 [target-app-parity.md](target-app-parity.md). **Localization: ~10% ready, 100–165 h** (estimated).
 
-## 日本語版の更新（2026-10-27）
+## 日本語版の更新（2026-10-28）
+
+検索・置換、ジャンプ、並べ替え、名前の管理、グラフ、条件付き書式、ゴールシーク、分析ツール、ソルバー、スペルチェック、画像挿入、保存確認のカスタムダイアログを翻訳辞書に接続。ソルバーの結果、可変件数の通知、マクロ保持・除外の通知バーと詳細ボタンも日本語化した。保護操作・範囲パスワード・セル参照などの可変エラーは識別子を残して説明を翻訳する。
+
+未知の英語エラーは日本語の操作案内に置換し、原文は開発者ログに残す。内部エラーは操作前のブックが維持されたことを明記する。日本語のない英字エラーを表示しない最後のガードと、ネストしたエラーの再帰上限を追加。ユーザーのセル内容・VBAソース・実行ログ・関数名・ファイル名・APIの返値は翻訳しない。
+
+`crates/ui-egui/tests/combinatorial_qa.rs` の10複合シナリオで、指定ダイアログの見出し・操作文言、50件以上の代表エラーの実際のポップアップ、通知とデータ保持を確認する。対象項目の全件確認を、全画面・未知のエラー内容の個別翻訳・全言語の完成率と混同しない。Safari実機のIME・OSダイアログは今回の自動検証に含まない。
+
+## 日本語版の更新（2026-10-27、履歴）
 
 VBA と編集・書式エラーの定型文および一部の可変診断を追加翻訳し、画面カスタマイズ設定とマクロの動作説明も日本語化しました。未網羅のエラーや他画面の英語は残るため、全画面の完全日本語化は未検証です。以下は 2026-10-23 時点の記録です。
 
@@ -119,6 +127,7 @@ language (none so far) and of localized function names.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-28 | minor | Translate audited custom dialogs and notifications; bounded Japanese error fallback; ten cross-feature UI/engine scenarios with rendered popup checks |
 | 2026-10-23 | minor | Japanese startup policy, 50 additional editor/diagnostic keys, translated drawing paths and Japanese README; full coverage/locale estimates unchanged |
 | 2026-10-21 | minor | Romanian interface (`ro`, Română): 970 labels covering every key of the other catalogs (`crates/ui-egui/src/i18n/ro.rs`), `ro-*` system locales, the View-tab switcher and `app.language.set`; context keys show no prefix (File › Options test). English formulas and formats; AI-assisted draft pending native-speaker review |
 | 2026-10-20 | minor | Japanese: furigana (`rPh` phonetic runs and `<phoneticPr>` in `xl/sharedStrings.xml`) is no longer deleted by an open + save; it is kept on the workbook and written back (a `<phoneticPr>` without runs is kept too, while duplicate texts with different readings keep only the first, reported on open). Display of the readings is still missing (`crates/xlsx/src/tests/phonetic_tests.rs`) |

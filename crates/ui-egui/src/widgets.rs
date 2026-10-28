@@ -490,6 +490,7 @@ pub fn toast(app: &mut SheetApp, ctx: &egui::Context) {
 /// optional action button and a dismiss ✕. Returns nothing; dismissing clears `app.notice`.
 pub fn notice_bar(app: &mut SheetApp, ui: &mut Ui) {
     let Some(notice) = app.notice.clone() else { return };
+    let lang = app.ui.language;
     let t = Tokens::get(ui.ctx());
     let (bg, border) = match notice.kind {
         crate::NoticeKind::Warning => (t.notice_warn_bg, t.notice_warn_border),
@@ -513,13 +514,13 @@ pub fn notice_bar(app: &mut SheetApp, ui: &mut Ui) {
                 border,
             );
             ui.add_space(6.0);
-            ui.label(egui::RichText::new(&notice.text).font(theme::ui_font(12.5)).color(t.text));
+            ui.label(egui::RichText::new(lang.tr_error(&notice.text)).font(theme::ui_font(12.5)).color(t.text));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if icon_button(ui, Icon::Close, t.text_dim, "Dismiss", vec2(20.0, 20.0)).clicked() {
+                if icon_button(ui, Icon::Close, t.text_dim, lang.tr("Dismiss"), vec2(20.0, 20.0)).clicked() {
                     dismiss = true;
                 }
                 if let Some((label, dialog)) = &notice.action
-                    && ui.button(egui::RichText::new(label).font(theme::ui_font(12.5))).clicked()
+                    && ui.button(egui::RichText::new(lang.tr(label)).font(theme::ui_font(12.5))).clicked()
                 {
                     action = Some((label.clone(), dialog.clone()));
                 }

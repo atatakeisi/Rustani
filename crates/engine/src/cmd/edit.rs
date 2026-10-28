@@ -1243,6 +1243,23 @@ fn paste_special(s: &mut Session, p: &Json) -> Result<Json> {
     let plan = paste_plan(s, p, dest_sheet, h, w, cut_move)?;
     let src_wb = clip.wb.clone();
     let Some(src_sheet) = src_wb.sheet(clip.sheet) else { return Err(EngineError::Other("The copied sheet no longer exists.".into())) };
+    if cut_move {
+        let source_partial = src_sheet.merges.iter().any(|merged| merged.intersects(&src) && !src.contains_range(merged));
+        let target_partial = s.doc()?.wb.sheet(dest_sheet).is_some_and(|sheet| {
+            plan.targets.iter().any(|target| {
+                sheet.merges.iter().any(|merged| {
+                    // A complete source merge is removed first; moving it onto its own old
+                    // footprint does not split a destination merge that remains in the sheet.
+                    !(clip.sheet == dest_sheet && src.contains_range(merged))
+                        && merged.intersects(&target.range)
+                        && !target.range.contains_range(merged)
+                })
+            })
+        });
+        if source_partial || target_partial {
+            return Err(EngineError::Other("You can't move part of a merged cell. Select the entire merged area.".into()));
+        }
+    }
     let src_sheet_name = src_sheet.name.clone();
     let mut owned = paste_owned_bytes(src_sheet, src, what, link).saturating_mul(plan.repeats);
     if op != "none"
