@@ -249,7 +249,7 @@ fn combination_07_japanese_custom_dialogs_and_notifications() {
             json!({"message":"Solver found an optimal solution. All constraints are satisfied.","changed":true,"values":{"A1":1}}),
             vec!["Keep Solver Solution", "Restore Original Values", "Reports:", "Answer", "Limits"],
         ),
-        ("spelling", json!({}), vec!["The spelling check is complete for the entire sheet."]),
+        ("spelling", json!({}), vec![]),
         ("saveChanges", json!({}), vec!["Don't Save", "Cancel", "Save"]),
         ("saveCopy", json!({"format":"xlsx"}), vec!["Cancel"]),
         (
@@ -298,6 +298,15 @@ fn combination_07_japanese_custom_dialogs_and_notifications() {
     assert!(h.query_by_label("1 個のセルが見つかりました").is_some());
     h.state_mut().dialog = None;
     h.state_mut().open_dialog("spelling", json!({}));
+    h.state_mut().dialog.as_mut().unwrap().result = Some(json!({"issues":[]}));
+    h.run_steps(3);
+    assert!(h.query_by_label(Language::Ja.tr("The spelling check is complete for the entire sheet.")).is_some());
+    assert!(h.query_by_label("The spelling check is complete for the entire sheet.").is_none());
+    let dict_err = "No dictionary is available on this system (GridCraft uses the system word list).";
+    h.state_mut().dialog.as_mut().unwrap().result = Some(json!({"error": dict_err}));
+    h.run_steps(3);
+    assert!(h.query_by_label(&Language::Ja.tr_error(dict_err)).is_some());
+    assert!(h.query_by_label(dict_err).is_none());
     h.state_mut().dialog.as_mut().unwrap().result = Some(json!({"issues":[{"cell":"A2","word":"helllo","suggestions":["hello"]}]}));
     h.state_mut().dialog.as_mut().unwrap().values.insert("pick".into(), json!("hello"));
     h.run_steps(3);
