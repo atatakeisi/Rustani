@@ -63,8 +63,8 @@ pub fn lookup(key: Key, physical: Option<Key>, m: Modifiers, mac: bool) -> Optio
     let k = if navigation { key } else { physical.unwrap_or(key) };
     // Control itself (Excel for Mac also uses Control for these), Ctrl on Windows / Cmd on Mac,
     // and Alt/Option alone.
-    let ctrl = m.ctrl && !m.alt;
-    let cmd = m.command && !m.alt;
+    let ctrl = m.ctrl && !m.alt && !(mac && m.mac_cmd);
+    let cmd = m.command && !m.alt && !(mac && m.ctrl);
     let alt = m.alt && !m.ctrl && !m.command;
     let ctrl_alt = m.alt && (m.ctrl || m.command);
     let plain = !m.ctrl && !m.command && !m.alt;

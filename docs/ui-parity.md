@@ -83,6 +83,8 @@ this logic, with one undo step.
 
 ## Keyboard
 
+Preventive shortcut safeguards (2026-10-28): reject unintended Control+Command fall-through on macOS, ignore auto-repeat for discrete grid actions while preserving navigation/selection/Undo/text repeats, and reject delayed grid input while the window lacks focus. Five additional regressions cover these boundaries and input ownership across cell/formula/find/filter/VBA editors; 110 related UI tests pass. Details: [preventive QA report](../ai-team/reports/codex-shortcut-preventive-qa-20261028-221300.md).
+
 2026-10-28 follow-up: Safari Web App's Option+Command+T must remain a browser toolbar action. Extended modifier combinations no longer fall through to plain Command-letter commands; otherwise that chord created an empty table and generated `Column1` in the selected cell. Regression tests feed real egui key events, assert unchanged workbook/selection/history, and preserve plain Cmd/Ctrl+T and Windows AltGr input. The Japanese AutoFilter popup (sort/search/select all/blanks/apply) is translated, while worksheet values remain unchanged. Earlier combinatorial QA did not cover browser toolbar shortcut collisions.
 
 | Area | Excel | GridCraft |

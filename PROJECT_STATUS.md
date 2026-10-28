@@ -2,6 +2,10 @@
 
 更新日: 2026-10-28（日本時間）。**最新作業は指定ダイアログ・エラー通知の日本語化と10種類の複合操作QA。** 箱庭型ミニVBAの方針は維持。公開URLは `https://atatakeisi.github.io/Rustani/`。詳細は直下の更新記録と `ai-team/reports/codex-final-combinatorial-qa-20261028-163600.md` を参照。確定コミット・同期・配信結果は `git log -1 --oneline`、`git status -sb`、同じSHAのPages runで確認する。
 
+## 2026-10-28 追加の予防QA（公開用統合）
+
+類似ケースを追加検証し、macOSのControl+Command誤分岐、新規作成等のキーリピート、非アクティブウィンドウへの遅延キー/Pasteの3件を合成イベントで再現・修正。関連110件、Clippy、Web/WASM check成功。検証時は対象チェックに絞った。その後の公開依頼に基づく最終CIは全8項目・2415件成功。公開用コミットに統合し、確定SHA・配信結果は同じコミットのActions runで確認する。詳細: `ai-team/reports/codex-shortcut-preventive-qa-20261028-221300.md`。直前の公開修正 `5f4115f6` と区別する。
+
 ## 2026-10-28 Safariツールバーのショートカット衝突
 
 ユーザー実機で、⌥⌘TによるSafari Web Appのツールバー表示と同時にテーブルが作成される不具合を確認。共通ショートカット処理がOptionを無視して⌘Tにフォールバックしていた。`browser_shortcut_isolation.rs` にキーイベントの再現テストを追加し、修正前の失敗を確認してから、追加修飾キーを拒否するガードを実装。通常の⌘T/Ctrl+TとWindows AltGr入力は維持する。前回の10複合QAにこのOS/ブラウザ操作は含まれていなかった。英語が残っていたフィルターポップアップも翻訳・検証。記録: `ai-team/reports/codex-safari-toolbar-shortcut-20261028-214400.md`。

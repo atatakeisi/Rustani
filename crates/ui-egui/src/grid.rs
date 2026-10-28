@@ -2974,6 +2974,10 @@ fn select_ranges(app: &mut SheetApp, r: RangeRef, add: bool, active: CellRef) {
 
 /// Grid keyboard handling when no text field has focus.
 fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo: &Geo, sh: &Sheet) {
+    // Delayed browser events after a blur must not edit the sheet behind another window.
+    if !ctx.input(|input| input.focused) {
+        return;
+    }
     // Focus left on an editor that no longer exists goes back to the grid.
     let stale = [egui::Id::new("gridcraft.cell_editor"), egui::Id::new("gridcraft.formula_bar"), crate::text_box::editor_id()];
     let editing = app.editor.is_some() || app.text_box_editor.is_some();
@@ -3066,8 +3070,33 @@ fn keyboard(app: &mut SheetApp, ctx: &egui::Context, resp: &egui::Response, geo:
                 }
                 return;
             }
-            egui::Event::Key { key, physical_key, pressed: true, modifiers: m, .. } => {
+            egui::Event::Key { key, physical_key, pressed: true, repeat, modifiers: m, .. } => {
                 use egui::Key;
+                // A held action key must not open/close more workbooks, create more objects or
+                // repeatedly toggle formatting. Navigation, selection, deletion, Undo and incremental
+                // font/zoom controls intentionally repeat. TextEdit owns ordinary text repeats.
+                let repeatable = matches!(
+                    key,
+                    Key::ArrowUp
+                        | Key::ArrowDown
+                        | Key::ArrowLeft
+                        | Key::ArrowRight
+                        | Key::Home
+                        | Key::End
+                        | Key::PageUp
+                        | Key::PageDown
+                        | Key::Enter
+                        | Key::Tab
+                        | Key::Backspace
+                        | Key::Delete
+                ) || (m.command && !m.alt && matches!(key, Key::Z | Key::Y))
+                    || (key == Key::Space && (m.command || m.ctrl || m.shift))
+                    || (m.command && m.shift && !m.alt && matches!(key, Key::Period | Key::Comma))
+                    || (m.alt && (m.ctrl || m.command) && matches!(key, Key::Equals | Key::Plus | Key::Minus));
+                if repeat && !repeatable {
+                    shortcut_ran |= m.command || m.ctrl || m.alt;
+                    continue;
+                }
                 // Native screenshot clipboards may have no text and therefore no Paste event.
                 // Key and Paste can also share a frame, so insert an image at most once.
                 if key == Key::V && m.command && !m.alt && !m.shift && (pasted_picture || app.try_paste_picture()) {
