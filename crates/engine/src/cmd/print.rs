@@ -2143,9 +2143,8 @@ mod tests {
         let (pdf, _) = pdf_of(&mut s, json!({}));
         assert!(contains(&pdf, "/Subtype /Image"));
         assert!(contains(&pdf, "/SMask"));
-        if charts > 0 {
-            assert!(contains(&pdf, "(Apples) Tj") || contains(&pdf, "(Qty) Tj"));
-        }
+        assert!(charts > 0, "the test must create a chart");
+        assert!(contains(&pdf, "(Apples) Tj") || contains(&pdf, "(Qty) Tj"), "the PDF must contain chart labels");
     }
 
     #[test]

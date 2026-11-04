@@ -826,7 +826,8 @@ const PREVIEW_COLS: u32 = 60;
 /// inside the sheet's margins. `paper_w` is the page width in points.
 fn paint_page(p: &egui::Painter, rect: Rect, paper_w: f32, page: &Json, wb: &gridcraft_engine::model::Workbook, t: &Tokens) {
     let Some(range) = page.get("range").and_then(Json::as_str).and_then(gridcraft_engine::core::RangeRef::parse) else { return };
-    let Some(sh) = page.get("sheet").and_then(Json::as_str).and_then(|n| wb.sheet_index(n)).and_then(|i| wb.sheets.get(i)) else { return };
+    let Some(sheet_index) = page.get("sheet").and_then(Json::as_str).and_then(|n| wb.sheet_index(n)) else { return };
+    let Some(sh) = wb.sheets.get(sheet_index) else { return };
     // Preview pixels per point, and per sheet pixel (sheet geometry is 96 dpi: 0.75 pt per pixel).
     let per_pt = rect.width() / paper_w;
     let print_scale =
@@ -884,6 +885,19 @@ fn paint_page(p: &egui::Painter, rect: Rect, paper_w: f32, page: &Json, wb: &gri
         }
         y += h;
     }
+    // Draw the same anchored charts included by the PDF renderer, clipped to this page.
+    let origin_x = sh.col_left(range.start.col);
+    let origin_y = sh.row_top(range.start.row);
+    let painter = p.with_clip_rect(body);
+    for chart in &sh.charts {
+        let anchor = &chart.anchor;
+        let x = body.left() + ((sh.col_left(anchor.cell.col) + f64::from(anchor.dx) - origin_x) as f32) * per_px;
+        let y = body.top() + ((sh.row_top(anchor.cell.row) + f64::from(anchor.dy) - origin_y) as f32) * per_px;
+        let chart_rect = Rect::from_min_size(pos2(x, y), vec2(anchor.width * per_px, anchor.height * per_px));
+        if chart_rect.is_positive() && chart_rect.intersects(body) {
+            crate::chartview::paint_chart(&painter, chart_rect, wb, sheet_index, chart);
+        }
+    }
 }
 
 fn export(app: &mut SheetApp, ui: &mut Ui, out: &mut Outcome) {
@@ -938,7 +952,14 @@ pub fn export_as(app: &mut SheetApp, fmt: &str) -> bool {
     if fmt == "pdf" {
         // Without a path the PDF comes back as bytes, which `SheetApp::run` hands to the browser.
         return match app.run(id, json!({})) {
-            Ok(_) => true,
+            Ok(_) => {
+                let message = match app.ui.language {
+                    crate::i18n::Language::Ja => "PDF の保存先を確認してください。",
+                    _ => "Check your browser's save dialog or downloads for the PDF.",
+                };
+                app.toast = Some((message.to_owned(), crate::now_ms()));
+                true
+            }
             Err(e) => {
                 app.message = Some(("Rustani".into(), crate::clean_error(&e)));
                 false
